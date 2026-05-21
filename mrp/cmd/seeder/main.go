@@ -9,9 +9,6 @@ import (
 
 	reposqlite "zeus-mrp-service/internal/repository/sqlite"
 	"zeus-mrp-service/seeder"
-
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 func main() {
@@ -19,7 +16,7 @@ func main() {
 	dbPath := flag.String("db", defaultDBPath, "sqlite database path")
 	flag.Parse()
 
-	db, err := gorm.Open(sqlite.Open(*dbPath), &gorm.Config{})
+	db, err := reposqlite.OpenDatabase(*dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}

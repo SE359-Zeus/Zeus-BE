@@ -16,8 +16,6 @@ import (
 	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
-	gsqlite "gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 func main() {
@@ -28,7 +26,7 @@ func main() {
 	if dbPath == "" {
 		dbPath = "mrp.db"
 	}
-	db, err := gorm.Open(gsqlite.Open(dbPath), &gorm.Config{})
+	db, err := reposqlite.OpenDatabase(dbPath)
 	if err != nil {
 		log.Fatalf("failed to open sqlite db: %v", err)
 	}

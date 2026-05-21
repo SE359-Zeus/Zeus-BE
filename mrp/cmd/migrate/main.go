@@ -7,14 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	gsqlite "gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/golang-migrate/migrate/v4/source/file"
 
 	"zeus-mrp-service/internal/models"
+	reposqlite "zeus-mrp-service/internal/repository/sqlite"
 )
 
 func main() {
@@ -23,7 +21,7 @@ func main() {
 	flag.Parse()
 
 	// open gorm DB
-	db, err := gorm.Open(gsqlite.Open(*dbPath), &gorm.Config{})
+	db, err := reposqlite.OpenDatabase(*dbPath)
 	if err != nil {
 		log.Fatalf("failed to open sqlite db: %v", err)
 	}
