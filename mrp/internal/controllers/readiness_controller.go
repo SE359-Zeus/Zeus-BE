@@ -121,13 +121,23 @@ func (c *ProductionController) ExportReport(w http.ResponseWriter, r *http.Reque
 
 // GET /api/v1/mrp/shortages
 func (c *ProductionController) GetShortages(w http.ResponseWriter, r *http.Request) {
+	page, per, err := parsePaginationParams(r)
+	if err != nil {
+		writeErrorJSON(w, http.StatusBadRequest, "invalid pagination params", nil)
+		return
+	}
+
 	shortages, err := c.svc.GetAggregatedDemand(r.Context())
 	if err != nil {
 		writeErrorJSON(w, readinessHTTPStatus(err), err.Error(), nil)
 		return
 	}
-
-	writeJSON(w, http.StatusOK, shortages)
+	items := make([]any, 0, len(shortages))
+	for _, s := range shortages {
+		items = append(items, s)
+	}
+	pageItems, meta := paginateAny(items, page, per)
+	writeEnvelope(w, http.StatusOK, http.StatusText(http.StatusOK), meta, pageItems)
 }
 
 // GET /api/v1/mrp/readiness/{orderId}

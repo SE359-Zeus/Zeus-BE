@@ -27,13 +27,22 @@ func parseDemandOrderID(r *http.Request) (uuid.UUID, error) {
 
 // GET /api/v1/mrp/demand
 func (c *ProductionController) GetDemandSummary(w http.ResponseWriter, r *http.Request) {
+	page, per, err := parsePaginationParams(r)
+	if err != nil {
+		writeErrorJSON(w, http.StatusBadRequest, "invalid pagination params", nil)
+		return
+	}
 	summary, err := c.svc.GetDemandSummary(r.Context())
 	if err != nil {
 		writeErrorJSON(w, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
-
-	writeJSON(w, http.StatusOK, summary)
+	items := make([]any, 0, len(summary))
+	for _, s := range summary {
+		items = append(items, s)
+	}
+	pageItems, meta := paginateAny(items, page, per)
+	writeEnvelope(w, http.StatusOK, http.StatusText(http.StatusOK), meta, pageItems)
 }
 
 // POST /api/v1/mrp/demand/generate-pos

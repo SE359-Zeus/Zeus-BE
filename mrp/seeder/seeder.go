@@ -35,12 +35,16 @@ func SeedAll(ctx context.Context, repo repository.DbRepository) error {
 	now := time.Now().UTC()
 	alphaModel := "WORKSTATION-ALPHA"
 	betaModel := "WORKSTATION-BETA"
+	gammaModel := "WORKSTATION-GAMMA"
 
 	alphaPartCPU := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:part:cpu"))
 	alphaPartPSU := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:part:psu"))
 	alphaPartRAM := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:part:ram"))
 	betaPartSSD := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:part:ssd"))
 	betaPartFAN := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:part:fan"))
+	gammaPartCase := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:part:case"))
+	gammaPartPSU := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:part:psu_v2"))
+	sharedPartCPU := alphaPartCPU // reuse CPU across models to demonstrate where-used
 
 	bomEntries := []models.BomEntry{
 		{ParentModelCode: alphaModel, ComponentPartID: alphaPartCPU, RequiredQuantityPerUnit: 1},
@@ -49,6 +53,10 @@ func SeedAll(ctx context.Context, repo repository.DbRepository) error {
 		{ParentModelCode: betaModel, ComponentPartID: alphaPartCPU, RequiredQuantityPerUnit: 1},
 		{ParentModelCode: betaModel, ComponentPartID: betaPartSSD, RequiredQuantityPerUnit: 1},
 		{ParentModelCode: betaModel, ComponentPartID: betaPartFAN, RequiredQuantityPerUnit: 2},
+		// Gamma model BOM — demonstrates a different BOM with some shared and unique parts
+		{ParentModelCode: gammaModel, ComponentPartID: sharedPartCPU, RequiredQuantityPerUnit: 1},
+		{ParentModelCode: gammaModel, ComponentPartID: gammaPartCase, RequiredQuantityPerUnit: 1},
+		{ParentModelCode: gammaModel, ComponentPartID: gammaPartPSU, RequiredQuantityPerUnit: 1},
 	}
 	if err := repo.CreateBOMEntries(ctx, bomEntries); err != nil {
 		return fmt.Errorf("seed bom entries: %w", err)
@@ -73,6 +81,14 @@ func SeedAll(ctx context.Context, repo repository.DbRepository) error {
 			ScheduledAt:      now.Add(96 * time.Hour),
 			CreatedAt:        now,
 		},
+		{
+			ID:               uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:order:gamma")),
+			ProductModelCode: gammaModel,
+			TargetQuantity:   4,
+			Status:           models.StatusPartial,
+			ScheduledAt:      now.Add(48 * time.Hour),
+			CreatedAt:        now,
+		},
 	}
 	for i := range productionOrders {
 		order := productionOrders[i]
@@ -95,6 +111,21 @@ func SeedAll(ctx context.Context, repo repository.DbRepository) error {
 			PartID:            betaPartFAN,
 			ShortageQty:       4,
 			ResolutionStatus:  "EMITTED",
+		},
+		// Additional shortages for gamma order to exercise shortage aggregation logic
+		{
+			ID:                uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:shortage:gamma:psu")),
+			ProductionOrderID: uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:order:gamma")),
+			PartID:            gammaPartPSU,
+			ShortageQty:       2,
+			ResolutionStatus:  "PENDING",
+		},
+		{
+			ID:                uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:shortage:gamma:case")),
+			ProductionOrderID: uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:order:gamma")),
+			PartID:            gammaPartCase,
+			ShortageQty:       1,
+			ResolutionStatus:  "PENDING",
 		},
 	}
 	for i := range shortageLogs {

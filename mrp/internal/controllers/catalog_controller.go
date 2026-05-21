@@ -10,12 +10,24 @@ import (
 
 // GET /api/v1/mrp/assemblies
 func (c *ProductionController) GetAssemblies(w http.ResponseWriter, r *http.Request) {
+	page, per, err := parsePaginationParams(r)
+	if err != nil {
+		writeErrorJSON(w, http.StatusBadRequest, "invalid pagination params", nil)
+		return
+	}
+
 	res, err := c.svc.GetAssemblies(r.Context())
 	if err != nil {
 		writeErrorJSON(w, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
-	writeJSON(w, http.StatusOK, res)
+	// convert to []any for generic pagination
+	items := make([]any, 0, len(res))
+	for _, v := range res {
+		items = append(items, v)
+	}
+	pageItems, meta := paginateAny(items, page, per)
+	writeEnvelope(w, http.StatusOK, http.StatusText(http.StatusOK), meta, pageItems)
 }
 
 // POST /api/v1/mrp/assemblies
@@ -79,12 +91,22 @@ func (c *ProductionController) DeleteAssembly(w http.ResponseWriter, r *http.Req
 
 // GET /api/v1/mrp/catalog
 func (c *ProductionController) GetCatalog(w http.ResponseWriter, r *http.Request) {
+	page, per, err := parsePaginationParams(r)
+	if err != nil {
+		writeErrorJSON(w, http.StatusBadRequest, "invalid pagination params", nil)
+		return
+	}
 	res, err := c.svc.GetCatalog(r.Context())
 	if err != nil {
 		writeErrorJSON(w, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
-	writeJSON(w, http.StatusOK, res)
+	items := make([]any, 0, len(res))
+	for _, v := range res {
+		items = append(items, v)
+	}
+	pageItems, meta := paginateAny(items, page, per)
+	writeEnvelope(w, http.StatusOK, http.StatusText(http.StatusOK), meta, pageItems)
 }
 
 // GET /api/v1/mrp/catalog/{sku}/where-used

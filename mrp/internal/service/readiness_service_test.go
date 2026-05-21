@@ -165,21 +165,21 @@ func TestProductionService_GetReadinessMatrix(t *testing.T) {
 	page := models.PaginationParams{Page: 1, PerPage: 20}
 	res, err := svc.GetReadinessMatrix(context.Background(), filter, page)
 	assert.NoError(t, err)
-	assert.Nil(t, res)
+	assert.NotNil(t, res)
 }
 
 func TestProductionService_GetReadinessMetrics(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	res, err := svc.GetReadinessMetrics(context.Background())
 	assert.NoError(t, err)
-	assert.Nil(t, res)
+	assert.NotNil(t, res)
 }
 
 func TestProductionService_ExportReadinessReport(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	res, err := svc.ExportReadinessReport(context.Background())
 	assert.NoError(t, err)
-	assert.Nil(t, res)
+	assert.NotNil(t, res)
 }
 
 // ------------------------------------------------------------

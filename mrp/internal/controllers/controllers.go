@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"net/http"
+
+	"zeus-mrp-service/internal/middlewares"
 	"zeus-mrp-service/internal/service"
 )
 
@@ -44,5 +46,5 @@ func NewMux(svc *service.ProductionService) http.Handler {
 
 	mux.HandleFunc("POST /api/v1/production/orders", controller.CreateOrder)
 
-	return mux
+	return middlewares.ErrorHandler(mux)
 }

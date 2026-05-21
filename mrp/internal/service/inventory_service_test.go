@@ -17,21 +17,21 @@ func TestProductionService_GetInventoryLedger(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	res, err := svc.GetInventoryLedger(context.Background())
 	assert.NoError(t, err)
-	assert.Nil(t, res)
+	assert.NotNil(t, res)
 }
 
 func TestProductionService_GetInventoryMetrics(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	res, err := svc.GetInventoryMetrics(context.Background())
 	assert.NoError(t, err)
-	assert.Nil(t, res)
+	assert.NotNil(t, res)
 }
 
 func TestProductionService_ExportInventoryCSV(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	res, err := svc.ExportInventoryCSV(context.Background())
 	assert.NoError(t, err)
-	assert.Nil(t, res)
+	assert.NotEmpty(t, res)
 }
 
 // ------------------------------------------------------------

@@ -1,0 +1,482 @@
+openapi: 3.0.3
+info:
+  title: Zeus MRP API
+  version: 1.0.0
+  description: >-
+    OpenAPI specification for the MRP module. Responses use a unified
+    envelope: {message, statusCode, metadata, data}.
+servers:
+  - url: /api/v1/mrp
+paths:
+  /readiness:
+    get:
+      summary: GET /readiness
+      description: List production readiness rows with optional filtering and pagination.
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: Filter by production order status (CLEAR_TO_BUILD, PARTIAL, SHORTAGE)
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by order ID or SKU
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Readiness matrix list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+  /readiness/metrics:
+    get:
+      summary: GET /readiness/metrics
+      responses:
+        '200':
+          description: Readiness metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+  /readiness/export:
+    get:
+      summary: GET /readiness/export
+      responses:
+        '200':
+          description: Exported readiness report (JSON)
+          content:
+            application/json:
+              schema:
+                type: object
+  /readiness/{orderId}:
+    parameters:
+      - in: path
+        name: orderId
+        required: true
+        schema:
+          type: string
+    get:
+      summary: GET /readiness/{orderId}
+      responses:
+        '200':
+          description: Readiness row
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+    post:
+      summary: POST /readiness/{orderId}/generate-po
+  /shortages:
+    get:
+      summary: GET /shortages
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Aggregated shortages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+
+  /assemblies:
+    get:
+      summary: GET /assemblies
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of assemblies
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+    post:
+      summary: POST /assemblies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAssemblyRequest'
+      responses:
+        '201':
+          description: Assembly created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+
+  /assemblies/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+    put:
+      summary: PUT /assemblies/{id}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAssemblyRequest'
+      responses:
+        '200':
+          description: Assembly updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+    delete:
+      summary: DELETE /assemblies/{id}
+      responses:
+        '204':
+          description: Assembly deleted
+
+  /catalog:
+    get:
+      summary: GET /catalog
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Catalog list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+
+  /catalog/{sku}/where-used:
+    parameters:
+      - in: path
+        name: sku
+        required: true
+        schema:
+          type: string
+    get:
+      summary: GET /catalog/{sku}/where-used
+      responses:
+        '200':
+          description: Where-used list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+
+  /demand:
+    get:
+      summary: GET /demand
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Demand summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+    post:
+      summary: POST /demand/generate-pos
+      responses:
+        '200':
+          description: PO generation started
+
+  /demand/{orderId}/pick-list:
+    parameters:
+      - in: path
+        name: orderId
+        required: true
+        schema:
+          type: string
+    get:
+      summary: GET pick list for order
+      responses:
+        '200':
+          description: Pick list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+    post:
+      summary: POST generate pick list
+      responses:
+        '201':
+          description: Pick list created
+
+  /inventory/ledger:
+    get:
+      summary: GET inventory ledger
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Inventory ledger
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+
+  /inventory/metrics:
+    get:
+      summary: GET inventory metrics
+      responses:
+        '200':
+          description: Inventory metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+
+  /inventory/ledger/export:
+    get:
+      summary: GET export inventory CSV
+      responses:
+        '200':
+          description: CSV export
+
+  /inventory/transactions/{txnId}:
+    parameters:
+      - in: path
+        name: txnId
+        required: true
+        schema:
+          type: string
+    get:
+      summary: GET inventory transaction by id
+      responses:
+        '200':
+          description: Transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+
+  /inventory/balance/{sku}:
+    parameters:
+      - in: path
+        name: sku
+        required: true
+        schema:
+          type: string
+    get:
+      summary: GET inventory balance for sku
+      responses:
+        '200':
+          description: Balance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+
+  /production/orders:
+    post:
+      summary: Create a production order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductionOrderRequest'
+      responses:
+        '201':
+          description: Production order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+
+components:
+  schemas:
+    Envelope:
+      type: object
+      properties:
+        message:
+          type: string
+        statusCode:
+          type: integer
+        metadata:
+          type: object
+        data:
+          type: object
+
+    ErrorEnvelope:
+      type: object
+      properties:
+        message:
+          type: string
+        statusCode:
+          type: integer
+        metadata:
+          type: object
+        data:
+          type: object
+
+    BOMExplosionResult:
+      type: object
+      properties:
+        part_id:
+          type: string
+        total_required_qty:
+          type: integer
+        available_qty:
+          type: integer
+        is_shortage:
+          type: boolean
+
+    ReadinessMatrixRow:
+      type: object
+      properties:
+        order_id:
+          type: string
+        target_build:
+          type: string
+        quantity:
+          type: integer
+        status:
+          type: string
+        deficit_breakdown:
+          type: array
+          items:
+            $ref: '#/components/schemas/BOMExplosionResult'
+
+    ReadinessMetrics:
+      type: object
+      properties:
+        total_open_orders:
+          type: integer
+        components_in_shortage:
+          type: integer
+        blocked_orders:
+          type: integer
+        supply_readiness_rate:
+          type: number
+
+    CreateAssemblyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        components:
+          type: array
+          items:
+            type: object
+            properties:
+              sku:
+                type: string
+              qty:
+                type: integer
+
+    UpdateAssemblyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        components:
+          type: array
+          items:
+            type: object
+            properties:
+              sku:
+                type: string
+              qty:
+                type: integer
+
+    CreateProductionOrderRequest:
+      type: object
+      properties:
+        product_model_code:
+          type: string
+        target_quantity:
+          type: integer
+
+    ProductionOrderResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        product_model_code:
+          type: string
+        target_quantity:
+          type: integer
+        status:
+          type: string
+
+    InventoryTransactionDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        sku:
+          type: string
+        type:
+          type: string
+        qty_change:
+          type: integer
+        running_balance:
+          type: integer
+        location:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    InventoryMetrics:
+      type: object
+      properties:
+        active_skus:
+          type: integer
+        stock_accuracy:
+          type: number
+        inventory_turnover:
+          type: number
+        cycle_count_gaps:
+          type: integer

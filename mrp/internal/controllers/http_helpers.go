@@ -3,6 +3,7 @@ package controllers
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"zeus-mrp-service/internal/middlewares"
@@ -63,4 +64,46 @@ func parseIDAndAction(path string, prefix string) (uuid.UUID, string, bool) {
 		action = parts[1]
 	}
 	return id, action, true
+}
+
+// parsePaginationParams reads `page` and `per_page` query params with defaults.
+func parsePaginationParams(r *http.Request) (int, int, error) {
+	q := r.URL.Query()
+	page := 1
+	per := 20
+	if raw := strings.TrimSpace(q.Get("page")); raw != "" {
+		p, err := strconv.Atoi(raw)
+		if err != nil || p <= 0 {
+			return 0, 0, err
+		}
+		page = p
+	}
+	if raw := strings.TrimSpace(q.Get("per_page")); raw != "" {
+		p, err := strconv.Atoi(raw)
+		if err != nil || p <= 0 {
+			return 0, 0, err
+		}
+		per = p
+	}
+	return page, per, nil
+}
+
+func paginateAny(items []any, page, per int) ([]any, map[string]any) {
+	total := len(items)
+	if per <= 0 {
+		per = 20
+	}
+	if page <= 0 {
+		page = 1
+	}
+	start := (page - 1) * per
+	if start >= total {
+		return []any{}, map[string]any{"page": page, "per_page": per, "total": total, "total_pages": (total + per - 1) / per}
+	}
+	end := start + per
+	if end > total {
+		end = total
+	}
+	meta := map[string]any{"page": page, "per_page": per, "total": total, "total_pages": (total + per - 1) / per}
+	return items[start:end], meta
 }

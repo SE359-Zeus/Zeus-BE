@@ -4,12 +4,22 @@ import "net/http"
 
 // GET /api/v1/mrp/inventory/ledger
 func (c *ProductionController) GetInventoryLedger(w http.ResponseWriter, r *http.Request) {
+	page, per, err := parsePaginationParams(r)
+	if err != nil {
+		writeErrorJSON(w, http.StatusBadRequest, "invalid pagination params", nil)
+		return
+	}
 	rows, err := c.svc.GetInventoryLedger(r.Context())
 	if err != nil {
 		writeErrorJSON(w, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
-	writeJSON(w, http.StatusOK, rows)
+	items := make([]any, 0, len(rows))
+	for _, v := range rows {
+		items = append(items, v)
+	}
+	pageItems, meta := paginateAny(items, page, per)
+	writeEnvelope(w, http.StatusOK, http.StatusText(http.StatusOK), meta, pageItems)
 }
 
 // GET /api/v1/mrp/inventory/metrics
