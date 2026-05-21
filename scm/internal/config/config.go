@@ -1,8 +1,11 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strconv"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -10,14 +13,19 @@ type Config struct {
 	DBPath              string
 	RabbitMQURL         string
 	AgingThresholdYears int
+	JwtPublicKey        string
 }
 
 func Load() *Config {
+	if err := godotenv.Load(); err != nil {
+		log.Printf(".env file not found, using OS env vars and defaults")
+	}
 	return &Config{
 		ServerPort:          getEnv("SERVER_PORT", "8080"),
 		DBPath:              getEnv("DB_PATH", "scm.db"),
 		RabbitMQURL:         getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
 		AgingThresholdYears: getEnvInt("AGING_THRESHOLD_YEARS", 5),
+		JwtPublicKey:        getEnv("JWT_PUBLIC_KEY", ""),
 	}
 }
 

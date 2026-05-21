@@ -14,7 +14,7 @@ import (
 
 	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
+	"gopkg.in/yaml.v3"
 )
 
 func main() {
@@ -29,36 +29,16 @@ func main() {
 		log.Printf("auto-migrate warning: %v", err)
 	}
 
-	db.Exec(`
-		CREATE TABLE IF NOT EXISTS api_keys (
-			id TEXT PRIMARY KEY,
-			name TEXT NOT NULL,
-			key_prefix TEXT NOT NULL,
-			key_hash TEXT NOT NULL UNIQUE,
-			active INTEGER NOT NULL DEFAULT 1,
-			expires_at DATETIME,
-			last_used_at DATETIME,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			deleted_at DATETIME
-		)
-	`)
-	var keyCount int64
-	db.Raw("SELECT COUNT(*) FROM api_keys WHERE deleted_at IS NULL").Scan(&keyCount)
-	if keyCount == 0 {
-		db.Exec(
-			"INSERT INTO api_keys (id, name, key_prefix, key_hash, active) VALUES (?, ?, ?, ?, ?)",
-			uuid.New().String(), "Default ZeuS API Key", "scm_zeus",
-			"$2a$10$QYXXHtQZn541zxmM15P0kebAjJMg6.VzkRbIWk9F.AZPF6FD3dI7a", true,
-		)
-		log.Println("seeded default API key: scm_zeus_master_key_2026")
+	if err := sqliteRepo.RunMigrations(db, "internal/migration"); err != nil {
+		log.Printf("migration warning: %v", err)
 	}
 
 	mq, err := messaging.NewRabbitMQ(cfg.RabbitMQURL)
 	if err != nil {
-		log.Printf("RabbitMQ unavailable (deficit pool disabled): %v", err)
+		log.Printf("RabbitMQ unavailable [RabbitMQURL: %s] (deficit pool disabled): %v", cfg.RabbitMQURL, err)
 		mq = nil
 	} else {
+		log.Printf("RabbitMQ connected: %s", cfg.RabbitMQURL)
 		defer mq.Close()
 		stop := make(chan struct{})
 		defer close(stop)
@@ -77,7 +57,64 @@ func main() {
 	shipmentH := handler.NewShipmentHandler(shipmentSvc)
 	inventoryH := handler.NewInventoryHandler(inventorySvc)
 
-	r := gin.Default()
+	jwtSvc, err := service.NewJWTService(cfg.JwtPublicKey)
+	if err != nil {
+		log.Fatalf("JWT service init failed: %v", err)
+	}
+
+	defaultEndpoints := []service.EndpointRole{
+		{Method: "GET", Path: "/api/v1/inventory/products", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/inventory/products/:id", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/inventory/products", RequiredLevel: "Operator"},
+		{Method: "PUT", Path: "/api/v1/inventory/products/:id", RequiredLevel: "Operator"},
+		{Method: "GET", Path: "/api/v1/inventory/product-models/:code", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/inventory/product-models", RequiredLevel: "Operator"},
+		{Method: "GET", Path: "/api/v1/inventory/parts", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/inventory/parts/:id", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/inventory/parts", RequiredLevel: "Operator"},
+		{Method: "PUT", Path: "/api/v1/inventory/parts/:id", RequiredLevel: "Operator"},
+		{Method: "PUT", Path: "/api/v1/inventory/parts/:id/condition", RequiredLevel: "Operator"},
+		{Method: "POST", Path: "/api/v1/inventory/parts/:id/scrap", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/inventory/parts/:id/install", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/inventory/parts/:id/remove", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/inventory/part-catalog", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/inventory/part-catalog/:id", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/vendors/optimal", RequiredLevel: "Operator"},
+		{Method: "POST", Path: "/api/v1/vendors/:id/recalc-metrics", RequiredLevel: "Operator"},
+		{Method: "POST", Path: "/api/v1/purchase-orders/draft", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/purchase-orders/:poId/line-items", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/purchase-orders/:poId/approve", RequiredLevel: "Operator"},
+		{Method: "PUT", Path: "/api/v1/purchase-orders/:poId/state", RequiredLevel: "Operator"},
+		{Method: "POST", Path: "/api/v1/goods-receipts/:grId/lock", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/goods-receipts/:grId/process", RequiredLevel: "Worker"},
+		{Method: "DELETE", Path: "/api/v1/goods-receipts/:grId/lock", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/shipments/:shipmentId/lock", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/shipments/:shipmentId/dispatch", RequiredLevel: "Worker"},
+	}
+
+	var count int64
+	db.Model(&sqliteRepo.EndpointRole{}).Count(&count)
+	if count == 0 {
+		for _, e := range defaultEndpoints {
+			db.Create(&sqliteRepo.EndpointRole{Method: e.Method, Path: e.Path, RequiredLevel: e.RequiredLevel})
+		}
+		log.Printf("seeded %d endpoint roles", len(defaultEndpoints))
+	}
+
+	roleLevels := map[string]int{
+		"admin":          3,
+		"scm_operator":   2,
+		"scm_worker":     1,
+		"mrp_operator":   2,
+		"mrp_worker":     1,
+		"sales_operator": 2,
+		"sales_worker":   1,
+	}
+
+	rbacSvc := service.NewRBACService(defaultEndpoints, roleLevels)
+
+	r := gin.New()
+	r.Use(gin.Logger(), middleware.Recovery())
 
 	public := r.Group("/")
 	public.Use(middleware.Public())
@@ -95,7 +132,7 @@ func main() {
 	}
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.APIKeyAuth(db))
+	api.Use(middleware.Authenticate(jwtSvc, db), middleware.RequireRoleLevel(rbacSvc))
 	{
 		api.GET("/vendors/optimal", vendorH.GetOptimalSupplier)
 		api.POST("/vendors/:id/recalc-metrics", vendorH.UpdateSupplierMetrics)

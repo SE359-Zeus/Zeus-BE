@@ -33,6 +33,7 @@ type Supplier struct {
 type SkuMapping struct {
 	ID           uuid.UUID `gorm:"type:uuid;primary_key"`
 	SupplierID   uuid.UUID `gorm:"type:uuid;not null"`
+	Supplier     Supplier  `gorm:"foreignKey:SupplierID;references:ID"`
 	SKU          string    `gorm:"type:varchar(100);not null"` // Foreign reference to ComponentStock.SKU
 	Name         string    `gorm:"type:varchar(255);not null"`
 	UnitPrice    float64   `gorm:"not null"`

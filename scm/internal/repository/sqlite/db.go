@@ -41,6 +41,16 @@ func RunMigrations(db *gorm.DB, migrationsPath string) error {
 	return nil
 }
 
+type EndpointRole struct {
+	Method        string `gorm:"primaryKey"`
+	Path          string `gorm:"primaryKey"`
+	RequiredLevel string
+}
+
+func (EndpointRole) TableName() string {
+	return "endpoint_roles"
+}
+
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&models.Supplier{},
@@ -63,5 +73,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.GoodsReceiptState{},
 		&models.ComponentStockState{},
 		&models.ShipmentState{},
+		&EndpointRole{},
 	)
 }
