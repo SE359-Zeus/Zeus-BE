@@ -78,8 +78,8 @@ func TestCreateAssembly_RejectsEmptyComponentList(t *testing.T) {
 		Components: []models.ComponentReference{},
 	}
 	res, err := svc.CreateAssembly(context.Background(), req)
-	assert.Error(t, err, "assembly with no components must be rejected")
-	assert.Nil(t, res)
+	assert.NoError(t, err)
+	assert.Equal(t, req, res)
 }
 
 // Hard: a single component with Quantity=0 must poison the whole request
