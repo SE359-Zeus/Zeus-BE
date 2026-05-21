@@ -52,7 +52,7 @@ func main() {
 	}
 
 	// Serve OpenAPI UI at /docs/*any
-	r.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
+	r.GET("api/v1/sales/docs/*any", openapiui.WrapHandler(openapiui.Config{
 		Title: "Zeus Sales API",
 		SpecProvider: func() ([]byte, error) {
 			if spec == nil {
