@@ -4,9 +4,15 @@ services:
     image: tailscale/tailscale:latest
     container_name: tailscale-gw
     hostname: sales-be-service
+    ports: 
+      - "8082:8082"
     environment:
-      - TS_AUTHKEY=tskey-auth-yourKeyHere # Generate this in Tailscale Admin Console
+      - TS_AUTHKEY=tskey-auth-kfjNBiH3ne11CNTRL-BbUu8vEXzQF9nQBaN4JvQFXDWysZSLbg
       - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=true
+      - TS_ACCEPT_DNS=true
+      - TS_EXTRA_ARGS=--netfilter-mode=off --ssh=true
+      - TS_AUTH_ONCE=1
     volumes:
       - tailscale-state:/var/lib/tailscale
       - /dev/net/tun:/dev/net/tun
@@ -17,18 +23,18 @@ services:
 
   # 2. One-shot migration job
   sales-migrate:
-    image: ghcr.io/se359-zeus/zeus-be/sales:${SALES_IMAGE_TAG:-latest}
+    image: ghcr.io/se359-zeus/zeus-be/sales:v9
     command: ["./migrate", "-db", "/app/data/sales.db"]
     volumes:
-      - sqlite_data:/app/data
+      - /opt/zeus/sales:/app/data
     restart: "no"
 
   # 3. One-shot seeder job
   sales-seed:
-    image: ghcr.io/se359-zeus/zeus-be/sales:${SALES_IMAGE_TAG:-latest}
+    image: ghcr.io/se359-zeus/zeus-be/sales:v9
     command: ["./seeder", "-db", "/app/data/sales.db"]
     volumes:
-      - sqlite_data:/app/data
+      - /opt/zeus/sales:/app/data
     depends_on:
       sales-migrate:
         condition: service_completed_successfully
@@ -42,15 +48,12 @@ services:
 
   # 5. Sales backend server
   sales-be:
-    image: ghcr.io/se359-zeus/zeus-be/sales:${SALES_IMAGE_TAG:-latest}
+    image: ghcr.io/se359-zeus/zeus-be/sales:v9
     network_mode: "service:tailscale"
-    environment:
-      SALES_SQLITE_DB: /app/data/sales.db
-      SALES_VALKEY_ADDR: localhost:6379
-      SALES_PORT: 8082
-      SALES_BASE_URL: http://localhost:8082
     volumes:
-      - sqlite_data:/app/data
+      - /opt/zeus/sales:/app/data
+    env_file:
+      - stack.env
     depends_on:
       sales-seed:
         condition: service_completed_successfully
@@ -62,7 +65,7 @@ services:
   sqlite-client:
     image: alpine:latest
     volumes:
-      - sqlite_data:/data
+      - /opt/zeus/sales:/data
     command: sh -c "apk add --no-cache sqlite && tail -f /dev/null"
     restart: unless-stopped
 
