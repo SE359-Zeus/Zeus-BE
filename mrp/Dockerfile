@@ -27,6 +27,7 @@ COPY --from=builder /out/server ./server
 COPY --from=builder /out/migrate ./migrate
 COPY --from=builder /out/seeder ./seeder
 COPY --from=builder /app/docs ./docs
+COPY --from=builder /app/migrations ./migrations
 
 EXPOSE 8083
 
