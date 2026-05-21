@@ -26,6 +26,7 @@ LABEL org.opencontainers.image.version=$VERSION
 COPY --from=builder /out/server ./server
 COPY --from=builder /out/migrate ./migrate
 COPY --from=builder /out/seeder ./seeder
+COPY --from=builder /app/docs ./docs
 
 EXPOSE 8082
 
