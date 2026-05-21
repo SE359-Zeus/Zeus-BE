@@ -14,7 +14,6 @@ import (
 
 	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
 	"github.com/gin-gonic/gin"
-	"gopkg.in/yaml.v3"
 )
 
 func main() {

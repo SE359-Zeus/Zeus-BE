@@ -10,9 +10,9 @@ import (
 type SupplierTier string
 
 const (
-	SupplierTierPreferred   SupplierTier = "Preferred"
-	SupplierTierQualified   SupplierTier = "Qualified"
-	SupplierTierUnderReview SupplierTier = "Under Review"
+	SupplierTierPreferred   SupplierTier = "Tier 1"
+	SupplierTierQualified   SupplierTier = "Tier 2"
+	SupplierTierUnderReview SupplierTier = "Tier 3"
 )
 
 type Supplier struct {
