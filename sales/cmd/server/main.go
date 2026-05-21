@@ -2,14 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
-	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"zeus-sales-service/config"
 	"zeus-sales-service/internal/controllers"
@@ -52,8 +48,9 @@ func main() {
 	}
 
 	// Serve OpenAPI UI at /docs/*any
-	r.GET("api/v1/sales/docs/*any", openapiui.WrapHandler(openapiui.Config{
-		Title: "Zeus Sales API",
+	r.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
+		Title:   "Zeus Sales API",
+		SpecURL: "./openapi.json",
 		SpecProvider: func() ([]byte, error) {
 			if spec == nil {
 				// Fallback: try to load on-demand if it wasn't loaded at startup
@@ -127,20 +124,5 @@ func loadOpenAPISpec(specPath, serverURL string) ([]byte, error) {
 }
 
 func runtimeServerURL(baseURL, port string) string {
-	if strings.TrimSpace(port) == "" {
-		port = "8082"
-	}
-	parsed, err := url.Parse(baseURL)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return fmt.Sprintf("http://localhost:%s/api/v1/sales", port)
-	}
-	hostname := parsed.Hostname()
-	if hostname == "" {
-		hostname = "localhost"
-	}
-	parsed.Host = net.JoinHostPort(hostname, port)
-	parsed.Path = "/api/v1/sales"
-	parsed.RawQuery = ""
-	parsed.Fragment = ""
-	return parsed.String()
+	return "/api/v1/sales"
 }
