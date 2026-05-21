@@ -2,7 +2,6 @@
 .github
 **/*_test.go
 **/tests
-configs
 mrp.db
 *.log
 *.exe
