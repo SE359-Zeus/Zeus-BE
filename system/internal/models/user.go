@@ -14,26 +14,12 @@ const (
 	AccountStatusInactive AccountStatus = "INACTIVE"
 )
 
-type UserRole string
-
-const (
-	UserRoleAdmin  UserRole = "Admin"
-	UserRoleEditor UserRole = "Editor"
-	UserRoleViewer UserRole = "Viewer"
-)
-
-var ValidRoles = map[UserRole]bool{
-	UserRoleAdmin:  true,
-	UserRoleEditor: true,
-	UserRoleViewer: true,
-}
-
 type User struct {
 	ID           uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
 	Email        string         `gorm:"uniqueIndex;not null;size:255" json:"email"`
 	PasswordHash string         `gorm:"not null" json:"-"`
 	FullName     string         `gorm:"not null;size:255" json:"full_name"`
-	Role         UserRole       `gorm:"not null;default:Viewer;size:20" json:"role"`
+	Role         string         `gorm:"not null;default:admin;size:50" json:"role"`
 	Status       AccountStatus  `gorm:"not null;default:ACTIVE;size:20" json:"status"`
 	LastLoginAt  *time.Time     `json:"last_login_at,omitempty"`
 	CreatedAt    time.Time      `json:"created_at"`
@@ -49,22 +35,22 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 }
 
 type CreateUserRequest struct {
-	Email    string   `json:"email" binding:"required"`
-	Password string   `json:"password" binding:"required"`
-	FullName string   `json:"full_name" binding:"required"`
-	Role     UserRole `json:"role" binding:"required"`
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+	FullName string `json:"full_name" binding:"required"`
+	Role     string `json:"role" binding:"required"`
 }
 
 type UpdateUserRequest struct {
-	FullName *string   `json:"full_name,omitempty"`
-	Role     *UserRole `json:"role,omitempty"`
+	FullName *string `json:"full_name,omitempty"`
+	Role     *string `json:"role,omitempty"`
 }
 
 type UserResponse struct {
 	ID          uuid.UUID     `json:"id"`
 	Email       string        `json:"email"`
 	FullName    string        `json:"full_name"`
-	Role        UserRole      `json:"role"`
+	Role        string        `json:"role"`
 	Status      AccountStatus `json:"status"`
 	LastLoginAt *time.Time    `json:"last_login_at,omitempty"`
 	CreatedAt   time.Time     `json:"created_at"`

@@ -21,12 +21,15 @@ type AuthService interface {
 	Login(ctx context.Context, req models.LoginRequest) (*models.TokenPair, error)
 	Refresh(ctx context.Context, req models.RefreshRequest) (*models.TokenPair, error)
 	VerifyAccessToken(tokenString string) (*JWTClaims, error)
+	Logout(ctx context.Context, accessToken string) error
 }
 
 type JWTClaims struct {
-	UserID uuid.UUID       `json:"user_id"`
-	Role   models.UserRole `json:"role"`
-	Email  string          `json:"email"`
+	UserID   uuid.UUID `json:"user_id"`
+	Role     string    `json:"role"`
+	Email    string    `json:"email"`
+	FullName string    `json:"full_name"`
+	Status   string    `json:"status"`
 }
 
 type AuditService interface {
@@ -35,3 +38,15 @@ type AuditService interface {
 	GetMetrics(ctx context.Context) (*models.AuditMetrics, error)
 }
 
+type EndpointRBACService interface {
+	ValidateRole(ctx context.Context, role string) error
+	GetRequiredLevel(ctx context.Context, method, path string) (string, error)
+	GetRoleLevel(ctx context.Context, roleName string) (string, error)
+	CanAccess(ctx context.Context, roleName, method, path string) (bool, error)
+	WarmCache(ctx context.Context) error
+}
+
+type ActionTypeService interface {
+	IsValid(ctx context.Context, name models.ActionType) (bool, error)
+	WarmCache(ctx context.Context) error
+}

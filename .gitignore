@@ -1,6 +1,8 @@
 *.exe
 *.db
 *.txt
+.env
+jwt_*.pem
 debug_check
 debug_insert
 debug

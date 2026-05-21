@@ -58,20 +58,17 @@ type MockRefreshTokenRepository struct {
 	mock.Mock
 }
 
-func (m *MockRefreshTokenRepository) Create(ctx context.Context, token *models.RefreshToken) error {
-	args := m.Called(ctx, token)
+func (m *MockRefreshTokenRepository) SaveRefreshToken(ctx context.Context, jti, userID string) error {
+	args := m.Called(ctx, jti, userID)
 	return args.Error(0)
 }
 
-func (m *MockRefreshTokenRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.RefreshToken, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) != nil {
-		return args.Get(0).(*models.RefreshToken), args.Error(1)
-	}
-	return nil, args.Error(1)
+func (m *MockRefreshTokenRepository) ValidateRefreshToken(ctx context.Context, jti string) (string, error) {
+	args := m.Called(ctx, jti)
+	return args.String(0), args.Error(1)
 }
 
-func (m *MockRefreshTokenRepository) DeleteByUserID(ctx context.Context, userID uuid.UUID) error {
+func (m *MockRefreshTokenRepository) DeleteUserTokens(ctx context.Context, userID string) error {
 	args := m.Called(ctx, userID)
 	return args.Error(0)
 }
@@ -79,6 +76,16 @@ func (m *MockRefreshTokenRepository) DeleteByUserID(ctx context.Context, userID 
 func (m *MockRefreshTokenRepository) DeleteExpired(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
+}
+
+func (m *MockRefreshTokenRepository) BlacklistAccessToken(ctx context.Context, jti string, ttl time.Duration) error {
+	args := m.Called(ctx, jti, ttl)
+	return args.Error(0)
+}
+
+func (m *MockRefreshTokenRepository) IsAccessTokenBlacklisted(ctx context.Context, jti string) (bool, error) {
+	args := m.Called(ctx, jti)
+	return args.Bool(0), args.Error(1)
 }
 
 type MockAuditRepository struct {
@@ -102,4 +109,47 @@ func (m *MockAuditRepository) Query(ctx context.Context, filter models.AuditFilt
 func (m *MockAuditRepository) CountByAction(ctx context.Context, actionType models.ActionType, start, end time.Time) (int64, error) {
 	args := m.Called(ctx, actionType, start, end)
 	return args.Get(0).(int64), args.Error(1)
+}
+
+type MockEndpointRBACService struct {
+	mock.Mock
+}
+
+func (m *MockEndpointRBACService) ValidateRole(ctx context.Context, role string) error {
+	args := m.Called(ctx, role)
+	return args.Error(0)
+}
+
+func (m *MockEndpointRBACService) GetRequiredLevel(ctx context.Context, method, path string) (string, error) {
+	args := m.Called(ctx, method, path)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockEndpointRBACService) GetRoleLevel(ctx context.Context, roleName string) (string, error) {
+	args := m.Called(ctx, roleName)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockEndpointRBACService) CanAccess(ctx context.Context, roleName, method, path string) (bool, error) {
+	args := m.Called(ctx, roleName, method, path)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockEndpointRBACService) WarmCache(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+type MockActionTypeService struct {
+	mock.Mock
+}
+
+func (m *MockActionTypeService) IsValid(ctx context.Context, name models.ActionType) (bool, error) {
+	args := m.Called(ctx, name)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockActionTypeService) WarmCache(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
 }

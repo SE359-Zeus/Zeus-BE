@@ -1,9 +1,9 @@
 package handler
 
 import (
-	"errors"
-	"net/http"
+	"strings"
 
+	"zeus-be/pkg/exception"
 	"zeus-system-service/internal/models"
 	"zeus-system-service/internal/service"
 
@@ -21,39 +21,60 @@ func NewAuthHandler(svc service.AuthService) *AuthHandler {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req models.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 
 	pair, err := h.svc.Login(c.Request.Context(), req)
 	if err != nil {
-		if errors.Is(err, service.ErrUnauthorized) || errors.Is(err, service.ErrInactiveAccount) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"access_token": pair.AccessToken})
+	c.JSON(200, gin.H{"access_token": pair.AccessToken})
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req models.RefreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 
 	pair, err := h.svc.Refresh(c.Request.Context(), req)
 	if err != nil {
-		if errors.Is(err, service.ErrUnauthorized) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
 
-	c.JSON(http.StatusOK, pair)
+	c.JSON(200, pair)
+}
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		exception.WriteError(c, exception.ErrMissingAuthHeader)
+		return
+	}
+
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		exception.WriteError(c, exception.ErrInvalidAuthHeader)
+		return
+	}
+
+	if err := h.svc.Logout(c.Request.Context(), parts[1]); err != nil {
+		exception.WriteError(c, exception.ErrInvalidToken)
+		return
+	}
+
+	c.JSON(200, gin.H{"message": "logged out successfully"})
 }

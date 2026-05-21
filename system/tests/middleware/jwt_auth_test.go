@@ -7,7 +7,6 @@ import (
 
 	"zeus-system-service/internal/handler"
 	"zeus-system-service/internal/handler/middleware"
-	"zeus-system-service/internal/models"
 	"zeus-system-service/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -40,9 +39,11 @@ func TestJWTAuth_ValidToken(t *testing.T) {
 	userID := uuid.New()
 
 	mockSvc.On("VerifyAccessToken", "valid-token").Return(&service.JWTClaims{
-		UserID: userID,
-		Role:   models.UserRoleAdmin,
-		Email:  "admin@zeus.com",
+		UserID:   userID,
+		Role:     "admin",
+		Email:    "admin@zeus.com",
+		FullName: "System Administrator",
+		Status:   "ACTIVE",
 	}, nil)
 
 	w := httptest.NewRecorder()

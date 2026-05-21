@@ -42,7 +42,7 @@ func TestUserHandler_Create_201(t *testing.T) {
 		Email:    "new@zeus.com",
 		Password: "securepass123",
 		FullName: "New User",
-		Role:     models.UserRoleEditor,
+		Role:     "scm_operator",
 	}
 	created := &models.User{
 		ID:       uuid.New(),
@@ -104,7 +104,7 @@ func TestUserHandler_Create_409_Duplicate(t *testing.T) {
 		Email:    "dup@zeus.com",
 		Password: "securepass123",
 		FullName: "Dup",
-		Role:     models.UserRoleViewer,
+		Role:     "sales_worker",
 	}
 	body, _ := json.Marshal(req)
 
@@ -123,7 +123,7 @@ func TestUserHandler_Create_409_Duplicate(t *testing.T) {
 func TestUserHandler_GetByID_200(t *testing.T) {
 	r, mockSvc := setupUserTest()
 	id := uuid.New()
-	user := &models.User{ID: id, Email: "user@zeus.com", FullName: "User", Role: models.UserRoleViewer, Status: models.AccountStatusActive}
+	user := &models.User{ID: id, Email: "user@zeus.com", FullName: "User", Role: "sales_worker", Status: models.AccountStatusActive}
 
 	mockSvc.On("GetByID", mock.Anything, id).Return(user, nil)
 
@@ -166,8 +166,8 @@ func TestUserHandler_GetByID_400_InvalidUUID(t *testing.T) {
 func TestUserHandler_List_200(t *testing.T) {
 	r, mockSvc := setupUserTest()
 	users := []models.User{
-		{ID: uuid.New(), Email: "a@z.com", FullName: "A", Role: models.UserRoleViewer, Status: models.AccountStatusActive},
-		{ID: uuid.New(), Email: "b@z.com", FullName: "B", Role: models.UserRoleEditor, Status: models.AccountStatusActive},
+		{ID: uuid.New(), Email: "a@z.com", FullName: "A", Role: "sales_worker", Status: models.AccountStatusActive},
+		{ID: uuid.New(), Email: "b@z.com", FullName: "B", Role: "scm_operator", Status: models.AccountStatusActive},
 	}
 	meta := &models.PaginationMeta{Page: 1, Limit: 15, TotalRows: 2, TotalPages: 1}
 
@@ -193,7 +193,7 @@ func TestUserHandler_Update_200(t *testing.T) {
 	r, mockSvc := setupUserTest()
 	id := uuid.New()
 	name := "Updated Name"
-	role := models.UserRoleAdmin
+	role := "admin"
 	req := models.UpdateUserRequest{FullName: &name, Role: &role}
 	body, _ := json.Marshal(req)
 	updated := &models.User{ID: id, FullName: name, Role: role}

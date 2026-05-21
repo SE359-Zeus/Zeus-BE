@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -9,10 +10,12 @@ import (
 	"log"
 	"os"
 
+	"zeus-system-service/internal/cache"
 	"zeus-system-service/internal/config"
 	"zeus-system-service/internal/handler"
 	"zeus-system-service/internal/handler/middleware"
 	"zeus-system-service/internal/repository/sqlite"
+	valkeyRepo "zeus-system-service/internal/repository/valkey"
 	"zeus-system-service/internal/service"
 
 	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
@@ -60,19 +63,42 @@ func main() {
 	}
 
 	userRepo := sqlite.NewUserRepository(db)
-	refreshTokenRepo := sqlite.NewRefreshTokenRepository(db)
 	auditRepo := sqlite.NewAuditRepository(db)
+	roleRepo := sqlite.NewRoleRepository(db)
+	actionTypeRepo := sqlite.NewActionTypeRepository(db)
+	endpointRoleRepo := sqlite.NewEndpointRoleRepository(db)
 
-	userSvc := service.NewUserService(userRepo)
+	vk, err := cache.NewValkey(cfg.ValkeyAddr)
+	if err != nil {
+		log.Fatalf("failed to connect to Valkey: %v", err)
+	}
+	defer vk.Close()
+
+	refreshTokenRepo := valkeyRepo.NewRefreshTokenRepository(vk)
+	actionTypeCacheRepo := valkeyRepo.NewActionTypeCacheRepository(vk)
+	endpointRBACCacheRepo := valkeyRepo.NewEndpointRBACCacheRepository(vk)
+
+	rbacSvc := service.NewEndpointRBACService(roleRepo, endpointRoleRepo, endpointRBACCacheRepo)
+	if err := rbacSvc.WarmCache(context.Background()); err != nil {
+		log.Printf("Warning: RBAC cache warm failed: %v", err)
+	}
+
+	actionTypeSvc := service.NewActionTypeService(actionTypeRepo, actionTypeCacheRepo)
+	if err := actionTypeSvc.WarmCache(context.Background()); err != nil {
+		log.Printf("Warning: action type cache warm failed: %v", err)
+	}
+
+	userSvc := service.NewUserService(userRepo, rbacSvc)
 	privateKey := loadPrivateKey(cfg.JWTKeyPath)
 	authSvc := service.NewAuthService(userSvc, refreshTokenRepo, privateKey)
-	auditSvc := service.NewAuditService(auditRepo)
+	auditSvc := service.NewAuditService(auditRepo, actionTypeSvc)
 
 	authH := handler.NewAuthHandler(authSvc)
 	userH := handler.NewUserHandler(userSvc)
 	auditH := handler.NewAuditHandler(auditSvc)
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Logger(), middleware.Recovery())
 
 	public := r.Group("/")
 	{
@@ -96,12 +122,12 @@ func main() {
 		})
 		public.POST("/api/v1/auth/login", authH.Login)
 		public.POST("/api/v1/auth/refresh", authH.Refresh)
+		public.POST("/api/v1/auth/logout", authH.Logout)
 	}
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.JWTAuth(authSvc))
+	api.Use(middleware.JWTAuth(authSvc), middleware.RequireRoleLevel(rbacSvc))
 	{
-
 		api.POST("/users", userH.Create)
 		api.GET("/users", userH.List)
 		api.GET("/users/:id", userH.GetByID)

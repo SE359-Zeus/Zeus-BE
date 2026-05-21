@@ -89,6 +89,11 @@ func (m *MockAuthService) VerifyAccessToken(tokenString string) (*service.JWTCla
 	return nil, args.Error(1)
 }
 
+func (m *MockAuthService) Logout(ctx context.Context, accessToken string) error {
+	args := m.Called(ctx, accessToken)
+	return args.Error(0)
+}
+
 type MockAuditService struct {
 	mock.Mock
 }
@@ -114,4 +119,33 @@ func (m *MockAuditService) GetMetrics(ctx context.Context) (*models.AuditMetrics
 		return args.Get(0).(*models.AuditMetrics), args.Error(1)
 	}
 	return nil, args.Error(1)
+}
+
+type MockEndpointRBACService struct {
+	mock.Mock
+}
+
+func (m *MockEndpointRBACService) ValidateRole(ctx context.Context, role string) error {
+	args := m.Called(ctx, role)
+	return args.Error(0)
+}
+
+func (m *MockEndpointRBACService) GetRequiredLevel(ctx context.Context, method, path string) (string, error) {
+	args := m.Called(ctx, method, path)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockEndpointRBACService) GetRoleLevel(ctx context.Context, roleName string) (string, error) {
+	args := m.Called(ctx, roleName)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockEndpointRBACService) CanAccess(ctx context.Context, roleName, method, path string) (bool, error) {
+	args := m.Called(ctx, roleName, method, path)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockEndpointRBACService) WarmCache(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
 }

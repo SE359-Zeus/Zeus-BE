@@ -13,11 +13,12 @@ import (
 )
 
 type userService struct {
-	repo repository.UserRepository
+	repo     repository.UserRepository
+	rbacSvc  EndpointRBACService
 }
 
-func NewUserService(repo repository.UserRepository) UserService {
-	return &userService{repo: repo}
+func NewUserService(repo repository.UserRepository, rbacSvc EndpointRBACService) UserService {
+	return &userService{repo: repo, rbacSvc: rbacSvc}
 }
 
 func (s *userService) Create(ctx context.Context, req models.CreateUserRequest) (*models.User, error) {
@@ -39,7 +40,7 @@ func (s *userService) Create(ctx context.Context, req models.CreateUserRequest) 
 	if req.FullName == "" {
 		return nil, ErrEmptyName
 	}
-	if !models.ValidRoles[req.Role] {
+	if err := s.rbacSvc.ValidateRole(ctx, req.Role); err != nil {
 		return nil, ErrInvalidRole
 	}
 
@@ -129,7 +130,7 @@ func (s *userService) Update(ctx context.Context, id uuid.UUID, req models.Updat
 		user.FullName = name
 	}
 	if req.Role != nil {
-		if !models.ValidRoles[*req.Role] {
+		if err := s.rbacSvc.ValidateRole(ctx, *req.Role); err != nil {
 			return nil, ErrInvalidRole
 		}
 		user.Role = *req.Role

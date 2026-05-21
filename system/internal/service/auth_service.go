@@ -13,9 +13,11 @@ import (
 )
 
 type jwtAccessClaims struct {
-	UserID string `json:"user_id"`
-	Role   string `json:"role"`
-	Email  string `json:"email"`
+	UserID   string `json:"user_id"`
+	Role     string `json:"role"`
+	Email    string `json:"email"`
+	FullName string `json:"full_name"`
+	Status   string `json:"status"`
 	jwt.RegisteredClaims
 }
 
@@ -51,7 +53,7 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 		return nil, err
 	}
 
-	accessToken, err := s.generateAccessToken(user.ID, user.Role, user.Email)
+	accessToken, err := s.generateAccessToken(user.ID, user.Role, user.Email, user.FullName, string(user.Status))
 	if err != nil {
 		return nil, err
 	}
@@ -61,13 +63,7 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 		return nil, err
 	}
 
-	refreshTokenModel := &models.RefreshToken{
-		ID:        jti,
-		UserID:    user.ID,
-		TokenHash: "", // JWTs are self-validating; we store metadata for revocation
-		ExpiresAt: time.Now().Add(models.RefreshTokenDuration),
-	}
-	if err := s.refreshRepo.Create(ctx, refreshTokenModel); err != nil {
+	if err := s.refreshRepo.SaveRefreshToken(ctx, jti.String(), user.ID.String()); err != nil {
 		return nil, err
 	}
 
@@ -96,11 +92,12 @@ func (s *authService) Refresh(ctx context.Context, req models.RefreshRequest) (*
 		return nil, ErrUnauthorized
 	}
 
-	storedToken, err := s.refreshRepo.GetByID(ctx, claims.JTI)
-	if err != nil {
-		return nil, err
+	userID, err := s.refreshRepo.ValidateRefreshToken(ctx, claims.JTI.String())
+	if err != nil || userID == "" {
+		return nil, ErrUnauthorized
 	}
-	if storedToken == nil || storedToken.IsExpired() {
+
+	if userID != claims.SUB.String() {
 		return nil, ErrUnauthorized
 	}
 
@@ -109,7 +106,7 @@ func (s *authService) Refresh(ctx context.Context, req models.RefreshRequest) (*
 		return nil, err
 	}
 
-	accessToken, err := s.generateAccessToken(user.ID, user.Role, user.Email)
+	accessToken, err := s.generateAccessToken(user.ID, user.Role, user.Email, user.FullName, string(user.Status))
 	if err != nil {
 		return nil, err
 	}
@@ -119,12 +116,7 @@ func (s *authService) Refresh(ctx context.Context, req models.RefreshRequest) (*
 		return nil, err
 	}
 
-	newRefreshTokenModel := &models.RefreshToken{
-		ID:        newJTI,
-		UserID:    user.ID,
-		ExpiresAt: time.Now().Add(models.RefreshTokenDuration),
-	}
-	if err := s.refreshRepo.Create(ctx, newRefreshTokenModel); err != nil {
+	if err := s.refreshRepo.SaveRefreshToken(ctx, newJTI.String(), user.ID.String()); err != nil {
 		return nil, err
 	}
 
@@ -153,26 +145,71 @@ func (s *authService) VerifyAccessToken(tokenString string) (*JWTClaims, error) 
 		return nil, ErrUnauthorized
 	}
 
+	if parsedClaims.ID != "" {
+		blacklisted, err := s.refreshRepo.IsAccessTokenBlacklisted(context.Background(), parsedClaims.ID)
+		if err != nil {
+			return nil, ErrUnauthorized
+		}
+		if blacklisted {
+			return nil, ErrUnauthorized
+		}
+	}
+
 	userID, err := uuid.Parse(parsedClaims.UserID)
 	if err != nil {
 		return nil, ErrUnauthorized
 	}
 
 	return &JWTClaims{
-		UserID: userID,
-		Role:   models.UserRole(parsedClaims.Role),
-		Email:  parsedClaims.Email,
+		UserID:   userID,
+		Role:     parsedClaims.Role,
+		Email:    parsedClaims.Email,
+		FullName: parsedClaims.FullName,
+		Status:   parsedClaims.Status,
 	}, nil
 }
 
-func (s *authService) generateAccessToken(userID uuid.UUID, role models.UserRole, email string) (string, error) {
+func (s *authService) Logout(ctx context.Context, accessToken string) error {
+	claims := &jwtAccessClaims{}
+	token, err := jwt.ParseWithClaims(accessToken, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, ErrUnauthorized
+		}
+		return s.publicKey, nil
+	})
+	if err != nil {
+		return ErrUnauthorized
+	}
+
+	parsedClaims, ok := token.Claims.(*jwtAccessClaims)
+	if !ok || !token.Valid {
+		return ErrUnauthorized
+	}
+
+	if parsedClaims.ID != "" {
+		remaining := time.Until(parsedClaims.ExpiresAt.Time)
+		if remaining > 0 {
+			if err := s.refreshRepo.BlacklistAccessToken(ctx, parsedClaims.ID, remaining); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *authService) generateAccessToken(userID uuid.UUID, role, email, fullName, status string) (string, error) {
+	now := time.Now()
 	claims := &jwtAccessClaims{
-		UserID: userID.String(),
-		Role:   string(role),
-		Email:  email,
+		UserID:   userID.String(),
+		Role:     role,
+		Email:    email,
+		FullName: fullName,
+		Status:   status,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(models.AccessTokenDuration)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ID:        uuid.New().String(),
+			ExpiresAt: jwt.NewNumericDate(now.Add(models.AccessTokenDuration)),
+			IssuedAt:  jwt.NewNumericDate(now),
 			Issuer:    "zeus-system",
 		},
 	}

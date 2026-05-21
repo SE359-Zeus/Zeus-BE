@@ -39,7 +39,7 @@ func TestAuditHandler_Ingest_201(t *testing.T) {
 	req := models.IngestAuditRequest{
 		UserID:         uuid.New(),
 		UserEmail:      "user@zeus.com",
-		ActionType:     models.ActionCreate,
+		ActionType:     "CREATE",
 		TargetResource: "users/abc",
 		IPAddress:      "10.0.0.1",
 	}
@@ -90,7 +90,7 @@ func TestAuditHandler_Query_200(t *testing.T) {
 		{
 			ID:             uuid.New(),
 			Timestamp:      time.Now(),
-			ActionType:     models.ActionLogin,
+			ActionType:     "LOGIN",
 			TargetResource: "auth/login",
 			UserEmail:      "user@zeus.com",
 		},

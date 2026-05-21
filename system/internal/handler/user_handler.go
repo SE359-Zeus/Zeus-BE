@@ -1,10 +1,9 @@
 package handler
 
 import (
-	"errors"
-	"net/http"
 	"strconv"
 
+	"zeus-be/pkg/exception"
 	"zeus-system-service/internal/models"
 	"zeus-system-service/internal/service"
 
@@ -23,51 +22,42 @@ func NewUserHandler(svc service.UserService) *UserHandler {
 func (h *UserHandler) Create(c *gin.Context) {
 	var req models.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 
 	user, err := h.svc.Create(c.Request.Context(), req)
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrEmptyEmail),
-			errors.Is(err, service.ErrInvalidEmail),
-			errors.Is(err, service.ErrEmptyPassword),
-			errors.Is(err, service.ErrShortPassword),
-			errors.Is(err, service.ErrEmptyName),
-			errors.Is(err, service.ErrInvalidRole),
-			errors.Is(err, service.ErrInvalidInput):
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		case errors.Is(err, service.ErrDuplicateEmail):
-			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
 		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
 
-	c.JSON(http.StatusCreated, models.ToUserResponse(user))
+	c.JSON(201, models.ToUserResponse(user))
 }
 
 func (h *UserHandler) GetByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		exception.WriteError(c, exception.ErrInvalidResourceID)
 		return
 	}
 
 	user, err := h.svc.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if errors.Is(err, service.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
 
-	c.JSON(http.StatusOK, models.ToUserResponse(user))
+	c.JSON(200, models.ToUserResponse(user))
 }
 
 func (h *UserHandler) List(c *gin.Context) {
@@ -77,7 +67,7 @@ func (h *UserHandler) List(c *gin.Context) {
 
 	users, meta, err := h.svc.List(c.Request.Context(), page, limit, q)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
 
@@ -85,7 +75,7 @@ func (h *UserHandler) List(c *gin.Context) {
 	for i, u := range users {
 		resp[i] = models.ToUserResponse(&u)
 	}
-	c.JSON(http.StatusOK, gin.H{
+	c.JSON(200, gin.H{
 		"data":       resp,
 		"pagination": meta,
 	})
@@ -95,38 +85,34 @@ func (h *UserHandler) Update(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		exception.WriteError(c, exception.ErrInvalidResourceID)
 		return
 	}
 
 	var req models.UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 
 	user, err := h.svc.Update(c.Request.Context(), id, req)
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrEmptyName),
-			errors.Is(err, service.ErrInvalidRole):
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		case errors.Is(err, service.ErrNotFound):
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
 		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
 
-	c.JSON(http.StatusOK, models.ToUserResponse(user))
+	c.JSON(200, models.ToUserResponse(user))
 }
 
 func (h *UserHandler) SetStatus(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		exception.WriteError(c, exception.ErrInvalidResourceID)
 		return
 	}
 
@@ -134,24 +120,24 @@ func (h *UserHandler) SetStatus(c *gin.Context) {
 		Status string `json:"status"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 
 	status := models.AccountStatus(req.Status)
 	if status != models.AccountStatusActive && status != models.AccountStatusInactive {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "status must be ACTIVE or INACTIVE"})
+		exception.WriteError(c, exception.ErrInvalidInput.WithMessage("status must be ACTIVE or INACTIVE"))
 		return
 	}
 
 	if err := h.svc.SetStatus(c.Request.Context(), id, status); err != nil {
-		if errors.Is(err, service.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "status updated"})
+	c.JSON(200, gin.H{"message": "status updated"})
 }

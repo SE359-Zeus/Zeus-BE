@@ -18,9 +18,11 @@ import (
 )
 
 type jwtAccessClaims struct {
-	UserID string `json:"user_id"`
-	Role   string `json:"role"`
-	Email  string `json:"email"`
+	UserID   string `json:"user_id"`
+	Role     string `json:"role"`
+	Email    string `json:"email"`
+	FullName string `json:"full_name"`
+	Status   string `json:"status"`
 	jwt.RegisteredClaims
 }
 
@@ -34,20 +36,17 @@ type mockRefreshRepo struct {
 	mock.Mock
 }
 
-func (m *mockRefreshRepo) Create(ctx context.Context, token *models.RefreshToken) error {
-	args := m.Called(ctx, token)
+func (m *mockRefreshRepo) SaveRefreshToken(ctx context.Context, jti, userID string) error {
+	args := m.Called(ctx, jti, userID)
 	return args.Error(0)
 }
 
-func (m *mockRefreshRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.RefreshToken, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) != nil {
-		return args.Get(0).(*models.RefreshToken), args.Error(1)
-	}
-	return nil, args.Error(1)
+func (m *mockRefreshRepo) ValidateRefreshToken(ctx context.Context, jti string) (string, error) {
+	args := m.Called(ctx, jti)
+	return args.String(0), args.Error(1)
 }
 
-func (m *mockRefreshRepo) DeleteByUserID(ctx context.Context, userID uuid.UUID) error {
+func (m *mockRefreshRepo) DeleteUserTokens(ctx context.Context, userID string) error {
 	args := m.Called(ctx, userID)
 	return args.Error(0)
 }
@@ -55,6 +54,16 @@ func (m *mockRefreshRepo) DeleteByUserID(ctx context.Context, userID uuid.UUID) 
 func (m *mockRefreshRepo) DeleteExpired(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
+}
+
+func (m *mockRefreshRepo) BlacklistAccessToken(ctx context.Context, jti string, ttl time.Duration) error {
+	args := m.Called(ctx, jti, ttl)
+	return args.Error(0)
+}
+
+func (m *mockRefreshRepo) IsAccessTokenBlacklisted(ctx context.Context, jti string) (bool, error) {
+	args := m.Called(ctx, jti)
+	return args.Bool(0), args.Error(1)
 }
 
 func generateTestKey(t *testing.T) *rsa.PrivateKey {
@@ -78,7 +87,10 @@ func setupAuthSvc(t *testing.T) (service.AuthService, *service.MockUserRepositor
 	refreshRepo := new(mockRefreshRepo)
 	key := generateTestKey(t)
 
-	userSvc := service.NewUserService(userRepo)
+	rbacSvc := new(service.MockEndpointRBACService)
+	rbacSvc.On("ValidateRole", anyCtx, mock.AnythingOfType("string")).Return(nil)
+
+	userSvc := service.NewUserService(userRepo, rbacSvc)
 	svc := service.NewAuthService(userSvc, refreshRepo, key)
 
 	return svc, userRepo, refreshRepo, key
@@ -101,10 +113,12 @@ func TestAuthService_Login_Success(t *testing.T) {
 		ID:           userID,
 		Email:        email,
 		PasswordHash: hashPassword(t, password),
-		Role:         models.UserRoleAdmin,
+		FullName:     "Admin User",
+		Role:         "admin",
 		Status:       models.AccountStatusActive,
 	}, nil)
-	refreshRepo.On("Create", anyCtx, mock.AnythingOfType("*models.RefreshToken")).Return(nil)
+	refreshRepo.On("SaveRefreshToken", anyCtx, mock.AnythingOfType("string"), userID.String()).Return(nil)
+	refreshRepo.On("IsAccessTokenBlacklisted", anyCtx, mock.AnythingOfType("string")).Return(false, nil)
 
 	pair, err := svc.Login(context.Background(), models.LoginRequest{Email: email, Password: password})
 	assert.NoError(t, err)
@@ -113,8 +127,10 @@ func TestAuthService_Login_Success(t *testing.T) {
 	claims, err := svc.VerifyAccessToken(pair.AccessToken)
 	assert.NoError(t, err)
 	assert.Equal(t, userID, claims.UserID)
-	assert.Equal(t, models.UserRoleAdmin, claims.Role)
+	assert.Equal(t, "admin", claims.Role)
 	assert.Equal(t, email, claims.Email)
+	assert.Equal(t, "Admin User", claims.FullName)
+	assert.Equal(t, "ACTIVE", claims.Status)
 
 	userRepo.AssertExpectations(t)
 	refreshRepo.AssertExpectations(t)
@@ -142,7 +158,7 @@ func TestAuthService_Login_InvalidCredentials(t *testing.T) {
 	userRepo.On("GetByEmail", anyCtx, email).Return(&models.User{
 		Email:        email,
 		PasswordHash: hashPassword(t, "correctpass"),
-		Role:         models.UserRoleAdmin,
+		Role:         "admin",
 		Status:       models.AccountStatusActive,
 	}, nil)
 
@@ -160,10 +176,10 @@ func TestAuthService_Refresh_Success(t *testing.T) {
 		ID:           userID,
 		Email:        "admin@zeus.com",
 		PasswordHash: hashPassword(t, "pass"),
-		Role:         models.UserRoleAdmin,
+		Role:         "admin",
 		Status:       models.AccountStatusActive,
 	}, nil)
-	refreshRepo.On("Create", anyCtx, mock.AnythingOfType("*models.RefreshToken")).Return(nil)
+	refreshRepo.On("SaveRefreshToken", anyCtx, mock.AnythingOfType("string"), userID.String()).Return(nil)
 
 	loginPair, err := svc.Login(context.Background(), models.LoginRequest{Email: "admin@zeus.com", Password: "pass"})
 	assert.NoError(t, err)
@@ -172,17 +188,13 @@ func TestAuthService_Refresh_Success(t *testing.T) {
 	_, _, err = jwt.NewParser().ParseUnverified(loginPair.RefreshToken, refreshClaims)
 	assert.NoError(t, err)
 
-	refreshRepo.On("GetByID", anyCtx, refreshClaims.JTI).Return(&models.RefreshToken{
-		ID:        refreshClaims.JTI,
-		UserID:    userID,
-		ExpiresAt: time.Now().Add(24 * time.Hour),
-	}, nil)
+	refreshRepo.On("ValidateRefreshToken", anyCtx, refreshClaims.JTI.String()).Return(userID.String(), nil)
 	userRepo.On("GetByID", anyCtx, userID).Return(&models.User{
 		ID:    userID,
 		Email: "admin@zeus.com",
-		Role:  models.UserRoleAdmin,
+		Role:  "admin",
 	}, nil)
-	refreshRepo.On("Create", anyCtx, mock.AnythingOfType("*models.RefreshToken")).Return(nil)
+	refreshRepo.On("SaveRefreshToken", anyCtx, mock.AnythingOfType("string"), userID.String()).Return(nil)
 
 	pair, err := svc.Refresh(context.Background(), models.RefreshRequest{RefreshToken: loginPair.RefreshToken})
 	assert.NoError(t, err)
@@ -197,10 +209,10 @@ func TestAuthService_Refresh_ExpiredToken(t *testing.T) {
 		ID:           userID,
 		Email:        "admin@zeus.com",
 		PasswordHash: hashPassword(t, "pass"),
-		Role:         models.UserRoleAdmin,
+		Role:         "admin",
 		Status:       models.AccountStatusActive,
 	}, nil)
-	refreshRepo.On("Create", anyCtx, mock.AnythingOfType("*models.RefreshToken")).Return(nil)
+	refreshRepo.On("SaveRefreshToken", anyCtx, mock.AnythingOfType("string"), userID.String()).Return(nil)
 
 	loginPair, err := svc.Login(context.Background(), models.LoginRequest{Email: "admin@zeus.com", Password: "pass"})
 	assert.NoError(t, err)
@@ -209,11 +221,7 @@ func TestAuthService_Refresh_ExpiredToken(t *testing.T) {
 	_, _, err = jwt.NewParser().ParseUnverified(loginPair.RefreshToken, refreshClaims)
 	assert.NoError(t, err)
 
-	refreshRepo.On("GetByID", anyCtx, refreshClaims.JTI).Return(&models.RefreshToken{
-		ID:        refreshClaims.JTI,
-		UserID:    userID,
-		ExpiresAt: time.Now().Add(-24 * time.Hour),
-	}, nil)
+	refreshRepo.On("ValidateRefreshToken", anyCtx, refreshClaims.JTI.String()).Return("", nil)
 
 	pair, err := svc.Refresh(context.Background(), models.RefreshRequest{RefreshToken: loginPair.RefreshToken})
 	assert.Error(t, err)
@@ -236,10 +244,11 @@ func TestAuthService_VerifyAccessToken_Success(t *testing.T) {
 		ID:           userID,
 		Email:        "v@z.com",
 		PasswordHash: hashPassword(t, "pass"),
-		Role:         models.UserRoleAdmin,
+		Role:         "admin",
 		Status:       models.AccountStatusActive,
 	}, nil)
-	refreshRepo.On("Create", anyCtx, mock.AnythingOfType("*models.RefreshToken")).Return(nil)
+	refreshRepo.On("SaveRefreshToken", anyCtx, mock.AnythingOfType("string"), userID.String()).Return(nil)
+	refreshRepo.On("IsAccessTokenBlacklisted", anyCtx, mock.AnythingOfType("string")).Return(false, nil)
 
 	pair, err := svc.Login(context.Background(), models.LoginRequest{Email: "v@z.com", Password: "pass"})
 	assert.NoError(t, err)
@@ -247,8 +256,10 @@ func TestAuthService_VerifyAccessToken_Success(t *testing.T) {
 	claimsResult, err := svc.VerifyAccessToken(pair.AccessToken)
 	assert.NoError(t, err)
 	assert.Equal(t, userID, claimsResult.UserID)
-	assert.Equal(t, models.UserRoleAdmin, claimsResult.Role)
+	assert.Equal(t, "admin", claimsResult.Role)
 	assert.Equal(t, "v@z.com", claimsResult.Email)
+	assert.Equal(t, "", claimsResult.FullName)
+	assert.Equal(t, "ACTIVE", claimsResult.Status)
 	userRepo.AssertExpectations(t)
 	refreshRepo.AssertExpectations(t)
 }
@@ -264,7 +275,7 @@ func TestAuthService_VerifyAccessToken_WrongKey(t *testing.T) {
 	otherKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	claims := &jwtAccessClaims{
 		UserID: uuid.New().String(),
-		Role:   string(models.UserRoleViewer),
+		Role:   "admin",
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
