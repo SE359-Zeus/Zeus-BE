@@ -161,11 +161,11 @@ jobs:
 
           file_path = Path(os.environ["FILE"])
           new_image = os.environ["NEW_IMAGE"]
-            new_tag = new_image.split(":", 1)[1]
+          new_tag = new_image.split(":", 1)[1]
 
           content = file_path.read_text()
-            pattern = r"(image:\s*ghcr\.io/se359-zeus/zeus-be/sales:)[^\s]+"
-            updated, count = re.subn(pattern, rf"\1{new_tag}", content)
+          pattern = r"(image:\s*ghcr\.io/se359-zeus/zeus-be/sales:)[^\s]+"
+          updated, count = re.subn(pattern, rf"\1{new_tag}", content)
 
           if count == 0:
               raise SystemExit("sales image line not found in manifest file")
