@@ -6,3 +6,5 @@ debug_insert
 debug
 .serena
 .env
+.vscode
+*.pem
