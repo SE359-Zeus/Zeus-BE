@@ -7,3 +7,4 @@ debug
 .serena
 .env
 .vscode 
+*.pem
