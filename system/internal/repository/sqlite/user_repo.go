@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"math"
 
 	"zeus-system-service/internal/models"
@@ -26,6 +27,9 @@ func (r *userRepo) Create(ctx context.Context, user *models.User) error {
 func (r *userRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	var user models.User
 	if err := r.db.WithContext(ctx).First(&user, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &user, nil
@@ -34,6 +38,9 @@ func (r *userRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.User, err
 func (r *userRepo) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
 	if err := r.db.WithContext(ctx).First(&user, "email = ?", email).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &user, nil

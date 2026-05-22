@@ -51,12 +51,21 @@ func TestAuthHandler_Login_200(t *testing.T) {
 	r.ServeHTTP(w, reqHTTP)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	var resp struct {
-		AccessToken string `json:"access_token"`
+	var env struct {
+		StatusCode int             `json:"statusCode"`
+		Data       json.RawMessage `json:"data"`
 	}
-	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	err := json.Unmarshal(w.Body.Bytes(), &env)
 	assert.NoError(t, err)
-	assert.Equal(t, pair.AccessToken, resp.AccessToken)
+	assert.Equal(t, 200, env.StatusCode)
+	var data struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	err = json.Unmarshal(env.Data, &data)
+	assert.NoError(t, err)
+	assert.Equal(t, pair.AccessToken, data.AccessToken)
+	assert.Equal(t, pair.RefreshToken, data.RefreshToken)
 	mockSvc.AssertExpectations(t)
 }
 
@@ -125,8 +134,15 @@ func TestAuthHandler_Refresh_200(t *testing.T) {
 	r.ServeHTTP(w, reqHTTP)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	var resp models.TokenPair
-	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	var env struct {
+		StatusCode int             `json:"statusCode"`
+		Data       json.RawMessage `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &env)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, env.StatusCode)
+	var data models.TokenPair
+	err = json.Unmarshal(env.Data, &data)
 	assert.NoError(t, err)
 	mockSvc.AssertExpectations(t)
 }

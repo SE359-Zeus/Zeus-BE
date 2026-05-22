@@ -30,6 +30,7 @@ type jwtRefreshClaims struct {
 type authService struct {
 	userService UserService
 	refreshRepo repository.RefreshTokenRepository
+	sessionRepo repository.SessionRepository
 	privateKey  *rsa.PrivateKey
 	publicKey   *rsa.PublicKey
 }
@@ -37,11 +38,13 @@ type authService struct {
 func NewAuthService(
 	userSvc UserService,
 	refreshRepo repository.RefreshTokenRepository,
+	sessionRepo repository.SessionRepository,
 	privateKey *rsa.PrivateKey,
 ) AuthService {
 	return &authService{
 		userService: userSvc,
 		refreshRepo: refreshRepo,
+		sessionRepo: sessionRepo,
 		privateKey:  privateKey,
 		publicKey:   &privateKey.PublicKey,
 	}
@@ -64,6 +67,15 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 	}
 
 	if err := s.refreshRepo.SaveRefreshToken(ctx, jti.String(), user.ID.String()); err != nil {
+		return nil, err
+	}
+
+	if err := s.sessionRepo.Create(ctx, &models.Session{
+		UserID:    user.ID,
+		UserEmail: user.Email,
+		JTI:       jti.String(),
+		ExpiresAt: time.Now().Add(models.RefreshTokenDuration),
+	}); err != nil {
 		return nil, err
 	}
 
@@ -94,7 +106,11 @@ func (s *authService) Refresh(ctx context.Context, req models.RefreshRequest) (*
 
 	userID, err := s.refreshRepo.ValidateRefreshToken(ctx, claims.JTI.String())
 	if err != nil || userID == "" {
-		return nil, ErrUnauthorized
+		session, dbErr := s.sessionRepo.GetByJTI(ctx, claims.JTI.String())
+		if dbErr != nil || session == nil {
+			return nil, ErrUnauthorized
+		}
+		userID = session.UserID.String()
 	}
 
 	if userID != claims.SUB.String() {
@@ -117,6 +133,19 @@ func (s *authService) Refresh(ctx context.Context, req models.RefreshRequest) (*
 	}
 
 	if err := s.refreshRepo.SaveRefreshToken(ctx, newJTI.String(), user.ID.String()); err != nil {
+		return nil, err
+	}
+
+	if err := s.sessionRepo.Create(ctx, &models.Session{
+		UserID:    user.ID,
+		UserEmail: user.Email,
+		JTI:       newJTI.String(),
+		ExpiresAt: time.Now().Add(models.RefreshTokenDuration),
+	}); err != nil {
+		return nil, err
+	}
+
+	if err := s.sessionRepo.DeleteByJTI(ctx, claims.JTI.String()); err != nil {
 		return nil, err
 	}
 
@@ -184,6 +213,19 @@ func (s *authService) Logout(ctx context.Context, accessToken string) error {
 	parsedClaims, ok := token.Claims.(*jwtAccessClaims)
 	if !ok || !token.Valid {
 		return ErrUnauthorized
+	}
+
+	userID, err := uuid.Parse(parsedClaims.UserID)
+	if err != nil {
+		return ErrUnauthorized
+	}
+
+	if err := s.refreshRepo.DeleteUserTokens(ctx, userID.String()); err != nil {
+		return err
+	}
+
+	if err := s.sessionRepo.DeleteByUserID(ctx, userID.String()); err != nil {
+		return err
 	}
 
 	if parsedClaims.ID != "" {

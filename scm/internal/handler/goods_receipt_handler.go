@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 
+	"zeus-be/pkg/response"
 	"zeus-scm-service/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -31,7 +32,7 @@ func (h *GoodsReceiptHandler) AcquireLock(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "lock acquired"})
+	response.OKWithMessage(c, http.StatusOK, "lock acquired")
 }
 
 type lineItemCount struct {
@@ -65,7 +66,7 @@ func (h *GoodsReceiptHandler) ProcessBlindReceipt(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "blind receipt processed"})
+	response.OKWithMessage(c, http.StatusOK, "blind receipt processed")
 }
 
 func (h *GoodsReceiptHandler) ReleaseLock(c *gin.Context) {
@@ -74,5 +75,5 @@ func (h *GoodsReceiptHandler) ReleaseLock(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "lock released"})
+	response.OKWithMessage(c, http.StatusOK, "lock released")
 }

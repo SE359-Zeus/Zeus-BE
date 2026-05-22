@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"os"
@@ -56,22 +57,19 @@ func main() {
 		log.Println("seeded default API key: scm_zeus_master_key_2026")
 	}
 
-	mq, err := messaging.NewRabbitMQ(cfg.RabbitMQURL)
-	if err != nil {
+	if err := messaging.EnsureQueues(cfg.RabbitMQURL); err != nil {
 		log.Printf("RabbitMQ unavailable (deficit pool disabled): %v", err)
-		mq = nil
 	} else {
-		defer mq.Close()
-		stop := make(chan struct{})
-		defer close(stop)
-		mq.StartExpiryReconciler(5*time.Minute, stop)
+		ctx, stop := context.WithCancel(context.Background())
+		defer stop()
+		messaging.StartExpiryReconciler(ctx, cfg.RabbitMQURL, 5*time.Minute)
 	}
 
-	vendorSvc := service.NewVendorService(db, mq)
-	poSvc := service.NewPOService(db, mq)
-	grSvc := service.NewGoodsReceiptService(db, mq, cfg.AgingThresholdYears)
-	shipmentSvc := service.NewShipmentService(db, mq)
-	inventorySvc := service.NewInventoryService(db, mq)
+	vendorSvc := service.NewVendorService(db)
+	poSvc := service.NewPOService(db, cfg.RabbitMQURL)
+	grSvc := service.NewGoodsReceiptService(db, cfg.AgingThresholdYears)
+	shipmentSvc := service.NewShipmentService(db)
+	inventorySvc := service.NewInventoryService(db)
 
 	vendorH := handler.NewVendorHandler(vendorSvc)
 	poH := handler.NewPOHandler(poSvc)

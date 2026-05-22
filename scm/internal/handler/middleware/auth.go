@@ -4,10 +4,11 @@ import (
 	"net/http"
 	"time"
 
+	"zeus-scm-service/internal/models"
+
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
-	"zeus-scm-service/internal/models"
 )
 
 func APIKeyAuth(db *gorm.DB) gin.HandlerFunc {

@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 
+	"zeus-be/pkg/response"
 	"zeus-scm-service/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -28,7 +29,7 @@ func (h *VendorHandler) GetOptimalSupplier(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
+	response.OK(c, gin.H{
 		"supplier": supplier,
 		"mapping":  mapping,
 	})
@@ -45,5 +46,5 @@ func (h *VendorHandler) UpdateSupplierMetrics(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "metrics updated"})
+	response.OKWithMessage(c, http.StatusOK, "metrics updated")
 }

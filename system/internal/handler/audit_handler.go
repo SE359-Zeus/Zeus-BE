@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"zeus-be/pkg/exception"
+	"zeus-be/pkg/response"
 	"zeus-system-service/internal/models"
 	"zeus-system-service/internal/service"
 
@@ -36,7 +37,7 @@ func (h *AuditHandler) Ingest(c *gin.Context) {
 		return
 	}
 
-	c.JSON(201, gin.H{"message": "log entry created"})
+	response.OKWithMessage(c, 201, "log entry created")
 }
 
 func (h *AuditHandler) Query(c *gin.Context) {
@@ -77,8 +78,8 @@ func (h *AuditHandler) Query(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, gin.H{
-		"data":       logs,
+	response.OK(c, gin.H{
+		"items":      logs,
 		"pagination": meta,
 	})
 }
@@ -90,5 +91,5 @@ func (h *AuditHandler) GetMetrics(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, metrics)
+	response.OK(c, metrics)
 }

@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"zeus-be/pkg/exception"
+	"zeus-be/pkg/response"
 	"zeus-system-service/internal/models"
 	"zeus-system-service/internal/service"
 
@@ -36,7 +37,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(201, models.ToUserResponse(user))
+	response.Created(c, models.ToUserResponse(user))
 }
 
 func (h *UserHandler) GetByID(c *gin.Context) {
@@ -57,7 +58,7 @@ func (h *UserHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, models.ToUserResponse(user))
+	response.OK(c, models.ToUserResponse(user))
 }
 
 func (h *UserHandler) List(c *gin.Context) {
@@ -75,8 +76,8 @@ func (h *UserHandler) List(c *gin.Context) {
 	for i, u := range users {
 		resp[i] = models.ToUserResponse(&u)
 	}
-	c.JSON(200, gin.H{
-		"data":       resp,
+	response.OK(c, gin.H{
+		"items":      resp,
 		"pagination": meta,
 	})
 }
@@ -105,7 +106,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, models.ToUserResponse(user))
+	response.OK(c, models.ToUserResponse(user))
 }
 
 func (h *UserHandler) SetStatus(c *gin.Context) {
@@ -139,5 +140,5 @@ func (h *UserHandler) SetStatus(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, gin.H{"message": "status updated"})
+	response.OKWithMessage(c, 200, "status updated")
 }

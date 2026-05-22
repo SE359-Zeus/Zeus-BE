@@ -81,19 +81,20 @@ func assertTokenPair(t *testing.T, pair *models.TokenPair) {
 	assert.Equal(t, int64(900), pair.ExpiresIn)
 }
 
-func setupAuthSvc(t *testing.T) (service.AuthService, *service.MockUserRepository, *mockRefreshRepo, *rsa.PrivateKey) {
+func setupAuthSvc(t *testing.T) (service.AuthService, *service.MockUserRepository, *mockRefreshRepo, *service.MockSessionRepository) {
 	t.Helper()
 	userRepo := new(service.MockUserRepository)
 	refreshRepo := new(mockRefreshRepo)
+	sessionRepo := new(service.MockSessionRepository)
 	key := generateTestKey(t)
 
 	rbacSvc := new(service.MockEndpointRBACService)
 	rbacSvc.On("ValidateRole", anyCtx, mock.AnythingOfType("string")).Return(nil)
 
 	userSvc := service.NewUserService(userRepo, rbacSvc)
-	svc := service.NewAuthService(userSvc, refreshRepo, key)
+	svc := service.NewAuthService(userSvc, refreshRepo, sessionRepo, key)
 
-	return svc, userRepo, refreshRepo, key
+	return svc, userRepo, refreshRepo, sessionRepo
 }
 
 func hashPassword(t *testing.T, password string) string {
@@ -104,7 +105,7 @@ func hashPassword(t *testing.T, password string) string {
 }
 
 func TestAuthService_Login_Success(t *testing.T) {
-	svc, userRepo, refreshRepo, _ := setupAuthSvc(t)
+	svc, userRepo, refreshRepo, sessionRepo := setupAuthSvc(t)
 	email := "admin@zeus.com"
 	password := "securepass123"
 	userID := uuid.New()
@@ -119,6 +120,7 @@ func TestAuthService_Login_Success(t *testing.T) {
 	}, nil)
 	refreshRepo.On("SaveRefreshToken", anyCtx, mock.AnythingOfType("string"), userID.String()).Return(nil)
 	refreshRepo.On("IsAccessTokenBlacklisted", anyCtx, mock.AnythingOfType("string")).Return(false, nil)
+	sessionRepo.On("Create", anyCtx, mock.AnythingOfType("*models.Session")).Return(nil)
 
 	pair, err := svc.Login(context.Background(), models.LoginRequest{Email: email, Password: password})
 	assert.NoError(t, err)
@@ -134,6 +136,7 @@ func TestAuthService_Login_Success(t *testing.T) {
 
 	userRepo.AssertExpectations(t)
 	refreshRepo.AssertExpectations(t)
+	sessionRepo.AssertExpectations(t)
 }
 
 func TestAuthService_Login_InactiveUser(t *testing.T) {
@@ -169,7 +172,7 @@ func TestAuthService_Login_InvalidCredentials(t *testing.T) {
 }
 
 func TestAuthService_Refresh_Success(t *testing.T) {
-	svc, userRepo, refreshRepo, _ := setupAuthSvc(t)
+	svc, userRepo, refreshRepo, sessionRepo := setupAuthSvc(t)
 	userID := uuid.New()
 
 	userRepo.On("GetByEmail", anyCtx, "admin@zeus.com").Return(&models.User{
@@ -180,6 +183,7 @@ func TestAuthService_Refresh_Success(t *testing.T) {
 		Status:       models.AccountStatusActive,
 	}, nil)
 	refreshRepo.On("SaveRefreshToken", anyCtx, mock.AnythingOfType("string"), userID.String()).Return(nil)
+	sessionRepo.On("Create", anyCtx, mock.AnythingOfType("*models.Session")).Return(nil)
 
 	loginPair, err := svc.Login(context.Background(), models.LoginRequest{Email: "admin@zeus.com", Password: "pass"})
 	assert.NoError(t, err)
@@ -195,14 +199,20 @@ func TestAuthService_Refresh_Success(t *testing.T) {
 		Role:  "admin",
 	}, nil)
 	refreshRepo.On("SaveRefreshToken", anyCtx, mock.AnythingOfType("string"), userID.String()).Return(nil)
+	sessionRepo.On("Create", anyCtx, mock.AnythingOfType("*models.Session")).Return(nil)
+	sessionRepo.On("DeleteByJTI", anyCtx, mock.AnythingOfType("string")).Return(nil)
 
 	pair, err := svc.Refresh(context.Background(), models.RefreshRequest{RefreshToken: loginPair.RefreshToken})
 	assert.NoError(t, err)
 	assertTokenPair(t, pair)
+
+	userRepo.AssertExpectations(t)
+	refreshRepo.AssertExpectations(t)
+	sessionRepo.AssertExpectations(t)
 }
 
 func TestAuthService_Refresh_ExpiredToken(t *testing.T) {
-	svc, userRepo, refreshRepo, _ := setupAuthSvc(t)
+	svc, userRepo, refreshRepo, sessionRepo := setupAuthSvc(t)
 	userID := uuid.New()
 
 	userRepo.On("GetByEmail", anyCtx, "admin@zeus.com").Return(&models.User{
@@ -213,6 +223,7 @@ func TestAuthService_Refresh_ExpiredToken(t *testing.T) {
 		Status:       models.AccountStatusActive,
 	}, nil)
 	refreshRepo.On("SaveRefreshToken", anyCtx, mock.AnythingOfType("string"), userID.String()).Return(nil)
+	sessionRepo.On("Create", anyCtx, mock.AnythingOfType("*models.Session")).Return(nil)
 
 	loginPair, err := svc.Login(context.Background(), models.LoginRequest{Email: "admin@zeus.com", Password: "pass"})
 	assert.NoError(t, err)
@@ -222,10 +233,15 @@ func TestAuthService_Refresh_ExpiredToken(t *testing.T) {
 	assert.NoError(t, err)
 
 	refreshRepo.On("ValidateRefreshToken", anyCtx, refreshClaims.JTI.String()).Return("", nil)
+	sessionRepo.On("GetByJTI", anyCtx, refreshClaims.JTI.String()).Return(nil, nil)
 
 	pair, err := svc.Refresh(context.Background(), models.RefreshRequest{RefreshToken: loginPair.RefreshToken})
 	assert.Error(t, err)
 	assert.Nil(t, pair)
+
+	userRepo.AssertExpectations(t)
+	refreshRepo.AssertExpectations(t)
+	sessionRepo.AssertExpectations(t)
 }
 
 func TestAuthService_Refresh_InvalidToken(t *testing.T) {
@@ -237,7 +253,7 @@ func TestAuthService_Refresh_InvalidToken(t *testing.T) {
 }
 
 func TestAuthService_VerifyAccessToken_Success(t *testing.T) {
-	svc, userRepo, refreshRepo, _ := setupAuthSvc(t)
+	svc, userRepo, refreshRepo, sessionRepo := setupAuthSvc(t)
 	userID := uuid.New()
 
 	userRepo.On("GetByEmail", anyCtx, "v@z.com").Return(&models.User{
@@ -249,6 +265,7 @@ func TestAuthService_VerifyAccessToken_Success(t *testing.T) {
 	}, nil)
 	refreshRepo.On("SaveRefreshToken", anyCtx, mock.AnythingOfType("string"), userID.String()).Return(nil)
 	refreshRepo.On("IsAccessTokenBlacklisted", anyCtx, mock.AnythingOfType("string")).Return(false, nil)
+	sessionRepo.On("Create", anyCtx, mock.AnythingOfType("*models.Session")).Return(nil)
 
 	pair, err := svc.Login(context.Background(), models.LoginRequest{Email: "v@z.com", Password: "pass"})
 	assert.NoError(t, err)
@@ -262,6 +279,7 @@ func TestAuthService_VerifyAccessToken_Success(t *testing.T) {
 	assert.Equal(t, "ACTIVE", claimsResult.Status)
 	userRepo.AssertExpectations(t)
 	refreshRepo.AssertExpectations(t)
+	sessionRepo.AssertExpectations(t)
 }
 
 func TestAuthService_VerifyAccessToken_Expired(t *testing.T) {
@@ -269,6 +287,38 @@ func TestAuthService_VerifyAccessToken_Expired(t *testing.T) {
 
 	_, err := svc.VerifyAccessToken("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjEwMDAwMDAwMDAsInVzZXJfaWQiOiIxIn0.signature")
 	assert.Error(t, err)
+}
+
+func TestAuthService_Logout_Success(t *testing.T) {
+	svc, userRepo, refreshRepo, sessionRepo := setupAuthSvc(t)
+	userID := uuid.New()
+	email := "user@zeus.com"
+	password := "pass123"
+
+	userRepo.On("GetByEmail", anyCtx, email).Return(&models.User{
+		ID:           userID,
+		Email:        email,
+		PasswordHash: hashPassword(t, password),
+		Role:         "admin",
+		Status:       models.AccountStatusActive,
+	}, nil)
+	refreshRepo.On("SaveRefreshToken", anyCtx, mock.AnythingOfType("string"), userID.String()).Return(nil)
+	sessionRepo.On("Create", anyCtx, mock.AnythingOfType("*models.Session")).Return(nil)
+
+	pair, err := svc.Login(context.Background(), models.LoginRequest{Email: email, Password: password})
+	assert.NoError(t, err)
+	assert.NotEmpty(t, pair.AccessToken)
+
+	refreshRepo.On("DeleteUserTokens", anyCtx, userID.String()).Return(nil)
+	sessionRepo.On("DeleteByUserID", anyCtx, userID.String()).Return(nil)
+	refreshRepo.On("BlacklistAccessToken", anyCtx, mock.AnythingOfType("string"), mock.AnythingOfType("time.Duration")).Return(nil)
+
+	err = svc.Logout(context.Background(), pair.AccessToken)
+	assert.NoError(t, err)
+
+	userRepo.AssertExpectations(t)
+	refreshRepo.AssertExpectations(t)
+	sessionRepo.AssertExpectations(t)
 }
 
 func TestAuthService_VerifyAccessToken_WrongKey(t *testing.T) {

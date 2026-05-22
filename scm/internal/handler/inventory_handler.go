@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"zeus-be/pkg/response"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/service"
@@ -31,7 +32,7 @@ func (h *InventoryHandler) GetProduct(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, p)
+	response.OK(c, p)
 }
 
 func parsePaginationParams(c *gin.Context) pagination.Params {
@@ -54,7 +55,7 @@ func (h *InventoryHandler) ListProducts(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, pagination.Response{Data: products, Pagination: *meta})
+	response.OK(c, pagination.Response{Data: products, Pagination: *meta})
 }
 
 func (h *InventoryHandler) CreateProduct(c *gin.Context) {
@@ -67,7 +68,7 @@ func (h *InventoryHandler) CreateProduct(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, p)
+	response.Created(c, p)
 }
 
 func (h *InventoryHandler) GetProductModel(c *gin.Context) {
@@ -77,7 +78,7 @@ func (h *InventoryHandler) GetProductModel(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, m)
+	response.OK(c, m)
 }
 
 func (h *InventoryHandler) CreateProductModel(c *gin.Context) {
@@ -90,7 +91,7 @@ func (h *InventoryHandler) CreateProductModel(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, m)
+	response.Created(c, m)
 }
 
 func (h *InventoryHandler) GetPart(c *gin.Context) {
@@ -104,7 +105,7 @@ func (h *InventoryHandler) GetPart(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, p)
+	response.OK(c, p)
 }
 
 func (h *InventoryHandler) ListParts(c *gin.Context) {
@@ -136,7 +137,7 @@ func (h *InventoryHandler) ListParts(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, pagination.Response{Data: parts, Pagination: *meta})
+	response.OK(c, pagination.Response{Data: parts, Pagination: *meta})
 }
 
 func (h *InventoryHandler) CreatePart(c *gin.Context) {
@@ -149,7 +150,7 @@ func (h *InventoryHandler) CreatePart(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, p)
+	response.Created(c, p)
 }
 
 func (h *InventoryHandler) UpdatePartCondition(c *gin.Context) {
@@ -169,7 +170,7 @@ func (h *InventoryHandler) UpdatePartCondition(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "condition updated"})
+	response.OKWithMessage(c, http.StatusOK, "condition updated")
 }
 
 func (h *InventoryHandler) MarkPartScrapped(c *gin.Context) {
@@ -182,7 +183,7 @@ func (h *InventoryHandler) MarkPartScrapped(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "part scrapped"})
+	response.OKWithMessage(c, http.StatusOK, "part scrapped")
 }
 
 func (h *InventoryHandler) InstallPart(c *gin.Context) {
@@ -207,7 +208,7 @@ func (h *InventoryHandler) InstallPart(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "part installed"})
+	response.OKWithMessage(c, http.StatusOK, "part installed")
 }
 
 func (h *InventoryHandler) RemovePart(c *gin.Context) {
@@ -220,7 +221,7 @@ func (h *InventoryHandler) RemovePart(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "part removed"})
+	response.OKWithMessage(c, http.StatusOK, "part removed")
 }
 
 func (h *InventoryHandler) GetPartCatalog(c *gin.Context) {
@@ -234,7 +235,7 @@ func (h *InventoryHandler) GetPartCatalog(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, cat)
+	response.OK(c, cat)
 }
 
 func (h *InventoryHandler) ListPartCatalog(c *gin.Context) {
@@ -253,7 +254,7 @@ func (h *InventoryHandler) ListPartCatalog(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, pagination.Response{Data: catalogs, Pagination: *meta})
+	response.OK(c, pagination.Response{Data: catalogs, Pagination: *meta})
 }
 
 func (h *InventoryHandler) UpdateProduct(c *gin.Context) {
@@ -286,7 +287,7 @@ func (h *InventoryHandler) UpdateProduct(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, p)
+	response.OK(c, p)
 }
 
 func (h *InventoryHandler) UpdatePart(c *gin.Context) {
@@ -319,5 +320,5 @@ func (h *InventoryHandler) UpdatePart(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, p)
+	response.OK(c, p)
 }

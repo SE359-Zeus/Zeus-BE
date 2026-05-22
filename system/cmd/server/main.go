@@ -23,6 +23,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func dialValkey(addr string) func() (cache.ValkeyConn, error) {
+	return func() (cache.ValkeyConn, error) {
+		return cache.DialValkey(addr)
+	}
+}
+
 func loadPrivateKey(path string) *rsa.PrivateKey {
 	if path == "" {
 		key, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -68,15 +74,11 @@ func main() {
 	actionTypeRepo := sqlite.NewActionTypeRepository(db)
 	endpointRoleRepo := sqlite.NewEndpointRoleRepository(db)
 
-	vk, err := cache.NewValkey(cfg.ValkeyAddr)
-	if err != nil {
-		log.Fatalf("failed to connect to Valkey: %v", err)
-	}
-	defer vk.Close()
+	vkDialer := dialValkey(cfg.ValkeyAddr)
 
-	refreshTokenRepo := valkeyRepo.NewRefreshTokenRepository(vk)
-	actionTypeCacheRepo := valkeyRepo.NewActionTypeCacheRepository(vk)
-	endpointRBACCacheRepo := valkeyRepo.NewEndpointRBACCacheRepository(vk)
+	refreshTokenRepo := valkeyRepo.NewRefreshTokenRepository(vkDialer)
+	actionTypeCacheRepo := valkeyRepo.NewActionTypeCacheRepository(vkDialer)
+	endpointRBACCacheRepo := valkeyRepo.NewEndpointRBACCacheRepository(vkDialer)
 
 	rbacSvc := service.NewEndpointRBACService(roleRepo, endpointRoleRepo, endpointRBACCacheRepo)
 	if err := rbacSvc.WarmCache(context.Background()); err != nil {
@@ -88,10 +90,24 @@ func main() {
 		log.Printf("Warning: action type cache warm failed: %v", err)
 	}
 
+	sessionRepo := sqlite.NewSessionRepository(db)
+
 	userSvc := service.NewUserService(userRepo, rbacSvc)
 	privateKey := loadPrivateKey(cfg.JWTKeyPath)
-	authSvc := service.NewAuthService(userSvc, refreshTokenRepo, privateKey)
+	authSvc := service.NewAuthService(userSvc, refreshTokenRepo, sessionRepo, privateKey)
 	auditSvc := service.NewAuditService(auditRepo, actionTypeSvc)
+
+	sessions, err := sessionRepo.ListActive(context.Background())
+	if err != nil {
+		log.Printf("Warning: failed to load sessions for Valkey warm-up: %v", err)
+	} else {
+		for _, s := range sessions {
+			if err := refreshTokenRepo.SaveRefreshToken(context.Background(), s.JTI, s.UserID.String()); err != nil {
+				log.Printf("Warning: failed to warm refresh token %s: %v", s.JTI, err)
+			}
+		}
+		log.Printf("warmed %d sessions into Valkey", len(sessions))
+	}
 
 	authH := handler.NewAuthHandler(authSvc)
 	userH := handler.NewUserHandler(userSvc)

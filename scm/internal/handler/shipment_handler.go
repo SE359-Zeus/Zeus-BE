@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 
+	"zeus-be/pkg/response"
 	"zeus-scm-service/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -31,7 +32,7 @@ func (h *ShipmentHandler) AcquireDispatchLock(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "dispatch lock acquired"})
+	response.OKWithMessage(c, http.StatusOK, "dispatch lock acquired")
 }
 
 type dispatchShipmentRequest struct {
@@ -51,5 +52,5 @@ func (h *ShipmentHandler) DispatchShipment(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "shipment dispatched"})
+	response.OKWithMessage(c, http.StatusOK, "shipment dispatched")
 }

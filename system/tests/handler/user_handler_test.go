@@ -61,11 +61,18 @@ func TestUserHandler_Create_201(t *testing.T) {
 	r.ServeHTTP(w, reqHTTP)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
-	var resp models.UserResponse
-	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	var env struct {
+		StatusCode int             `json:"statusCode"`
+		Data       json.RawMessage `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &env)
 	assert.NoError(t, err)
-	assert.Equal(t, created.ID, resp.ID)
-	assert.Equal(t, created.Email, resp.Email)
+	assert.Equal(t, 201, env.StatusCode)
+	var data models.UserResponse
+	err = json.Unmarshal(env.Data, &data)
+	assert.NoError(t, err)
+	assert.Equal(t, created.ID, data.ID)
+	assert.Equal(t, created.Email, data.Email)
 	mockSvc.AssertExpectations(t)
 }
 
@@ -132,10 +139,17 @@ func TestUserHandler_GetByID_200(t *testing.T) {
 	r.ServeHTTP(w, reqHTTP)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	var resp models.UserResponse
-	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	var env struct {
+		StatusCode int             `json:"statusCode"`
+		Data       json.RawMessage `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &env)
 	assert.NoError(t, err)
-	assert.Equal(t, id, resp.ID)
+	assert.Equal(t, 200, env.StatusCode)
+	var data models.UserResponse
+	err = json.Unmarshal(env.Data, &data)
+	assert.NoError(t, err)
+	assert.Equal(t, id, data.ID)
 	mockSvc.AssertExpectations(t)
 }
 
@@ -178,14 +192,21 @@ func TestUserHandler_List_200(t *testing.T) {
 	r.ServeHTTP(w, reqHTTP)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	var resp struct {
-		Data       []models.UserResponse    `json:"data"`
-		Pagination models.PaginationMeta    `json:"pagination"`
+	var env struct {
+		StatusCode int             `json:"statusCode"`
+		Data       json.RawMessage `json:"data"`
 	}
-	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	err := json.Unmarshal(w.Body.Bytes(), &env)
 	assert.NoError(t, err)
-	assert.Len(t, resp.Data, 2)
-	assert.Equal(t, 1, resp.Pagination.TotalPages)
+	assert.Equal(t, 200, env.StatusCode)
+	var data struct {
+		Items      []models.UserResponse  `json:"items"`
+		Pagination models.PaginationMeta  `json:"pagination"`
+	}
+	err = json.Unmarshal(env.Data, &data)
+	assert.NoError(t, err)
+	assert.Len(t, data.Items, 2)
+	assert.Equal(t, 1, data.Pagination.TotalPages)
 	mockSvc.AssertExpectations(t)
 }
 

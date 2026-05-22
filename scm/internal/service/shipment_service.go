@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"zeus-scm-service/internal/messaging"
 	"zeus-scm-service/internal/models"
 
 	"gorm.io/gorm"
@@ -17,11 +16,10 @@ type IShipmentService interface {
 
 type shipmentService struct {
 	db *gorm.DB
-	mq *messaging.RabbitMQ
 }
 
-func NewShipmentService(db *gorm.DB, mq *messaging.RabbitMQ) IShipmentService {
-	return &shipmentService{db: db, mq: mq}
+func NewShipmentService(db *gorm.DB) IShipmentService {
+	return &shipmentService{db: db}
 }
 
 func (s *shipmentService) AcquireDispatchLock(ctx context.Context, shipmentID string, operatorID string) error {

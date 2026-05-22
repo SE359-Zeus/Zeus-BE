@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 
+	"zeus-be/pkg/response"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/service"
 
@@ -39,7 +40,7 @@ func (h *POHandler) CreateDraft(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, po)
+	response.Created(c, po)
 }
 
 type addLineItemRequest struct {
@@ -58,7 +59,7 @@ func (h *POHandler) AddLineItemWithLock(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "line item added"})
+	response.OKWithMessage(c, http.StatusOK, "line item added")
 }
 
 func (h *POHandler) ApprovePO(c *gin.Context) {
@@ -67,7 +68,7 @@ func (h *POHandler) ApprovePO(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "PO approved"})
+	response.OKWithMessage(c, http.StatusOK, "PO approved")
 }
 
 type transitionStateRequest struct {
@@ -85,5 +86,5 @@ func (h *POHandler) TransitionState(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "state transitioned"})
+	response.OKWithMessage(c, http.StatusOK, "state transitioned")
 }

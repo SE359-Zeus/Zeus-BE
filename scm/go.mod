@@ -11,9 +11,13 @@ require (
 	github.com/rabbitmq/amqp091-go v1.11.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.48.0
+	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1
+	zeus-be/pkg/response v0.0.0
 )
+
+replace zeus-be/pkg/response => ../pkg/response
 
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
@@ -49,5 +53,4 @@ require (
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"zeus-be/pkg/exception"
+	"zeus-be/pkg/response"
 	"zeus-system-service/internal/models"
 	"zeus-system-service/internal/service"
 
@@ -35,7 +36,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, gin.H{"access_token": pair.AccessToken})
+	response.OK(c, gin.H{
+		"access_token":  pair.AccessToken,
+		"refresh_token": pair.RefreshToken,
+	})
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
@@ -55,7 +59,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, pair)
+	response.OK(c, pair)
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
@@ -76,5 +80,5 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, gin.H{"message": "logged out successfully"})
+	response.OKWithMessage(c, 200, "logged out successfully")
 }

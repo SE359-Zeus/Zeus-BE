@@ -49,6 +49,15 @@ type EndpointRoleRepository interface {
 	GetAll(ctx context.Context) ([]models.EndpointRole, error)
 }
 
+type SessionRepository interface {
+	Create(ctx context.Context, session *models.Session) error
+	GetByJTI(ctx context.Context, jti string) (*models.Session, error)
+	DeleteByJTI(ctx context.Context, jti string) error
+	DeleteByUserID(ctx context.Context, userID string) error
+	DeleteExpired(ctx context.Context) error
+	ListActive(ctx context.Context) ([]models.Session, error)
+}
+
 type ActionTypeCacheRepository interface {
 	Warm(ctx context.Context, names []string) error
 	IsValid(ctx context.Context, name string) (bool, error)

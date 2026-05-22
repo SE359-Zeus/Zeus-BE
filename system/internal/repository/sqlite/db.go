@@ -18,6 +18,7 @@ func NewDB(path string) (*gorm.DB, error) {
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&models.User{},
+		&models.Session{},
 		&models.AuditLog{},
 		&models.Role{},
 		&models.ActionTypeEntry{},

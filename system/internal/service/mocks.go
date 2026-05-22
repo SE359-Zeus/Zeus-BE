@@ -140,6 +140,46 @@ func (m *MockEndpointRBACService) WarmCache(ctx context.Context) error {
 	return args.Error(0)
 }
 
+type MockSessionRepository struct {
+	mock.Mock
+}
+
+func (m *MockSessionRepository) Create(ctx context.Context, session *models.Session) error {
+	args := m.Called(ctx, session)
+	return args.Error(0)
+}
+
+func (m *MockSessionRepository) GetByJTI(ctx context.Context, jti string) (*models.Session, error) {
+	args := m.Called(ctx, jti)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Session), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockSessionRepository) DeleteByJTI(ctx context.Context, jti string) error {
+	args := m.Called(ctx, jti)
+	return args.Error(0)
+}
+
+func (m *MockSessionRepository) DeleteByUserID(ctx context.Context, userID string) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
+func (m *MockSessionRepository) DeleteExpired(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockSessionRepository) ListActive(ctx context.Context) ([]models.Session, error) {
+	args := m.Called(ctx)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.Session), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 type MockActionTypeService struct {
 	mock.Mock
 }

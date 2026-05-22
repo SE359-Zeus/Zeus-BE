@@ -104,14 +104,21 @@ func TestAuditHandler_Query_200(t *testing.T) {
 	r.ServeHTTP(w, reqHTTP)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	var resp struct {
-		Data       []models.AuditLog       `json:"data"`
+	var env struct {
+		StatusCode int             `json:"statusCode"`
+		Data       json.RawMessage `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &env)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, env.StatusCode)
+	var data struct {
+		Items      []models.AuditLog       `json:"items"`
 		Pagination models.PaginationMeta   `json:"pagination"`
 	}
-	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	err = json.Unmarshal(env.Data, &data)
 	assert.NoError(t, err)
-	assert.Len(t, resp.Data, 1)
-	assert.Equal(t, 1, resp.Pagination.TotalPages)
+	assert.Len(t, data.Items, 1)
+	assert.Equal(t, 1, data.Pagination.TotalPages)
 	mockSvc.AssertExpectations(t)
 }
 
@@ -126,13 +133,20 @@ func TestAuditHandler_Query_200_Empty(t *testing.T) {
 	r.ServeHTTP(w, reqHTTP)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	var resp struct {
-		Data       []models.AuditLog       `json:"data"`
+	var env struct {
+		StatusCode int             `json:"statusCode"`
+		Data       json.RawMessage `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &env)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, env.StatusCode)
+	var data struct {
+		Items      []models.AuditLog       `json:"items"`
 		Pagination models.PaginationMeta   `json:"pagination"`
 	}
-	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	err = json.Unmarshal(env.Data, &data)
 	assert.NoError(t, err)
-	assert.Len(t, resp.Data, 0)
+	assert.Len(t, data.Items, 0)
 	mockSvc.AssertExpectations(t)
 }
 
@@ -152,11 +166,18 @@ func TestAuditHandler_GetMetrics_200(t *testing.T) {
 	r.ServeHTTP(w, reqHTTP)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	var resp models.AuditMetrics
-	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	var env struct {
+		StatusCode int             `json:"statusCode"`
+		Data       json.RawMessage `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &env)
 	assert.NoError(t, err)
-	assert.Equal(t, int64(10), resp.LoginsToday)
-	assert.Equal(t, int64(3), resp.SecurityEvents)
-	assert.Equal(t, int64(25), resp.ModificationVelocity)
+	assert.Equal(t, 200, env.StatusCode)
+	var data models.AuditMetrics
+	err = json.Unmarshal(env.Data, &data)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(10), data.LoginsToday)
+	assert.Equal(t, int64(3), data.SecurityEvents)
+	assert.Equal(t, int64(25), data.ModificationVelocity)
 	mockSvc.AssertExpectations(t)
 }

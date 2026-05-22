@@ -13,22 +13,28 @@ const (
 )
 
 type endpointRBACCacheRepository struct {
-	vk *cache.Valkey
+	dialer func() (cache.ValkeyConn, error)
 }
 
-func NewEndpointRBACCacheRepository(vk *cache.Valkey) *endpointRBACCacheRepository {
-	return &endpointRBACCacheRepository{vk: vk}
+func NewEndpointRBACCacheRepository(dialer func() (cache.ValkeyConn, error)) *endpointRBACCacheRepository {
+	return &endpointRBACCacheRepository{dialer: dialer}
 }
 
 func (r *endpointRBACCacheRepository) Warm(ctx context.Context, endpointLevels map[string]string, roleLevels map[string]string) error {
+	conn, err := r.dialer()
+	if err != nil {
+		return fmt.Errorf("failed to dial Valkey: %w", err)
+	}
+	defer conn.Close()
+
 	for key, level := range endpointLevels {
-		if err := r.vk.Set(ctx, key, level, 0); err != nil {
+		if err := conn.Set(ctx, key, level, 0); err != nil {
 			return fmt.Errorf("failed to cache endpoint level %s: %w", key, err)
 		}
 	}
 	for role, level := range roleLevels {
 		key := fmt.Sprintf(roleLevelPrefix, role)
-		if err := r.vk.Set(ctx, key, level, 0); err != nil {
+		if err := conn.Set(ctx, key, level, 0); err != nil {
 			return fmt.Errorf("failed to cache role level %s: %w", role, err)
 		}
 	}
@@ -36,11 +42,23 @@ func (r *endpointRBACCacheRepository) Warm(ctx context.Context, endpointLevels m
 }
 
 func (r *endpointRBACCacheRepository) GetRequiredLevel(ctx context.Context, method, path string) (string, error) {
+	conn, err := r.dialer()
+	if err != nil {
+		return "", fmt.Errorf("failed to dial Valkey: %w", err)
+	}
+	defer conn.Close()
+
 	key := fmt.Sprintf(endpointLevelPrefix, method, path)
-	return r.vk.Get(ctx, key)
+	return conn.Get(ctx, key)
 }
 
 func (r *endpointRBACCacheRepository) GetRoleLevel(ctx context.Context, roleName string) (string, error) {
+	conn, err := r.dialer()
+	if err != nil {
+		return "", fmt.Errorf("failed to dial Valkey: %w", err)
+	}
+	defer conn.Close()
+
 	key := fmt.Sprintf(roleLevelPrefix, roleName)
-	return r.vk.Get(ctx, key)
+	return conn.Get(ctx, key)
 }
