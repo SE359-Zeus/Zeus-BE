@@ -170,8 +170,8 @@ jobs:
           if count == 0:
               raise SystemExit("sales image line not found in manifest file")
 
-            if count < 2:
-              raise SystemExit(f"expected to update both sales-be and sales-migrate, but only updated {count} line(s)")
+          if count < 2:
+            raise SystemExit(f"expected to update both sales-be and sales-migrate, but only updated {count} line(s)")
 
           file_path.write_text(updated)
           print(f"Updated {file_path} to {new_image}")
