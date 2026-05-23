@@ -3,8 +3,11 @@ package middleware
 import (
 	"log"
 
-	"github.com/gin-gonic/gin"
+	"zeus-system-service/internal/handler"
+
 	"zeus-be/pkg/exception"
+
+	"github.com/gin-gonic/gin"
 )
 
 func Recovery() gin.HandlerFunc {
@@ -12,7 +15,7 @@ func Recovery() gin.HandlerFunc {
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("panic recovered: %v", r)
-				exception.WriteError(c, exception.ErrPanic)
+				handler.WriteAppError(c, exception.ErrPanic)
 			}
 		}()
 		c.Next()

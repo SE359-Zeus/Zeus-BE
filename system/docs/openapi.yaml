@@ -4,7 +4,7 @@ info:
   description: Root of Trust module of the Zeus ERP system. Manages authentication lifecycle, user directory, and immutable audit trail.
   version: "1.0.0"
 servers:
-  - url: /api/v1
+  - url: /api/v1/system
     description: API base path
 
 components:
@@ -176,8 +176,13 @@ components:
           type: integer
         offset:
           type: integer
-    SuccessResponse:
+    Envelope:
       type: object
+      required:
+        - message
+        - statusCode
+        - metadata
+        - data
       properties:
         statusCode:
           type: integer
@@ -185,24 +190,14 @@ components:
         message:
           type: string
           example: success
+        metadata:
+          type: object
+          additionalProperties: true
         data:
           nullable: true
-    SuccessListResponse:
-      type: object
-      properties:
-        statusCode:
-          type: integer
-          example: 200
-        message:
-          type: string
-          example: success
-        data:
-          type: object
-          properties:
-            items:
-              type: array
-            pagination:
-              $ref: '#/components/schemas/PaginationMeta'
+    ErrorEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/Envelope'
     AuditMetrics:
       type: object
       properties:
@@ -244,7 +239,7 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
+                  - $ref: '#/components/schemas/Envelope'
                   - properties:
                       data:
                         type: object
@@ -276,7 +271,7 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
+                  - $ref: '#/components/schemas/Envelope'
                   - properties:
                       data:
                         $ref: '#/components/schemas/TokenPair'
@@ -296,8 +291,8 @@ paths:
           description: Logged out successfully
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                schema:
+                  $ref: '#/components/schemas/Envelope'
         '401':
           description: Missing, invalid, or expired access token
 
@@ -318,7 +313,7 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
+                  - $ref: '#/components/schemas/Envelope'
                   - properties:
                       data:
                         $ref: '#/components/schemas/UserResponse'
@@ -356,7 +351,7 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
+                  - $ref: '#/components/schemas/Envelope'
                   - properties:
                       data:
                         type: object
@@ -386,7 +381,7 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
+                  - $ref: '#/components/schemas/Envelope'
                   - properties:
                       data:
                         $ref: '#/components/schemas/UserResponse'
@@ -417,7 +412,7 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
+                  - $ref: '#/components/schemas/Envelope'
                   - properties:
                       data:
                         $ref: '#/components/schemas/UserResponse'
@@ -448,8 +443,8 @@ paths:
           description: Status updated
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                schema:
+                  $ref: '#/components/schemas/Envelope'
         '400':
           description: Invalid status
         '404':
@@ -470,8 +465,8 @@ paths:
           description: Log entry created
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                schema:
+                  $ref: '#/components/schemas/Envelope'
         '400':
           description: Invalid request body
 
@@ -523,7 +518,7 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
+                  - $ref: '#/components/schemas/Envelope'
                   - properties:
                       data:
                         type: object
@@ -546,7 +541,7 @@ paths:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
+                  - $ref: '#/components/schemas/Envelope'
                   - properties:
                       data:
                         $ref: '#/components/schemas/AuditMetrics'

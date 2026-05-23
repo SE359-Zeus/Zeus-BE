@@ -69,7 +69,7 @@ func buildOpenAPISpec(serverPort string) func() ([]byte, error) {
 		}
 
 		parsed["servers"] = []map[string]string{{
-			"url":         "http://localhost:" + serverPort + "/api/v1",
+			"url":         "http://localhost:" + serverPort + "/api/v1/system",
 			"description": "Local development",
 		}}
 
@@ -137,22 +137,23 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Logger(), middleware.Recovery())
 
-	public := r.Group("/")
+	r.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
+		Title:        "Zeus System API",
+		SpecProvider: buildOpenAPISpec(cfg.ServerPort),
+		Theme:        "dark",
+	}))
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok"})
+	})
+
+	systemPublic := r.Group("/api/v1/system")
 	{
-		public.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
-			Title:        "Zeus System API",
-			SpecProvider: buildOpenAPISpec(cfg.ServerPort),
-			Theme:        "dark",
-		}))
-		public.GET("/health", func(c *gin.Context) {
-			c.JSON(200, gin.H{"status": "ok"})
-		})
-		public.POST("/api/v1/auth/login", authH.Login)
-		public.POST("/api/v1/auth/refresh", authH.Refresh)
-		public.POST("/api/v1/auth/logout", authH.Logout)
+		systemPublic.POST("/auth/login", authH.Login)
+		systemPublic.POST("/auth/refresh", authH.Refresh)
+		systemPublic.POST("/auth/logout", authH.Logout)
 	}
 
-	api := r.Group("/api/v1")
+	api := r.Group("/api/v1/system")
 	api.Use(middleware.JWTAuth(authSvc), middleware.RequireRoleLevel(rbacSvc))
 	{
 		api.POST("/users", userH.Create)
