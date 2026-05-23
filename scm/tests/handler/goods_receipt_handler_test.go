@@ -89,9 +89,10 @@ func TestGoodsReceiptHandler_ProcessBlindReceipt_200(t *testing.T) {
 	r, mockSvc := setupGRTest()
 
 	mockSvc.On("ProcessBlindReceipt", mock.Anything, "GR-2025-001", "operator-1",
-		mock.MatchedBy(func(c map[string]struct{ Received int; Defective int }) bool {
-			return c["SOC-001"].Received == 10
-		})).Return(nil)
+		mock.MatchedBy(func(c map[string]struct {
+			Received  int
+			Defective int
+		}) bool { return c["SOC-001"].Received == 10 })).Return(nil)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"operator_id": "operator-1",
