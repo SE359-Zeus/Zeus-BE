@@ -13,6 +13,7 @@ type Config struct {
 	Port            string
 	BaseURL         string
 	Env             string
+	ValkeyAddr      string
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	ShutdownTimeout time.Duration
@@ -26,10 +27,22 @@ func Load() *Config {
 		Port:            port,
 		BaseURL:         getEnv("MRP_BASE_URL", "http://localhost:"+port),
 		Env:             getEnv("MRP_ENV", "development"),
+		ValkeyAddr:      normalizeAddr(getEnv("MRP_VALKEY_ADDR", "localhost:6379")),
 		ReadTimeout:     time.Duration(getEnvInt("MRP_READ_TIMEOUT_SEC", 15)) * time.Second,
 		WriteTimeout:    time.Duration(getEnvInt("MRP_WRITE_TIMEOUT_SEC", 15)) * time.Second,
 		ShutdownTimeout: time.Duration(getEnvInt("MRP_SHUTDOWN_TIMEOUT_SEC", 10)) * time.Second,
 	}
+}
+
+func normalizeAddr(addr string) string {
+	addr = strings.TrimSpace(addr)
+	addr = strings.TrimPrefix(addr, "http://")
+	addr = strings.TrimPrefix(addr, "https://")
+	addr = strings.TrimPrefix(addr, "redis://")
+	if i := strings.Index(addr, "/"); i >= 0 {
+		addr = addr[:i]
+	}
+	return addr
 }
 
 func loadDotEnv() {
