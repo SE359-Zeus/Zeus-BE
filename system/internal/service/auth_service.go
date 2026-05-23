@@ -66,8 +66,8 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 		return nil, err
 	}
 
-	if err := s.refreshRepo.SaveRefreshToken(ctx, jti.String(), user.ID.String()); err != nil {
-		return nil, err
+	if s.refreshRepo != nil {
+		_ = s.refreshRepo.SaveRefreshToken(ctx, jti.String(), user.ID.String())
 	}
 
 	if err := s.sessionRepo.Create(ctx, &models.Session{
@@ -104,17 +104,8 @@ func (s *authService) Refresh(ctx context.Context, req models.RefreshRequest) (*
 		return nil, ErrUnauthorized
 	}
 
-	userID, err := s.refreshRepo.ValidateRefreshToken(ctx, claims.JTI.String())
-	if err != nil || userID == "" {
-		session, dbErr := s.sessionRepo.GetByJTI(ctx, claims.JTI.String())
-		if dbErr != nil || session == nil {
-			return nil, ErrUnauthorized
-		}
-		userID = session.UserID.String()
-	}
-
-	if userID != claims.SUB.String() {
-		return nil, ErrUnauthorized
+	if _, err := s.validateRefreshToken(ctx, claims); err != nil {
+		return nil, err
 	}
 
 	user, err := s.userService.GetByID(ctx, claims.SUB)
@@ -132,8 +123,8 @@ func (s *authService) Refresh(ctx context.Context, req models.RefreshRequest) (*
 		return nil, err
 	}
 
-	if err := s.refreshRepo.SaveRefreshToken(ctx, newJTI.String(), user.ID.String()); err != nil {
-		return nil, err
+	if s.refreshRepo != nil {
+		_ = s.refreshRepo.SaveRefreshToken(ctx, newJTI.String(), user.ID.String())
 	}
 
 	if err := s.sessionRepo.Create(ctx, &models.Session{
@@ -174,12 +165,9 @@ func (s *authService) VerifyAccessToken(tokenString string) (*JWTClaims, error) 
 		return nil, ErrUnauthorized
 	}
 
-	if parsedClaims.ID != "" {
+	if s.refreshRepo != nil && parsedClaims.ID != "" {
 		blacklisted, err := s.refreshRepo.IsAccessTokenBlacklisted(context.Background(), parsedClaims.ID)
-		if err != nil {
-			return nil, ErrUnauthorized
-		}
-		if blacklisted {
+		if err == nil && blacklisted {
 			return nil, ErrUnauthorized
 		}
 	}
@@ -215,29 +203,43 @@ func (s *authService) Logout(ctx context.Context, accessToken string) error {
 		return ErrUnauthorized
 	}
 
-	userID, err := uuid.Parse(parsedClaims.UserID)
-	if err != nil {
-		return ErrUnauthorized
-	}
-
-	if err := s.refreshRepo.DeleteUserTokens(ctx, userID.String()); err != nil {
+	if err := s.sessionRepo.DeleteByUserID(ctx, parsedClaims.UserID); err != nil {
 		return err
 	}
 
-	if err := s.sessionRepo.DeleteByUserID(ctx, userID.String()); err != nil {
-		return err
-	}
-
-	if parsedClaims.ID != "" {
-		remaining := time.Until(parsedClaims.ExpiresAt.Time)
-		if remaining > 0 {
-			if err := s.refreshRepo.BlacklistAccessToken(ctx, parsedClaims.ID, remaining); err != nil {
-				return err
+	if s.refreshRepo != nil {
+		_ = s.refreshRepo.DeleteUserTokens(ctx, parsedClaims.UserID)
+		if parsedClaims.ID != "" {
+			remaining := time.Until(parsedClaims.ExpiresAt.Time)
+			if remaining > 0 {
+				_ = s.refreshRepo.BlacklistAccessToken(ctx, parsedClaims.ID, remaining)
 			}
 		}
 	}
 
 	return nil
+}
+
+func (s *authService) validateRefreshToken(ctx context.Context, claims *jwtRefreshClaims) (string, error) {
+	if s.refreshRepo != nil {
+		userID, err := s.refreshRepo.ValidateRefreshToken(ctx, claims.JTI.String())
+		if err == nil && userID != "" {
+			if userID != claims.SUB.String() {
+				return "", ErrUnauthorized
+			}
+			return userID, nil
+		}
+	}
+
+	session, err := s.sessionRepo.GetByJTI(ctx, claims.JTI.String())
+	if err != nil || session == nil {
+		return "", ErrUnauthorized
+	}
+	if session.UserID.String() != claims.SUB.String() {
+		return "", ErrUnauthorized
+	}
+
+	return session.UserID.String(), nil
 }
 
 func (s *authService) generateAccessToken(userID uuid.UUID, role, email, fullName, status string) (string, error) {

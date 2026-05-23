@@ -15,9 +15,9 @@ var levelRank = map[string]int{
 }
 
 type endpointRBACService struct {
-	roleRepo        repository.RoleRepository
-	endpointRepo    repository.EndpointRoleRepository
-	cacheRepo       repository.EndpointRBACCacheRepository
+	roleRepo     repository.RoleRepository
+	endpointRepo repository.EndpointRoleRepository
+	cacheRepo    repository.EndpointRBACCacheRepository
 }
 
 func NewEndpointRBACService(
@@ -45,10 +45,7 @@ func (s *endpointRBACService) ValidateRole(ctx context.Context, role string) err
 
 func (s *endpointRBACService) GetRequiredLevel(ctx context.Context, method, path string) (string, error) {
 	level, err := s.cacheRepo.GetRequiredLevel(ctx, method, path)
-	if err != nil {
-		return "", err
-	}
-	if level != "" {
+	if err == nil && level != "" {
 		return level, nil
 	}
 
@@ -61,10 +58,7 @@ func (s *endpointRBACService) GetRequiredLevel(ctx context.Context, method, path
 
 func (s *endpointRBACService) GetRoleLevel(ctx context.Context, roleName string) (string, error) {
 	level, err := s.cacheRepo.GetRoleLevel(ctx, roleName)
-	if err != nil {
-		return "", err
-	}
-	if level != "" {
+	if err == nil && level != "" {
 		return level, nil
 	}
 

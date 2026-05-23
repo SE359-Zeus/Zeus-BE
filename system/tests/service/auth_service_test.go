@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"errors"
 	"testing"
 	"time"
 
@@ -139,6 +140,32 @@ func TestAuthService_Login_Success(t *testing.T) {
 	sessionRepo.AssertExpectations(t)
 }
 
+func TestAuthService_Login_ContinuesWhenRefreshCacheUnavailable(t *testing.T) {
+	svc, userRepo, refreshRepo, sessionRepo := setupAuthSvc(t)
+	email := "admin@zeus.com"
+	password := "securepass123"
+	userID := uuid.New()
+
+	userRepo.On("GetByEmail", anyCtx, email).Return(&models.User{
+		ID:           userID,
+		Email:        email,
+		PasswordHash: hashPassword(t, password),
+		FullName:     "Admin User",
+		Role:         "admin",
+		Status:       models.AccountStatusActive,
+	}, nil)
+	refreshRepo.On("SaveRefreshToken", anyCtx, mock.AnythingOfType("string"), userID.String()).Return(errors.New("cache unavailable"))
+	sessionRepo.On("Create", anyCtx, mock.AnythingOfType("*models.Session")).Return(nil)
+
+	pair, err := svc.Login(context.Background(), models.LoginRequest{Email: email, Password: password})
+	assert.NoError(t, err)
+	assertTokenPair(t, pair)
+
+	userRepo.AssertExpectations(t)
+	refreshRepo.AssertExpectations(t)
+	sessionRepo.AssertExpectations(t)
+}
+
 func TestAuthService_Login_InactiveUser(t *testing.T) {
 	svc, userRepo, _, _ := setupAuthSvc(t)
 	email := "inactive@zeus.com"
@@ -201,6 +228,47 @@ func TestAuthService_Refresh_Success(t *testing.T) {
 	refreshRepo.On("SaveRefreshToken", anyCtx, mock.AnythingOfType("string"), userID.String()).Return(nil)
 	sessionRepo.On("Create", anyCtx, mock.AnythingOfType("*models.Session")).Return(nil)
 	sessionRepo.On("DeleteByJTI", anyCtx, mock.AnythingOfType("string")).Return(nil)
+
+	pair, err := svc.Refresh(context.Background(), models.RefreshRequest{RefreshToken: loginPair.RefreshToken})
+	assert.NoError(t, err)
+	assertTokenPair(t, pair)
+
+	userRepo.AssertExpectations(t)
+	refreshRepo.AssertExpectations(t)
+	sessionRepo.AssertExpectations(t)
+}
+
+func TestAuthService_Refresh_FallsBackToSessionStoreWhenCacheUnavailable(t *testing.T) {
+	svc, userRepo, refreshRepo, sessionRepo := setupAuthSvc(t)
+	userID := uuid.New()
+
+	userRepo.On("GetByEmail", anyCtx, "admin@zeus.com").Return(&models.User{
+		ID:           userID,
+		Email:        "admin@zeus.com",
+		PasswordHash: hashPassword(t, "pass"),
+		Role:         "admin",
+		Status:       models.AccountStatusActive,
+	}, nil)
+	refreshRepo.On("SaveRefreshToken", anyCtx, mock.AnythingOfType("string"), userID.String()).Return(errors.New("cache unavailable"))
+	sessionRepo.On("Create", anyCtx, mock.AnythingOfType("*models.Session")).Return(nil)
+
+	loginPair, err := svc.Login(context.Background(), models.LoginRequest{Email: "admin@zeus.com", Password: "pass"})
+	assert.NoError(t, err)
+
+	refreshClaims := &jwtRefreshClaims{}
+	_, _, err = jwt.NewParser().ParseUnverified(loginPair.RefreshToken, refreshClaims)
+	assert.NoError(t, err)
+
+	refreshRepo.On("ValidateRefreshToken", anyCtx, refreshClaims.JTI.String()).Return("", errors.New("cache unavailable"))
+	sessionRepo.On("GetByJTI", anyCtx, refreshClaims.JTI.String()).Return(&models.Session{UserID: userID, JTI: refreshClaims.JTI.String()}, nil)
+	userRepo.On("GetByID", anyCtx, userID).Return(&models.User{
+		ID:    userID,
+		Email: "admin@zeus.com",
+		Role:  "admin",
+	}, nil)
+	refreshRepo.On("SaveRefreshToken", anyCtx, mock.AnythingOfType("string"), userID.String()).Return(errors.New("cache unavailable"))
+	sessionRepo.On("Create", anyCtx, mock.AnythingOfType("*models.Session")).Return(nil)
+	sessionRepo.On("DeleteByJTI", anyCtx, refreshClaims.JTI.String()).Return(nil)
 
 	pair, err := svc.Refresh(context.Background(), models.RefreshRequest{RefreshToken: loginPair.RefreshToken})
 	assert.NoError(t, err)

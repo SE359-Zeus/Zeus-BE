@@ -22,7 +22,7 @@ func Load() *Config {
 	return &Config{
 		ServerPort: getEnv("SERVER_PORT", "8083"),
 		DBPath:     getEnv("DB_PATH", "system.db"),
-		JWTKeyPath: getEnv("JWT_KEY_PATH", ""),
+		JWTKeyPath: getEnv("JWT_PRIVATE_KEY_PATH", ""),
 		ValkeyAddr: getEnv("VALKEY_ADDR", "localhost:6379"),
 	}
 }

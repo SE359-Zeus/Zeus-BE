@@ -26,10 +26,7 @@ func NewActionTypeService(
 
 func (s *actionTypeService) IsValid(ctx context.Context, name models.ActionType) (bool, error) {
 	ok, err := s.cacheRepo.IsValid(ctx, string(name))
-	if err != nil {
-		return false, err
-	}
-	if ok {
+	if err == nil && ok {
 		return true, nil
 	}
 
