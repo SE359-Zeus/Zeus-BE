@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -136,8 +135,5 @@ func loadOpenAPISpec(specPath, serverURL string) ([]byte, error) {
 }
 
 func runtimeServerURL(port string) string {
-	if port == "" {
-		port = "8081"
-	}
-	return fmt.Sprintf("http://localhost:%s/api/v1/mrp", port)
+	return "/api/v1/mrp"
 }
