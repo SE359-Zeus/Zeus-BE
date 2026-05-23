@@ -103,7 +103,7 @@ jobs:
       - name: Build system image
         uses: docker/build-push-action@v5
         with:
-          context: ./system
+          context: .
           file: ./system/Dockerfile
           push: true
           platforms: linux/arm64
