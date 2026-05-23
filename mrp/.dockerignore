@@ -1,0 +1,8 @@
+.git
+.github
+**/*_test.go
+**/tests
+mrp.db
+*.log
+*.exe
+bin

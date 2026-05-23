@@ -17,7 +17,7 @@ func TestProductionService_GetDemandSummary(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	res, err := svc.GetDemandSummary(context.Background())
 	assert.NoError(t, err)
-	assert.Nil(t, res)
+	assert.NotNil(t, res)
 }
 
 func TestProductionService_GeneratePOsForShortages(t *testing.T) {
@@ -30,14 +30,14 @@ func TestProductionService_GeneratePickList(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	res, err := svc.GeneratePickList(context.Background(), uuid.New())
 	assert.NoError(t, err)
-	assert.Nil(t, res)
+	assert.NotNil(t, res)
 }
 
 func TestProductionService_GetAggregatedDemand(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	res, err := svc.GetAggregatedDemand(context.Background())
 	assert.NoError(t, err)
-	assert.Nil(t, res)
+	assert.NotNil(t, res)
 }
 
 // ------------------------------------------------------------

@@ -1,0 +1,74 @@
+services:
+  # 1. The Network Gateway
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: tailscale-gw
+    hostname: mrp-be-service
+    ports:
+      - "8083:8083"
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=true
+      - TS_ACCEPT_DNS=true
+      - TS_EXTRA_ARGS=--netfilter-mode=off --ssh=true
+      - TS_AUTH_ONCE=1
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+      - net_raw
+    restart: unless-stopped
+
+  # 2. One-shot migration job
+  mrp-migrate:
+    image: ghcr.io/se359-zeus/zeus-be/mrp:latest
+    command: ["./migrate", "-db", "/app/data/mrp.db"]
+    volumes:
+      - /opt/zeus/mrp:/app/data
+    restart: "no"
+
+  # 3. One-shot seeder job
+  mrp-seed:
+    image: ghcr.io/se359-zeus/zeus-be/mrp:latest
+    command: ["./seeder", "-db", "/app/data/mrp.db"]
+    volumes:
+      - /opt/zeus/mrp:/app/data
+    depends_on:
+      mrp-migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # 4. Valkey (Redis-compatible)
+  valkey:
+    image: valkey/valkey:latest
+    network_mode: "service:tailscale"
+    restart: unless-stopped
+
+  # 5. MRP backend server
+  mrp-be:
+    image: ghcr.io/se359-zeus/zeus-be/mrp:latest
+    network_mode: "service:tailscale"
+    volumes:
+      - /opt/zeus/mrp:/app/data
+    env_file:
+      - stack.env
+    depends_on:
+      mrp-seed:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_started
+    restart: unless-stopped
+
+  # 6. SQLite Client (for manual CLI access)
+  sqlite-client:
+    image: alpine:latest
+    volumes:
+      - /opt/zeus/mrp:/data
+    command: sh -c "apk add --no-cache sqlite && tail -f /dev/null"
+    restart: unless-stopped
+
+volumes:
+  sqlite_data:
+  tailscale-state:
