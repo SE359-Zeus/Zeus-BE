@@ -7,6 +7,7 @@ import (
 
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
+	"zeus-scm-service/internal/repository/sqlite"
 	"zeus-scm-service/internal/service"
 
 	"github.com/google/uuid"
@@ -16,7 +17,8 @@ import (
 func TestInventoryService_ProductCRUD(t *testing.T) {
 	db := setupTestDB()
 	db.AutoMigrate(&models.Product{}, &models.ProductModel{})
-	svc := service.NewInventoryService(db, nil)
+	repo := sqlite.NewInventoryRepository(db)
+	svc := service.NewInventoryService(repo)
 	ctx := context.Background()
 
 	id := uuid.New()
@@ -52,7 +54,8 @@ func TestInventoryService_ProductCRUD(t *testing.T) {
 func TestInventoryService_PartLifecycle_Exhaustive(t *testing.T) {
 	db := setupTestDB()
 	db.AutoMigrate(&models.Part{}, &models.Product{}, &models.PartCatalog{})
-	svc := service.NewInventoryService(db, nil)
+	repo := sqlite.NewInventoryRepository(db)
+	svc := service.NewInventoryService(repo)
 	ctx := context.Background()
 
 	partID := uuid.New()
@@ -112,7 +115,8 @@ func TestInventoryService_PartLifecycle_Exhaustive(t *testing.T) {
 func TestInventoryService_Catalog_Exhaustive(t *testing.T) {
 	db := setupTestDB()
 	db.AutoMigrate(&models.PartCatalog{})
-	svc := service.NewInventoryService(db, nil)
+	repo := sqlite.NewInventoryRepository(db)
+	svc := service.NewInventoryService(repo)
 	ctx := context.Background()
 
 	catID := uuid.New()
@@ -127,7 +131,8 @@ func TestInventoryService_Catalog_Exhaustive(t *testing.T) {
 
 func TestInventoryService_UserAndWarranty(t *testing.T) {
 	db := setupTestDB()
-	svc := service.NewInventoryService(db, nil)
+	repo := sqlite.NewInventoryRepository(db)
+	svc := service.NewInventoryService(repo)
 	ctx := context.Background()
 
 	assert.NotNil(t, svc)

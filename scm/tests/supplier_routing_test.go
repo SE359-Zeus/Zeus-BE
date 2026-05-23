@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"zeus-scm-service/internal/models"
+	sqliteRepo "zeus-scm-service/internal/repository/sqlite"
 	"zeus-scm-service/internal/service"
 
 	"github.com/google/uuid"
@@ -22,7 +24,9 @@ func setupTestDB() *gorm.DB {
 
 func TestVendorRouting_GetOptimalSupplier(t *testing.T) {
 	db := setupTestDB()
-	svc := service.NewVendorService(db, nil)
+	db.AutoMigrate(&models.Supplier{}, &models.SkuMapping{}, &models.GoodsReceipt{}, &models.GRLineItem{})
+	vendorRepo := sqliteRepo.NewVendorRepository(db)
+	svc := service.NewVendorService(vendorRepo)
 
 	supplier, mapping, err := svc.GetOptimalSupplier(context.Background(), "SOC-XM100-PRO")
 
@@ -33,7 +37,9 @@ func TestVendorRouting_GetOptimalSupplier(t *testing.T) {
 
 func TestVendorRouting_UpdateSupplierMetrics(t *testing.T) {
 	db := setupTestDB()
-	svc := service.NewVendorService(db, nil)
+	db.AutoMigrate(&models.Supplier{}, &models.GoodsReceipt{}, &models.GRLineItem{})
+	vendorRepo := sqliteRepo.NewVendorRepository(db)
+	svc := service.NewVendorService(vendorRepo)
 
 	err := svc.UpdateSupplierMetrics(context.Background(), uuid.New())
 

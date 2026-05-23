@@ -1,0 +1,15 @@
+services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: zeus-scm-valkey
+    ports:
+      - "6380:6379"
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      retries: 5
+
+volumes:
+  valkey-data:
