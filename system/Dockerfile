@@ -1,13 +1,15 @@
 FROM golang:1.26.2-alpine AS build
 
-WORKDIR /src
+WORKDIR /src/system
 
 RUN apk add --no-cache build-base
 
-COPY go.mod go.sum ./
+COPY system/go.mod system/go.sum ./
+COPY pkg/exception /src/pkg/exception
+COPY pkg/response /src/pkg/response
 RUN go mod download
 
-COPY . .
+COPY system/. .
 
 ENV CGO_ENABLED=1
 
@@ -29,8 +31,8 @@ LABEL org.opencontainers.image.version=$VERSION
 COPY --from=build /out/server /app/server
 COPY --from=build /out/migrate /app/migrate
 COPY --from=build /out/seeder /app/seeder
-COPY docs ./docs
-COPY migrations ./migrations
+COPY --from=build /src/system/docs ./docs
+COPY --from=build /src/system/migrations ./migrations
 
 EXPOSE 8083
 
