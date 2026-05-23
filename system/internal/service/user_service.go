@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log"
 	"math"
 	"strings"
 
@@ -13,12 +14,17 @@ import (
 )
 
 type userService struct {
-	repo     repository.UserRepository
-	rbacSvc  EndpointRBACService
+	repo        repository.UserRepository
+	rbacSvc     EndpointRBACService
+	emailSender EmailService
 }
 
-func NewUserService(repo repository.UserRepository, rbacSvc EndpointRBACService) UserService {
-	return &userService{repo: repo, rbacSvc: rbacSvc}
+func NewUserService(repo repository.UserRepository, rbacSvc EndpointRBACService, emailSender ...EmailService) UserService {
+	var sender EmailService
+	if len(emailSender) > 0 {
+		sender = emailSender[0]
+	}
+	return &userService{repo: repo, rbacSvc: rbacSvc, emailSender: sender}
 }
 
 func (s *userService) Create(ctx context.Context, req models.CreateUserRequest) (*models.User, error) {
@@ -64,6 +70,24 @@ func (s *userService) Create(ctx context.Context, req models.CreateUserRequest) 
 
 	if err := s.repo.Create(ctx, user); err != nil {
 		return nil, err
+	}
+
+	if s.emailSender != nil {
+		if err := s.emailSender.SendTemplate(ctx, EmailTemplateRequest{
+			To:       user.Email,
+			Subject:  "Your Zeus System account is ready",
+			Template: "create_account.html",
+			Data: CreateAccountEmailData{
+				To:        user.Email,
+				FullName:  user.FullName,
+				Username:  user.Email,
+				Password:  req.Password,
+				Role:      user.Role,
+				CreatedAt: user.CreatedAt,
+			},
+		}); err != nil {
+			log.Printf("Warning: failed to send create-account email to %s: %v", user.Email, err)
+		}
 	}
 
 	return user, nil

@@ -22,6 +22,14 @@ func setupUserSvc() (service.UserService, *service.MockUserRepository, *service.
 	return svc, repo, rbacSvc
 }
 
+func setupUserSvcWithEmail() (service.UserService, *service.MockUserRepository, *service.MockEndpointRBACService, *service.MockEmailService) {
+	repo := new(service.MockUserRepository)
+	rbacSvc := new(service.MockEndpointRBACService)
+	emailSender := new(service.MockEmailService)
+	svc := service.NewUserService(repo, rbacSvc, emailSender)
+	return svc, repo, rbacSvc, emailSender
+}
+
 func validCreateReq() models.CreateUserRequest {
 	return models.CreateUserRequest{
 		Email:    "admin@zeus.com",
@@ -51,6 +59,26 @@ func TestUserService_Create_Success(t *testing.T) {
 
 	repo.AssertExpectations(t)
 	rbacSvc.AssertExpectations(t)
+}
+
+func TestUserService_Create_SendsAccountEmail(t *testing.T) {
+	svc, repo, rbacSvc, emailSender := setupUserSvcWithEmail()
+	req := validCreateReq()
+
+	rbacSvc.On("ValidateRole", anyCtx, "admin").Return(nil)
+	repo.On("GetByEmail", anyCtx, req.Email).Return(nil, nil)
+	repo.On("Create", anyCtx, mock.AnythingOfType("*models.User")).Return(nil)
+	emailSender.On("SendTemplate", anyCtx, mock.MatchedBy(func(data service.EmailTemplateRequest) bool {
+		payload, ok := data.Data.(service.CreateAccountEmailData)
+		return ok && data.To == req.Email && data.Template == "create_account.html" && data.Subject == "Your Zeus System account is ready" && payload.To == req.Email && payload.Username == req.Email && payload.Password == req.Password && payload.FullName == req.FullName && payload.Role == req.Role
+	})).Return(nil)
+
+	user, err := svc.Create(context.Background(), req)
+	assert.NoError(t, err)
+	assert.NotNil(t, user)
+	repo.AssertExpectations(t)
+	rbacSvc.AssertExpectations(t)
+	emailSender.AssertExpectations(t)
 }
 
 func TestUserService_Create_RejectsEmptyEmail(t *testing.T) {

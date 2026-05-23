@@ -10,10 +10,14 @@ import (
 )
 
 type Config struct {
-	ServerPort string
-	DBPath     string
-	JWTKeyPath string
-	ValkeyAddr string
+	ServerPort       string
+	DBPath           string
+	JWTKeyPath       string
+	ValkeyAddr       string
+	ResendAPIKey     string
+	EmailFromAddress string
+	EmailFromName    string
+	EmailTemplateDir string
 }
 
 func Load() *Config {
@@ -21,10 +25,14 @@ func Load() *Config {
 		log.Printf(".env file not found, using OS env vars and defaults")
 	}
 	return &Config{
-		ServerPort: getEnv("SERVER_PORT", "8083"),
-		DBPath:     getEnv("DB_PATH", "system.db"),
-		JWTKeyPath: getEnv("JWT_PRIVATE_KEY_PATH", ""),
-		ValkeyAddr: normalizeAddr(getEnv("VALKEY_ADDR", "localhost:6379")),
+		ServerPort:       getEnv("SERVER_PORT", "8083"),
+		DBPath:           getEnv("DB_PATH", "system.db"),
+		JWTKeyPath:       getEnv("JWT_PRIVATE_KEY_PATH", ""),
+		ValkeyAddr:       normalizeAddr(getEnv("VALKEY_ADDR", "localhost:6379")),
+		ResendAPIKey:     getEnv("RESEND_API_KEY", ""),
+		EmailFromAddress: getEnv("EMAIL_FROM_ADDRESS", getEnv("RESEND_FROM_EMAIL", "")),
+		EmailFromName:    getEnv("EMAIL_FROM_NAME", ""),
+		EmailTemplateDir: strings.TrimSpace(getEnv("EMAIL_TEMPLATE_DIR", "templates")),
 	}
 }
 

@@ -32,6 +32,5 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.AuditLog{},
 		&models.Role{},
 		&models.ActionTypeEntry{},
-		&models.EndpointRole{},
 	)
 }

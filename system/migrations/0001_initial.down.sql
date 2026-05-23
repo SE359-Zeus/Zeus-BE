@@ -1,4 +1,3 @@
-DROP TABLE IF EXISTS endpoint_roles;
 DROP TABLE IF EXISTS action_type_entries;
 DROP TABLE IF EXISTS roles;
 DROP TABLE IF EXISTS audit_logs;

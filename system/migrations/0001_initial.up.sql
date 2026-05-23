@@ -67,11 +67,3 @@ CREATE TABLE IF NOT EXISTS action_type_entries (
     description TEXT,
     is_security INTEGER NOT NULL DEFAULT 0
 );
-
-CREATE TABLE IF NOT EXISTS endpoint_roles (
-    id TEXT PRIMARY KEY,
-    method TEXT NOT NULL,
-    path TEXT NOT NULL,
-    required_level TEXT NOT NULL,
-    UNIQUE(method, path)
-);

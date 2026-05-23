@@ -93,15 +93,13 @@ func main() {
 	auditRepo := sqlite.NewAuditRepository(db)
 	roleRepo := sqlite.NewRoleRepository(db)
 	actionTypeRepo := sqlite.NewActionTypeRepository(db)
-	endpointRoleRepo := sqlite.NewEndpointRoleRepository(db)
 
 	vkDialer := dialValkey(cfg.ValkeyAddr)
 
 	refreshTokenRepo := valkeyRepo.NewRefreshTokenRepository(vkDialer)
 	actionTypeCacheRepo := valkeyRepo.NewActionTypeCacheRepository(vkDialer)
-	endpointRBACCacheRepo := valkeyRepo.NewEndpointRBACCacheRepository(vkDialer)
 
-	rbacSvc := service.NewEndpointRBACService(roleRepo, endpointRoleRepo, endpointRBACCacheRepo)
+	rbacSvc := service.NewEndpointRBACService(roleRepo)
 	if err := rbacSvc.WarmCache(context.Background()); err != nil {
 		log.Printf("Warning: RBAC cache warm failed: %v", err)
 	}
@@ -111,9 +109,19 @@ func main() {
 		log.Printf("Warning: action type cache warm failed: %v", err)
 	}
 
+	emailSvc, err := service.NewResendEmailService(
+		cfg.ResendAPIKey,
+		cfg.EmailFromAddress,
+		cfg.EmailFromName,
+		cfg.EmailTemplateDir,
+	)
+	if err != nil {
+		log.Printf("Warning: account email sender disabled: %v", err)
+	}
+
 	sessionRepo := sqlite.NewSessionRepository(db)
 
-	userSvc := service.NewUserService(userRepo, rbacSvc)
+	userSvc := service.NewUserService(userRepo, rbacSvc, emailSvc)
 	privateKey := loadPrivateKey(cfg.JWTKeyPath)
 	authSvc := service.NewAuthService(userSvc, refreshTokenRepo, sessionRepo, privateKey)
 	auditSvc := service.NewAuditService(auditRepo, actionTypeSvc)
@@ -153,18 +161,17 @@ func main() {
 		systemPublic.POST("/auth/logout", authH.Logout)
 	}
 
-	api := r.Group("/api/v1/system")
-	api.Use(middleware.JWTAuth(authSvc), middleware.RequireRoleLevel(rbacSvc))
+	api := r.Group("/api/v1/system", middleware.JWTAuth(authSvc))
 	{
-		api.POST("/users", userH.Create)
-		api.GET("/users", userH.List)
-		api.GET("/users/:id", userH.GetByID)
-		api.PUT("/users/:id", userH.Update)
-		api.PATCH("/users/:id/status", userH.SetStatus)
+		api.POST("/users", middleware.RequireRoles("admin"), userH.Create)
+		api.GET("/users", middleware.RequireRoles("admin"), userH.List)
+		api.GET("/users/:id", middleware.RequireRoles("admin"), userH.GetByID)
+		api.PUT("/users/:id", middleware.RequireRoles("admin"), userH.Update)
+		api.PATCH("/users/:id/status", middleware.RequireRoles("admin"), userH.SetStatus)
 
-		api.POST("/logs/ingest", auditH.Ingest)
-		api.GET("/logs", auditH.Query)
-		api.GET("/logs/metrics", auditH.GetMetrics)
+		api.POST("/logs/ingest", middleware.RequireRoles("admin"), auditH.Ingest)
+		api.GET("/logs", middleware.RequireRoles("admin"), auditH.Query)
+		api.GET("/logs/metrics", middleware.RequireRoles("admin"), auditH.GetMetrics)
 	}
 
 	log.Printf("Zeus System service starting on :%s", cfg.ServerPort)

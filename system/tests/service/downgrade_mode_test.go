@@ -9,7 +9,6 @@ import (
 	"zeus-system-service/internal/repository"
 	"zeus-system-service/internal/service"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,29 +24,6 @@ func (r staticRoleRepo) GetByName(ctx context.Context, name string) (*models.Rol
 	return r.role, nil
 }
 func (r staticRoleRepo) Exists(ctx context.Context, name string) (bool, error) { return true, nil }
-
-type staticEndpointRoleRepo struct {
-	requiredLevel string
-}
-
-func (r staticEndpointRoleRepo) GetRequiredLevel(ctx context.Context, method, path string) (string, error) {
-	return r.requiredLevel, nil
-}
-func (r staticEndpointRoleRepo) GetAll(ctx context.Context) ([]models.EndpointRole, error) {
-	return []models.EndpointRole{{ID: uuid.New(), Method: "GET", Path: "/api/v1/users", RequiredLevel: r.requiredLevel}}, nil
-}
-
-type failingRBACCacheRepo struct{}
-
-func (r failingRBACCacheRepo) Warm(ctx context.Context, endpointLevels map[string]string, roleLevels map[string]string) error {
-	return errors.New("cache unavailable")
-}
-func (r failingRBACCacheRepo) GetRequiredLevel(ctx context.Context, method, path string) (string, error) {
-	return "", errors.New("cache unavailable")
-}
-func (r failingRBACCacheRepo) GetRoleLevel(ctx context.Context, roleName string) (string, error) {
-	return "", errors.New("cache unavailable")
-}
 
 type staticActionTypeRepo struct {
 	exists bool
@@ -69,16 +45,13 @@ func (r failingActionTypeCacheRepo) IsValid(ctx context.Context, name string) (b
 	return false, errors.New("cache unavailable")
 }
 
-func TestEndpointRBACService_CanAccess_FallsBackWhenCacheUnavailable(t *testing.T) {
+func TestEndpointRBACService_ValidateRole(t *testing.T) {
 	rbacSvc := service.NewEndpointRBACService(
 		staticRoleRepo{role: &models.Role{Name: "Administrator", Level: "Administrator"}},
-		staticEndpointRoleRepo{requiredLevel: "Worker"},
-		failingRBACCacheRepo{},
 	)
 
-	allowed, err := rbacSvc.CanAccess(context.Background(), "Administrator", "GET", "/api/v1/users")
+	err := rbacSvc.ValidateRole(context.Background(), "Administrator")
 	assert.NoError(t, err)
-	assert.True(t, allowed)
 }
 
 func TestActionTypeService_IsValid_FallsBackWhenCacheUnavailable(t *testing.T) {
@@ -93,7 +66,5 @@ func TestActionTypeService_IsValid_FallsBackWhenCacheUnavailable(t *testing.T) {
 }
 
 var _ repository.RoleRepository = staticRoleRepo{}
-var _ repository.EndpointRoleRepository = staticEndpointRoleRepo{}
-var _ repository.EndpointRBACCacheRepository = failingRBACCacheRepo{}
 var _ repository.ActionTypeRepository = staticActionTypeRepo{}
 var _ repository.ActionTypeCacheRepository = failingActionTypeCacheRepo{}

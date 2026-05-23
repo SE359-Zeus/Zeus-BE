@@ -120,21 +120,6 @@ func (m *MockEndpointRBACService) ValidateRole(ctx context.Context, role string)
 	return args.Error(0)
 }
 
-func (m *MockEndpointRBACService) GetRequiredLevel(ctx context.Context, method, path string) (string, error) {
-	args := m.Called(ctx, method, path)
-	return args.String(0), args.Error(1)
-}
-
-func (m *MockEndpointRBACService) GetRoleLevel(ctx context.Context, roleName string) (string, error) {
-	args := m.Called(ctx, roleName)
-	return args.String(0), args.Error(1)
-}
-
-func (m *MockEndpointRBACService) CanAccess(ctx context.Context, roleName, method, path string) (bool, error) {
-	args := m.Called(ctx, roleName, method, path)
-	return args.Bool(0), args.Error(1)
-}
-
 func (m *MockEndpointRBACService) WarmCache(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
@@ -191,5 +176,14 @@ func (m *MockActionTypeService) IsValid(ctx context.Context, name models.ActionT
 
 func (m *MockActionTypeService) WarmCache(ctx context.Context) error {
 	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+type MockEmailService struct {
+	mock.Mock
+}
+
+func (m *MockEmailService) SendTemplate(ctx context.Context, req EmailTemplateRequest) error {
+	args := m.Called(ctx, req)
 	return args.Error(0)
 }

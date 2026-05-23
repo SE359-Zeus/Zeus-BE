@@ -44,11 +44,6 @@ type ActionTypeRepository interface {
 	Exists(ctx context.Context, name string) (bool, error)
 }
 
-type EndpointRoleRepository interface {
-	GetRequiredLevel(ctx context.Context, method, path string) (string, error)
-	GetAll(ctx context.Context) ([]models.EndpointRole, error)
-}
-
 type SessionRepository interface {
 	Create(ctx context.Context, session *models.Session) error
 	GetByJTI(ctx context.Context, jti string) (*models.Session, error)
@@ -61,10 +56,4 @@ type SessionRepository interface {
 type ActionTypeCacheRepository interface {
 	Warm(ctx context.Context, names []string) error
 	IsValid(ctx context.Context, name string) (bool, error)
-}
-
-type EndpointRBACCacheRepository interface {
-	Warm(ctx context.Context, endpointLevels map[string]string, roleLevels map[string]string) error
-	GetRequiredLevel(ctx context.Context, method, path string) (string, error)
-	GetRoleLevel(ctx context.Context, roleName string) (string, error)
 }

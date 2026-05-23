@@ -40,9 +40,6 @@ type AuditService interface {
 
 type EndpointRBACService interface {
 	ValidateRole(ctx context.Context, role string) error
-	GetRequiredLevel(ctx context.Context, method, path string) (string, error)
-	GetRoleLevel(ctx context.Context, roleName string) (string, error)
-	CanAccess(ctx context.Context, roleName, method, path string) (bool, error)
 	WarmCache(ctx context.Context) error
 }
 

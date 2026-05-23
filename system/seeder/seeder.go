@@ -43,29 +43,11 @@ var actionTypes = []actionTypeSeed{
 	{Name: "SECURITY", Description: "Security-related event", IsSecurity: true},
 }
 
-type endpointSeed struct {
-	Method        string
-	Path          string
-	RequiredLevel string
-}
-
-var endpoints = []endpointSeed{
-	{Method: "POST", Path: "/api/v1/users", RequiredLevel: "Administrator"},
-	{Method: "GET", Path: "/api/v1/users", RequiredLevel: "Administrator"},
-	{Method: "GET", Path: "/api/v1/users/:id", RequiredLevel: "Administrator"},
-	{Method: "PUT", Path: "/api/v1/users/:id", RequiredLevel: "Administrator"},
-	{Method: "PATCH", Path: "/api/v1/users/:id/status", RequiredLevel: "Administrator"},
-	{Method: "POST", Path: "/api/v1/logs/ingest", RequiredLevel: "Administrator"},
-	{Method: "GET", Path: "/api/v1/logs", RequiredLevel: "Administrator"},
-	{Method: "GET", Path: "/api/v1/logs/metrics", RequiredLevel: "Administrator"},
-}
-
 func SeedAll(db *gorm.DB) error {
 	log.Println("Seeding system service data...")
 
 	seedRoles(db)
 	seedActionTypes(db)
-	seedEndpointRoles(db)
 	seedUsers(db)
 	seedAuditLogs(db)
 
@@ -105,23 +87,6 @@ func seedActionTypes(db *gorm.DB) {
 		}
 		if result.RowsAffected > 0 {
 			log.Printf("Created action type: %s", at.Name)
-		}
-	}
-}
-
-func seedEndpointRoles(db *gorm.DB) {
-	for _, ep := range endpoints {
-		entry := models.EndpointRole{
-			Method:        ep.Method,
-			Path:          ep.Path,
-			RequiredLevel: ep.RequiredLevel,
-		}
-		result := db.Where("method = ? AND path = ?", ep.Method, ep.Path).FirstOrCreate(&entry)
-		if result.Error != nil {
-			log.Fatalf("failed to seed endpoint role %s %s: %v", ep.Method, ep.Path, result.Error)
-		}
-		if result.RowsAffected > 0 {
-			log.Printf("Created endpoint role: %s %s → %s", ep.Method, ep.Path, ep.RequiredLevel)
 		}
 	}
 }

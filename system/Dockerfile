@@ -33,6 +33,7 @@ COPY --from=build /out/migrate /app/migrate
 COPY --from=build /out/seeder /app/seeder
 COPY --from=build /src/system/docs ./docs
 COPY --from=build /src/system/migrations ./migrations
+COPY --from=build /src/system/templates ./templates
 
 EXPOSE 8083
 

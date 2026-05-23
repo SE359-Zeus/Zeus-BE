@@ -1,14 +1,29 @@
 package middleware
 
 import (
+	"strings"
+
 	"zeus-be/pkg/exception"
-	"zeus-system-service/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
-func RequireRoleLevel(rbacSvc service.EndpointRBACService) gin.HandlerFunc {
+func RequireRoles(allowedRoles ...string) gin.HandlerFunc {
+	normalizedRoles := make([]string, 0, len(allowedRoles))
+	for _, role := range allowedRoles {
+		role = strings.TrimSpace(role)
+		if role == "" {
+			continue
+		}
+		normalizedRoles = append(normalizedRoles, role)
+	}
+
 	return func(c *gin.Context) {
+		if len(normalizedRoles) == 0 {
+			exception.WriteError(c, exception.ErrForbidden)
+			return
+		}
+
 		role, exists := c.Get(ContextKeyRole)
 		if !exists {
 			exception.WriteError(c, exception.ErrMissingRole)
@@ -21,23 +36,14 @@ func RequireRoleLevel(rbacSvc service.EndpointRBACService) gin.HandlerFunc {
 			return
 		}
 
-		method := c.Request.Method
-		path := c.FullPath()
-
-		allowed, err := rbacSvc.CanAccess(c.Request.Context(), roleStr, method, path)
-		if err != nil {
-			exception.WriteError(c, exception.ErrAccessCheck.WithError(err))
-			return
-		}
-		if !allowed {
-			exception.WriteError(c, exception.ErrForbidden)
-			return
+		roleStr = strings.TrimSpace(roleStr)
+		for _, allowedRole := range normalizedRoles {
+			if strings.EqualFold(allowedRole, roleStr) {
+				c.Next()
+				return
+			}
 		}
 
-		c.Next()
+		exception.WriteError(c, exception.ErrForbidden)
 	}
-}
-
-func RequireEndpointAccess(rbacSvc service.EndpointRBACService) gin.HandlerFunc {
-	return RequireRoleLevel(rbacSvc)
 }
