@@ -12,21 +12,30 @@ import (
 )
 
 type Repository struct {
-	client *redis.Client
-	ttl    time.Duration
+	addr string
+	ttl  time.Duration
 }
 
-func New(client *redis.Client) *Repository {
+func New(addr string) *Repository {
 	return &Repository{
-		client: client,
-		ttl:    5 * time.Minute,
+		addr: addr,
+		ttl:  5 * time.Minute,
 	}
+}
+
+func (repo *Repository) newClient() (*redis.Client, error) {
+	if repo == nil {
+		return nil, errors.New("valkey repository is nil")
+	}
+	if repo.addr == "" {
+		return nil, errors.New("valkey address is required")
+	}
+
+	client := redis.NewClient(&redis.Options{Addr: repo.addr})
+	return client, nil
 }
 
 func (repo *Repository) Set(ctx context.Context, key string, value interface{}) error {
-	if repo == nil || repo.client == nil {
-		return errors.New("valkey client is nil")
-	}
 	if key == "" {
 		return fmt.Errorf("cache key is required")
 	}
@@ -36,13 +45,20 @@ func (repo *Repository) Set(ctx context.Context, key string, value interface{}) 
 		return err
 	}
 
-	return repo.client.Set(ctx, key, payload, repo.ttl).Err()
+	client, err := repo.newClient()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	if err := client.Ping(ctx).Err(); err != nil {
+		return err
+	}
+
+	return client.Set(ctx, key, payload, repo.ttl).Err()
 }
 
 func (repo *Repository) Get(ctx context.Context, key string, dest interface{}) error {
-	if repo == nil || repo.client == nil {
-		return errors.New("valkey client is nil")
-	}
 	if key == "" {
 		return fmt.Errorf("cache key is required")
 	}
@@ -50,7 +66,17 @@ func (repo *Repository) Get(ctx context.Context, key string, dest interface{}) e
 		return fmt.Errorf("cache destination is required")
 	}
 
-	payload, err := repo.client.Get(ctx, key).Bytes()
+	client, err := repo.newClient()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	if err := client.Ping(ctx).Err(); err != nil {
+		return err
+	}
+
+	payload, err := client.Get(ctx, key).Bytes()
 	if err != nil {
 		return err
 	}
