@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS endpoint_roles;
+DROP TABLE IF EXISTS action_type_entries;
+DROP TABLE IF EXISTS roles;
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS users;

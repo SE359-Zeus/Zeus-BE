@@ -13,9 +13,9 @@ func main() {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 
-	log.Println("Running AutoMigrate...")
-	if err := sqlite.AutoMigrate(db); err != nil {
-		log.Fatalf("AutoMigrate failed: %v", err)
+	log.Println("Running migrations...")
+	if err := sqlite.ApplyMigrations(db, "./migrations", sqlite.DirectionUp); err != nil {
+		log.Fatalf("migration failed: %v", err)
 	}
 
 	if err := seeder.SeedAll(db); err != nil {

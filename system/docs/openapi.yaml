@@ -4,8 +4,6 @@ info:
   description: Root of Trust module of the Zeus ERP system. Manages authentication lifecycle, user directory, and immutable audit trail.
   version: "1.0.0"
 servers:
-  - url: http://localhost:8083/api/v1
-    description: Local development
   - url: /api/v1
     description: API base path
 

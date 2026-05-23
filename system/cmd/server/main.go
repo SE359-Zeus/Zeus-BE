@@ -56,6 +56,27 @@ func loadPrivateKey(path string) *rsa.PrivateKey {
 	return key.(*rsa.PrivateKey)
 }
 
+func buildOpenAPISpec(serverPort string) func() ([]byte, error) {
+	return func() ([]byte, error) {
+		data, err := os.ReadFile("docs/openapi.yaml")
+		if err != nil {
+			return nil, err
+		}
+
+		var parsed map[string]any
+		if err := yaml.Unmarshal(data, &parsed); err != nil {
+			return nil, err
+		}
+
+		parsed["servers"] = []map[string]string{{
+			"url":         "http://localhost:" + serverPort + "/api/v1",
+			"description": "Local development",
+		}}
+
+		return json.Marshal(parsed)
+	}
+}
+
 func main() {
 	cfg := config.Load()
 
@@ -64,8 +85,8 @@ func main() {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 
-	if err := sqlite.AutoMigrate(db); err != nil {
-		log.Fatalf("AutoMigrate failed: %v", err)
+	if err := sqlite.ApplyMigrations(db, "./migrations", sqlite.DirectionUp); err != nil {
+		log.Fatalf("migration failed: %v", err)
 	}
 
 	userRepo := sqlite.NewUserRepository(db)
@@ -119,19 +140,9 @@ func main() {
 	public := r.Group("/")
 	{
 		public.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
-			Title: "Zeus System API",
-			SpecProvider: func() ([]byte, error) {
-				data, err := os.ReadFile("docs/openapi.yaml")
-				if err != nil {
-					return nil, err
-				}
-				var parsed any
-				if err := yaml.Unmarshal(data, &parsed); err != nil {
-					return nil, err
-				}
-				return json.Marshal(parsed)
-			},
-			Theme: "dark",
+			Title:        "Zeus System API",
+			SpecProvider: buildOpenAPISpec(cfg.ServerPort),
+			Theme:        "dark",
 		}))
 		public.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "ok"})

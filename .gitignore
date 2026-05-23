@@ -6,3 +6,6 @@ jwt_*.pem
 debug_check
 debug_insert
 debug
+.serena
+.vscode
+*.db*
