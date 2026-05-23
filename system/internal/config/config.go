@@ -4,15 +4,16 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	ServerPort  string
-	DBPath      string
-	JWTKeyPath  string
-	ValkeyAddr  string
+	ServerPort string
+	DBPath     string
+	JWTKeyPath string
+	ValkeyAddr string
 }
 
 func Load() *Config {
@@ -23,8 +24,19 @@ func Load() *Config {
 		ServerPort: getEnv("SERVER_PORT", "8083"),
 		DBPath:     getEnv("DB_PATH", "system.db"),
 		JWTKeyPath: getEnv("JWT_PRIVATE_KEY_PATH", ""),
-		ValkeyAddr: getEnv("VALKEY_ADDR", "localhost:6379"),
+		ValkeyAddr: normalizeAddr(getEnv("VALKEY_ADDR", "localhost:6379")),
 	}
+}
+
+func normalizeAddr(addr string) string {
+	addr = strings.TrimSpace(addr)
+	addr = strings.TrimPrefix(addr, "http://")
+	addr = strings.TrimPrefix(addr, "https://")
+	addr = strings.TrimPrefix(addr, "redis://")
+	if i := strings.Index(addr, "/"); i >= 0 {
+		addr = addr[:i]
+	}
+	return addr
 }
 
 func getEnv(key, fallback string) string {
