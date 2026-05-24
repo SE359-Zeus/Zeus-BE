@@ -114,10 +114,14 @@ func main() {
 	inventoryH := handler.NewInventoryHandler(inventorySvc)
 
 	r := gin.New()
+	// Disable Gin's automatic trailing-slash redirect. Without this, a request
+	// for GET /docs (no slash) would get a 301 → /docs/ from the Go server.
+	// Since nginx strips the /scm/ prefix before forwarding, that redirect
+	// would send the browser to /docs/ (not /scm/docs/) → catch-all "Success!".
+	r.RedirectTrailingSlash = false
 	r.Use(gin.Logger(), middleware.Recovery())
 
-	public := r.Group("/")
-	public.Use(middleware.Public())
+	// ── Public routes (no auth) ──────────────────────────────────────────────
 	{
 		specPath := findOpenAPISpec()
 		specURL := runtimeServerURL(cfg.ServerPort)
@@ -126,7 +130,11 @@ func main() {
 			log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
 		}
 
-		public.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
+		// Register docs routes directly on r (same pattern as MRP/Sales).
+		// Using a Group("/") with middleware.Public() caused the wildcard route
+		// FullPath to include the group prefix, which confused the openapiui handler.
+		r.Use(middleware.Public())
+		r.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
 			Title:   "Zeus SCM API",
 			SpecURL: "./openapi.json",
 			SpecProvider: func() ([]byte, error) {
@@ -137,7 +145,7 @@ func main() {
 			},
 			Theme: "dark",
 		}))
-		public.GET("/health", func(c *gin.Context) {
+		r.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "ok"})
 		})
 	}
