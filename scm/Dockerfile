@@ -1,15 +1,15 @@
 FROM golang:1.25-alpine AS builder
 
-WORKDIR /src/scm
+WORKDIR /src
 
 RUN apk add --no-cache build-base
 
-COPY scm/go.mod scm/go.sum ./
-COPY pkg/exception /src/pkg/exception
-COPY pkg/response /src/pkg/response
-RUN go mod download
+# Copy entire repository into the image. Build with context set to the repo root:
+# docker build -f scm/Dockerfile -t zeus-scm-service .
+COPY . .
 
-COPY scm/. .
+WORKDIR /src/scm
+RUN go mod download
 
 ENV CGO_ENABLED=1
 
