@@ -19,6 +19,7 @@ import (
 	valkeyRepo "zeus-system-service/internal/repository/valkey"
 	"zeus-system-service/internal/service"
 
+	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
 )
@@ -190,27 +191,17 @@ func main() {
 		log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
 	}
 
-	r.GET("/docs", func(c *gin.Context) {
-		c.File("./docs/index.html")
-	})
-	r.GET("/docs/index.html", func(c *gin.Context) {
-		c.File("./docs/index.html")
-	})
-	r.GET("/docs/swagger.html", func(c *gin.Context) {
-		c.File("./docs/swagger.html")
-	})
-	r.GET("/docs/openapi.json", func(c *gin.Context) {
-		if spec != nil {
-			c.Data(200, "application/json", spec)
-			return
-		}
-		jsonBytes, err := buildOpenAPISpec(cfg.ServerPort)()
-		if err != nil {
-			c.JSON(500, gin.H{"error": err.Error()})
-			return
-		}
-		c.Data(200, "application/json", jsonBytes)
-	})
+	r.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
+		Title:   "Zeus System API",
+		SpecURL: "./openapi.json",
+		SpecProvider: func() ([]byte, error) {
+			if spec == nil {
+				return buildOpenAPISpec(cfg.ServerPort)()
+			}
+			return spec, nil
+		},
+		Theme: "dark",
+	}))
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
