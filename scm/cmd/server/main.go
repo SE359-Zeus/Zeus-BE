@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"zeus-scm-service/internal/cache"
@@ -122,11 +123,8 @@ func main() {
 				if err != nil {
 					return nil, err
 				}
-				var parsed any
-				if err := yaml.Unmarshal(data, &parsed); err != nil {
-					return nil, err
-				}
-				return json.Marshal(parsed)
+				baseURL := "http://localhost:" + cfg.ServerPort + "/api/v1"
+				return []byte(strings.ReplaceAll(string(data), "http://localhost:8080/api/v1", baseURL)), nil
 			},
 			Theme: "dark",
 		}))

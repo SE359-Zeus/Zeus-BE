@@ -4,14 +4,13 @@ import (
 	"strings"
 	"time"
 
+	"zeus-be/pkg/exception"
 	"zeus-scm-service/internal/models"
+	"zeus-scm-service/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
-	"zeus-be/pkg/exception"
-	"zeus-scm-service/internal/models"
-	"zeus-scm-service/internal/service"
 )
 
 const (

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -26,14 +25,15 @@ type DeficitMessage struct {
 	OrderID string `json:"order_id"`
 }
 
-func (m *DeficitMessage) FromDelivery(delivery amqp.Delivery) error {
-	return json.Unmarshal(delivery.Body, m)
-}
-
 type DeficitPoolStats struct {
 	PoolSize     int `json:"pool_size"`
 	ReservedSize int `json:"reserved_size"`
 	DLXSize      int `json:"dlx_size"`
+}
+
+type RabbitMQ struct {
+	conn    *amqp.Connection
+	channel *amqp.Channel
 }
 
 type Connection struct {
@@ -41,45 +41,62 @@ type Connection struct {
 	channel *amqp.Channel
 }
 
+func NewRabbitMQ(url string) (*RabbitMQ, error) {
+	conn, err := amqp.Dial(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
+	}
+	channel, err := conn.Channel()
+	if err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("failed to open channel: %w", err)
+	}
+	rabbit := &RabbitMQ{conn: conn, channel: channel}
+	if err := rabbit.setupQueues(); err != nil {
+		rabbit.Close()
+		return nil, err
+	}
+	return rabbit, nil
+}
+
 func Dial(url string) (*Connection, error) {
 	conn, err := amqp.Dial(url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to dial RabbitMQ: %w", err)
+		return nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
 	}
-	ch, err := conn.Channel()
+	channel, err := conn.Channel()
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("failed to open channel: %w", err)
 	}
-	return &Connection{conn: conn, channel: ch}, nil
+	return &Connection{conn: conn, channel: channel}, nil
 }
 
 func (r *RabbitMQ) setupQueues() error {
 	if r == nil || r.channel == nil {
 		return ErrUnavailable
 	}
-	_, err := r.channel.QueueDeclare(
-		PoolQueue,
-		true, false, false, false, nil,
-	)
-	if err != nil {
+	if _, err := r.channel.QueueDeclare(PoolQueue, true, false, false, false, nil); err != nil {
 		return fmt.Errorf("failed to declare pool queue: %w", err)
 	}
-	_, err = r.channel.QueueDeclare(
-		DLXQueue,
-		true, false, false, false, nil,
-	)
-	if err != nil {
+	if _, err := r.channel.QueueDeclare(DLXQueue, true, false, false, false, nil); err != nil {
 		return fmt.Errorf("failed to declare DLX queue: %w", err)
 	}
-}
-
-func (c *Connection) Channel() *amqp.Channel {
-	return c.channel
-}
-
-func (c *Connection) GetFromPool(autoAck bool) (amqp.Delivery, bool, error) {
-	return c.channel.Get(PoolQueue, autoAck)
+	if _, err := r.channel.QueueDeclare(
+		ReservedQueue,
+		true,
+		false,
+		false,
+		false,
+		amqp.Table{
+			"x-dead-letter-exchange":    DLXExchange,
+			"x-dead-letter-routing-key": DLXQueue,
+			"x-message-ttl":             int32(30 * 60 * 1000),
+		},
+	); err != nil {
+		return fmt.Errorf("failed to declare reserved queue: %w", err)
+	}
+	return nil
 }
 
 func (r *RabbitMQ) PublishToPool(msg DeficitMessage) error {
@@ -90,22 +107,17 @@ func (r *RabbitMQ) PublishToPool(msg DeficitMessage) error {
 	if err != nil {
 		return err
 	}
-	return c.channel.PublishWithContext(ctx,
-		"", PoolQueue, true, false,
-		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        body,
-		},
-	)
+	return r.channel.PublishWithContext(context.Background(), "", PoolQueue, true, false, amqp.Publishing{
+		ContentType: "application/json",
+		Body:        body,
+	})
 }
 
 func (r *RabbitMQ) ConsumeFromPool() (<-chan amqp.Delivery, error) {
 	if r == nil || r.channel == nil {
 		return nil, ErrUnavailable
 	}
-	return r.channel.Consume(
-		PoolQueue, "", true, true, false, false, nil,
-	)
+	return r.channel.Consume(PoolQueue, "", true, true, false, false, nil)
 }
 
 func (r *RabbitMQ) PublishToReserved(msg DeficitMessage) error {
@@ -116,24 +128,19 @@ func (r *RabbitMQ) PublishToReserved(msg DeficitMessage) error {
 	if err != nil {
 		return err
 	}
-	return c.channel.PublishWithContext(ctx,
-		"", ReservedQueue, true, false,
-		amqp.Publishing{
-			ContentType:  "application/json",
-			Body:         body,
-			Expiration:   fmt.Sprintf("%d", 30*60*1000),
-			DeliveryMode: amqp.Persistent,
-		},
-	)
+	return r.channel.PublishWithContext(context.Background(), "", ReservedQueue, true, false, amqp.Publishing{
+		ContentType:  "application/json",
+		Body:         body,
+		Expiration:   fmt.Sprintf("%d", 30*60*1000),
+		DeliveryMode: amqp.Persistent,
+	})
 }
 
 func (r *RabbitMQ) ConsumeReserved() (<-chan amqp.Delivery, error) {
 	if r == nil || r.channel == nil {
 		return nil, ErrUnavailable
 	}
-	return r.channel.Consume(
-		ReservedQueue, "", false, false, false, false, nil,
-	)
+	return r.channel.Consume(ReservedQueue, "", false, false, false, false, nil)
 }
 
 func (r *RabbitMQ) Ack(tag uint64) error {
@@ -154,9 +161,7 @@ func (r *RabbitMQ) ConsumeDLX() (<-chan amqp.Delivery, error) {
 	if r == nil || r.channel == nil {
 		return nil, ErrUnavailable
 	}
-	return r.channel.Consume(
-		DLXQueue, "", true, false, false, false, nil,
-	)
+	return r.channel.Consume(DLXQueue, "", true, false, false, false, nil)
 }
 
 func (r *RabbitMQ) RequeueFromDLX(delivery amqp.Delivery) error {
@@ -181,50 +186,6 @@ func (r *RabbitMQ) QueueSize(queue string) (int, error) {
 	return q.Messages, nil
 }
 
-func (m *DeficitMessage) FromDelivery(delivery amqp.Delivery) error {
-	return json.Unmarshal(delivery.Body, m)
-}
-
-func (r *RabbitMQ) Close() {
-	if r == nil {
-		return
-	}
-	if r.channel != nil {
-		r.channel.Close()
-	}
-	if r.conn != nil {
-		r.conn.Close()
-	}
-	return nil
-}
-
-func PublishToPool(ctx context.Context, url string, msg DeficitMessage) error {
-	c, err := Dial(url)
-	if err != nil {
-		return err
-	}
-	defer c.Close()
-	return c.PublishToPool(ctx, msg)
-}
-
-func PublishToReserved(ctx context.Context, url string, msg DeficitMessage) error {
-	c, err := Dial(url)
-	if err != nil {
-		return err
-	}
-	defer c.Close()
-	return c.PublishToReserved(ctx, msg)
-}
-
-func QueueSize(ctx context.Context, url, queue string) (int, error) {
-	c, err := Dial(url)
-	if err != nil {
-		return 0, err
-	}
-	defer c.Close()
-	return c.QueueSize(queue)
-}
-
 func (r *RabbitMQ) Stats() (*DeficitPoolStats, error) {
 	if r == nil || r.channel == nil {
 		return nil, ErrUnavailable
@@ -233,19 +194,15 @@ func (r *RabbitMQ) Stats() (*DeficitPoolStats, error) {
 	if err != nil {
 		return nil, err
 	}
-	reserved, err := QueueSize(ctx, url, ReservedQueue)
+	reserved, err := r.QueueSize(ReservedQueue)
 	if err != nil {
 		return nil, err
 	}
-	dlx, err := QueueSize(ctx, url, DLXQueue)
+	dlx, err := r.QueueSize(DLXQueue)
 	if err != nil {
 		return nil, err
 	}
-	return &DeficitPoolStats{
-		PoolSize:     pool,
-		ReservedSize: reserved,
-		DLXSize:      dlx,
-	}, nil
+	return &DeficitPoolStats{PoolSize: pool, ReservedSize: reserved, DLXSize: dlx}, nil
 }
 
 func (r *RabbitMQ) Channel() *amqp.Channel {
@@ -255,63 +212,111 @@ func (r *RabbitMQ) Channel() *amqp.Channel {
 	return r.channel
 }
 
+func (r *RabbitMQ) Close() {
+	if r == nil {
+		return
+	}
+	if r.channel != nil {
+		_ = r.channel.Close()
+	}
+	if r.conn != nil {
+		_ = r.conn.Close()
+	}
+}
+
 func (r *RabbitMQ) StartExpiryReconciler(interval time.Duration, stop <-chan struct{}) {
 	if r == nil || r.channel == nil {
 		return
 	}
 	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
 		for {
-			if err := reconcileOnce(ctx, url); err != nil {
-				log.Printf("expiry reconciler error: %v", err)
-			}
 			select {
-			case <-time.After(interval):
-			case <-ctx.Done():
+			case <-ticker.C:
+				msgs, err := r.ConsumeDLX()
+				if err != nil {
+					continue
+				}
+				for msg := range msgs {
+					_ = r.RequeueFromDLX(msg)
+				}
+			case <-stop:
 				return
 			}
 		}
 	}()
 }
 
-func reconcileOnce(ctx context.Context, url string) error {
-	c, err := Dial(url)
+func (c *Connection) Channel() *amqp.Channel {
+	if c == nil {
+		return nil
+	}
+	return c.channel
+}
+
+func (c *Connection) GetFromPool(autoAck bool) (amqp.Delivery, bool, error) {
+	if c == nil || c.channel == nil {
+		return amqp.Delivery{}, false, ErrUnavailable
+	}
+	return c.channel.Get(PoolQueue, autoAck)
+}
+
+func (c *Connection) PublishToPool(ctx context.Context, msg DeficitMessage) error {
+	if c == nil || c.channel == nil {
+		return ErrUnavailable
+	}
+	body, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	return c.channel.PublishWithContext(ctx, "", PoolQueue, true, false, amqp.Publishing{ContentType: "application/json", Body: body})
+}
 
-	msgs, err := c.channel.Consume(
-		DLXQueue, "", true, false, false, false, nil,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to consume DLX: %w", err)
+func (c *Connection) PublishToReserved(ctx context.Context, msg DeficitMessage) error {
+	if c == nil || c.channel == nil {
+		return ErrUnavailable
 	}
+	body, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	return c.channel.PublishWithContext(ctx, "", ReservedQueue, true, false, amqp.Publishing{ContentType: "application/json", Body: body, Expiration: fmt.Sprintf("%d", 30*60*1000), DeliveryMode: amqp.Persistent})
+}
 
-	timeout := time.After(5 * time.Second)
-	for {
-		select {
-		case msg, ok := <-msgs:
-			if !ok {
-				return nil
-			}
-			var deficit DeficitMessage
-			if err := json.Unmarshal(msg.Body, &deficit); err != nil {
-				continue
-			}
-			body, _ := json.Marshal(deficit)
-			if err := c.channel.PublishWithContext(ctx,
-				"", PoolQueue, true, false,
-				amqp.Publishing{
-					ContentType: "application/json",
-					Body:        body,
-				},
-			); err != nil {
-				return err
-			}
-		case <-timeout:
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+func (c *Connection) QueueSize(queue string) (int, error) {
+	if c == nil || c.channel == nil {
+		return 0, ErrUnavailable
+	}
+	q, err := c.channel.QueueInspect(queue)
+	if err != nil {
+		return 0, err
+	}
+	return q.Messages, nil
+}
+
+func (c *Connection) Ack(tag uint64) error {
+	if c == nil || c.channel == nil {
+		return ErrUnavailable
+	}
+	return c.channel.Ack(tag, false)
+}
+
+func (c *Connection) Nack(tag uint64, requeue bool) error {
+	if c == nil || c.channel == nil {
+		return ErrUnavailable
+	}
+	return c.channel.Nack(tag, false, requeue)
+}
+
+func (c *Connection) Close() {
+	if c == nil {
+		return
+	}
+	if c.channel != nil {
+		_ = c.channel.Close()
+	}
+	if c.conn != nil {
+		_ = c.conn.Close()
 	}
 }
