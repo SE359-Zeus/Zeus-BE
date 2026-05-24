@@ -27,29 +27,6 @@ func Authenticate(jwtSvc *service.JWTService, db *gorm.DB) gin.HandlerFunc {
 		authHeader := c.GetHeader("Authorization")
 		apiKey := c.GetHeader("X-API-KEY")
 
-		if authHeader != "" {
-			parts := strings.SplitN(authHeader, " ", 2)
-			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-				exception.WriteError(c, exception.ErrInvalidAuthHeader)
-				return
-			}
-
-			claims, err := jwtSvc.VerifyAccessToken(parts[1])
-			if err != nil {
-				exception.WriteError(c, exception.ErrInvalidToken)
-				return
-			}
-
-			c.Set(ContextKeyUserID, claims.UserID)
-			c.Set(ContextKeyRole, claims.Role)
-			c.Set(ContextKeyEmail, claims.Email)
-			c.Set(ContextKeyFullName, claims.FullName)
-			c.Set(ContextKeyStatus, claims.Status)
-			c.Set(ContextKeyAuthMethod, "jwt")
-			c.Next()
-			return
-		}
-
 		if apiKey != "" {
 			if len(apiKey) < 8 {
 				exception.WriteError(c, exception.ErrAPIKeyInvalid)
@@ -81,6 +58,29 @@ func Authenticate(jwtSvc *service.JWTService, db *gorm.DB) gin.HandlerFunc {
 			c.Set(ContextKeyAuthMethod, "api_key")
 			c.Set(ContextKeyRole, "api_key")
 			c.Set(ContextKeyUserID, key.ID)
+			c.Next()
+			return
+		}
+
+		if authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+				exception.WriteError(c, exception.ErrInvalidAuthHeader)
+				return
+			}
+
+			claims, err := jwtSvc.VerifyAccessToken(parts[1])
+			if err != nil {
+				exception.WriteError(c, exception.ErrInvalidToken)
+				return
+			}
+
+			c.Set(ContextKeyUserID, claims.UserID)
+			c.Set(ContextKeyRole, claims.Role)
+			c.Set(ContextKeyEmail, claims.Email)
+			c.Set(ContextKeyFullName, claims.FullName)
+			c.Set(ContextKeyStatus, claims.Status)
+			c.Set(ContextKeyAuthMethod, "jwt")
 			c.Next()
 			return
 		}

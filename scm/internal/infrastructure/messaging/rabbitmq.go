@@ -349,3 +349,29 @@ func (c *Connection) PublishToAudit(ctx context.Context, msg any) error {
 	})
 }
 
+func (c *Connection) Ack(tag uint64) error {
+	if c == nil || c.channel == nil {
+		return ErrUnavailable
+	}
+	return c.channel.Ack(tag, false)
+}
+
+func (c *Connection) Nack(tag uint64, requeue bool) error {
+	if c == nil || c.channel == nil {
+		return ErrUnavailable
+	}
+	return c.channel.Nack(tag, false, requeue)
+}
+
+func (c *Connection) Close() {
+	if c == nil {
+		return
+	}
+	if c.channel != nil {
+		_ = c.channel.Close()
+	}
+	if c.conn != nil {
+		_ = c.conn.Close()
+	}
+}
+

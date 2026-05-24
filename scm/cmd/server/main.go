@@ -59,47 +59,8 @@ func main() {
 		log.Fatalf("JWT service init failed: %v", err)
 	}
 
-	routeAccessRules := []service.RouteAccessRule{
-		{Method: "GET", Path: "/api/v1/scm/inventory/products", RequiredLevel: "Worker"},
-		{Method: "GET", Path: "/api/v1/scm/inventory/products/:id", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/scm/inventory/products", RequiredLevel: "Operator"},
-		{Method: "PUT", Path: "/api/v1/scm/inventory/products/:id", RequiredLevel: "Operator"},
-		{Method: "GET", Path: "/api/v1/scm/inventory/product-models/:code", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/scm/inventory/product-models", RequiredLevel: "Operator"},
-		{Method: "GET", Path: "/api/v1/scm/inventory/parts", RequiredLevel: "Worker"},
-		{Method: "GET", Path: "/api/v1/scm/inventory/parts/:id", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/scm/inventory/parts", RequiredLevel: "Operator"},
-		{Method: "PUT", Path: "/api/v1/scm/inventory/parts/:id", RequiredLevel: "Operator"},
-		{Method: "PUT", Path: "/api/v1/scm/inventory/parts/:id/condition", RequiredLevel: "Operator"},
-		{Method: "POST", Path: "/api/v1/scm/inventory/parts/:id/scrap", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/scm/inventory/parts/:id/install", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/scm/inventory/parts/:id/remove", RequiredLevel: "Worker"},
-		{Method: "GET", Path: "/api/v1/scm/inventory/part-catalog", RequiredLevel: "Worker"},
-		{Method: "GET", Path: "/api/v1/scm/inventory/part-catalog/:id", RequiredLevel: "Worker"},
-		{Method: "GET", Path: "/api/v1/scm/vendors/optimal", RequiredLevel: "Operator"},
-		{Method: "POST", Path: "/api/v1/scm/vendors/:id/recalc-metrics", RequiredLevel: "Operator"},
-		{Method: "POST", Path: "/api/v1/scm/purchase-orders/draft", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/scm/purchase-orders/:poId/line-items", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/scm/purchase-orders/:poId/approve", RequiredLevel: "Operator"},
-		{Method: "PUT", Path: "/api/v1/scm/purchase-orders/:poId/state", RequiredLevel: "Operator"},
-		{Method: "POST", Path: "/api/v1/scm/goods-receipts/:grId/lock", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/scm/goods-receipts/:grId/process", RequiredLevel: "Worker"},
-		{Method: "DELETE", Path: "/api/v1/scm/goods-receipts/:grId/lock", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/scm/shipments/:shipmentId/lock", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/scm/shipments/:shipmentId/dispatch", RequiredLevel: "Worker"},
-	}
-
-	roleLevels := map[string]int{
-		"admin":          3,
-		"scm_operator":   2,
-		"scm_worker":     1,
-		"mrp_operator":   2,
-		"mrp_worker":     1,
-		"sales_operator": 2,
-		"sales_worker":   1,
-	}
-
-	rbacSvc := service.NewRBACService(routeAccessRules, roleLevels)
+	rolesWorker := []string{"admin", "scm_operator", "scm_worker"}
+	rolesOperator := []string{"admin", "scm_operator"}
 
 	var cacheBackend cache.Cache = cache.NewNoop()
 	if cfg.ValkeyAddr != "" {
@@ -140,7 +101,7 @@ func main() {
 		//   location = /scm/docs { return 301 /scm/docs/; }
 		// We do NOT add a Go-side redirect because it would emit Location: /docs/
 		// (without /scm/), causing the browser to escape the proxy prefix.
-		public.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
+		r.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
 			Title:   "Zeus SCM API",
 			SpecURL: "./openapi.json",
 			SpecProvider: func() ([]byte, error) {
@@ -157,39 +118,39 @@ func main() {
 	}
 
 	api := r.Group(scmAPIPrefix)
-	api.Use(middleware.Authenticate(jwtSvc, db), middleware.RequireRoleLevel(rbacSvc))
+	api.Use(middleware.Authenticate(jwtSvc, db))
 	{
-		api.GET("/vendors/optimal", vendorH.GetOptimalSupplier)
-		api.POST("/vendors/:id/recalc-metrics", vendorH.UpdateSupplierMetrics)
+		api.GET("/vendors/optimal", middleware.RequireRoles(rolesOperator...), vendorH.GetOptimalSupplier)
+		api.POST("/vendors/:id/recalc-metrics", middleware.RequireRoles(rolesOperator...), vendorH.UpdateSupplierMetrics)
 
-		api.POST("/purchase-orders/draft", poH.CreateDraft)
-		api.POST("/purchase-orders/:poId/line-items", poH.AddLineItemWithLock)
-		api.POST("/purchase-orders/:poId/approve", poH.ApprovePO)
-		api.PUT("/purchase-orders/:poId/state", poH.TransitionState)
+		api.POST("/purchase-orders/draft", middleware.RequireRoles(rolesWorker...), poH.CreateDraft)
+		api.POST("/purchase-orders/:poId/line-items", middleware.RequireRoles(rolesWorker...), poH.AddLineItemWithLock)
+		api.POST("/purchase-orders/:poId/approve", middleware.RequireRoles(rolesOperator...), poH.ApprovePO)
+		api.PUT("/purchase-orders/:poId/state", middleware.RequireRoles(rolesOperator...), poH.TransitionState)
 
-		api.POST("/goods-receipts/:grId/lock", grH.AcquireLock)
-		api.POST("/goods-receipts/:grId/process", grH.ProcessBlindReceipt)
-		api.DELETE("/goods-receipts/:grId/lock", grH.ReleaseLock)
+		api.POST("/goods-receipts/:grId/lock", middleware.RequireRoles(rolesWorker...), grH.AcquireLock)
+		api.POST("/goods-receipts/:grId/process", middleware.RequireRoles(rolesWorker...), grH.ProcessBlindReceipt)
+		api.DELETE("/goods-receipts/:grId/lock", middleware.RequireRoles(rolesWorker...), grH.ReleaseLock)
 
-		api.POST("/shipments/:shipmentId/lock", shipmentH.AcquireDispatchLock)
-		api.POST("/shipments/:shipmentId/dispatch", shipmentH.DispatchShipment)
+		api.POST("/shipments/:shipmentId/lock", middleware.RequireRoles(rolesWorker...), shipmentH.AcquireDispatchLock)
+		api.POST("/shipments/:shipmentId/dispatch", middleware.RequireRoles(rolesWorker...), shipmentH.DispatchShipment)
 
-		api.GET("/inventory/products", inventoryH.ListProducts)
-		api.GET("/inventory/products/:id", inventoryH.GetProduct)
-		api.POST("/inventory/products", inventoryH.CreateProduct)
-		api.PUT("/inventory/products/:id", inventoryH.UpdateProduct)
-		api.GET("/inventory/product-models/:code", inventoryH.GetProductModel)
-		api.POST("/inventory/product-models", inventoryH.CreateProductModel)
-		api.GET("/inventory/parts", inventoryH.ListParts)
-		api.GET("/inventory/parts/:id", inventoryH.GetPart)
-		api.POST("/inventory/parts", inventoryH.CreatePart)
-		api.PUT("/inventory/parts/:id", inventoryH.UpdatePart)
-		api.PUT("/inventory/parts/:id/condition", inventoryH.UpdatePartCondition)
-		api.POST("/inventory/parts/:id/scrap", inventoryH.MarkPartScrapped)
-		api.POST("/inventory/parts/:id/install", inventoryH.InstallPart)
-		api.POST("/inventory/parts/:id/remove", inventoryH.RemovePart)
-		api.GET("/inventory/part-catalog", inventoryH.ListPartCatalog)
-		api.GET("/inventory/part-catalog/:id", inventoryH.GetPartCatalog)
+		api.GET("/inventory/products", middleware.RequireRoles(rolesWorker...), inventoryH.ListProducts)
+		api.GET("/inventory/products/:id", middleware.RequireRoles(rolesWorker...), inventoryH.GetProduct)
+		api.POST("/inventory/products", middleware.RequireRoles(rolesOperator...), inventoryH.CreateProduct)
+		api.PUT("/inventory/products/:id", middleware.RequireRoles(rolesOperator...), inventoryH.UpdateProduct)
+		api.GET("/inventory/product-models/:code", middleware.RequireRoles(rolesWorker...), inventoryH.GetProductModel)
+		api.POST("/inventory/product-models", middleware.RequireRoles(rolesOperator...), inventoryH.CreateProductModel)
+		api.GET("/inventory/parts", middleware.RequireRoles(rolesWorker...), inventoryH.ListParts)
+		api.GET("/inventory/parts/:id", middleware.RequireRoles(rolesWorker...), inventoryH.GetPart)
+		api.POST("/inventory/parts", middleware.RequireRoles(rolesOperator...), inventoryH.CreatePart)
+		api.PUT("/inventory/parts/:id", middleware.RequireRoles(rolesOperator...), inventoryH.UpdatePart)
+		api.PUT("/inventory/parts/:id/condition", middleware.RequireRoles(rolesOperator...), inventoryH.UpdatePartCondition)
+		api.POST("/inventory/parts/:id/scrap", middleware.RequireRoles(rolesWorker...), inventoryH.MarkPartScrapped)
+		api.POST("/inventory/parts/:id/install", middleware.RequireRoles(rolesWorker...), inventoryH.InstallPart)
+		api.POST("/inventory/parts/:id/remove", middleware.RequireRoles(rolesWorker...), inventoryH.RemovePart)
+		api.GET("/inventory/part-catalog", middleware.RequireRoles(rolesWorker...), inventoryH.ListPartCatalog)
+		api.GET("/inventory/part-catalog/:id", middleware.RequireRoles(rolesWorker...), inventoryH.GetPartCatalog)
 	}
 
 	log.Printf("Zeus SCM service starting on :%s", cfg.ServerPort)

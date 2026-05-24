@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"zeus-scm-service/internal/infrastructure/messaging"
@@ -99,59 +100,60 @@ func (s *poService) AddLineItemWithLock(ctx context.Context, poID string, sku st
 
 	conn, err := messaging.Dial(s.mqURL)
 	if err != nil {
-		return err
-	}
-	defer conn.Close()
+		log.Printf("Warning: RabbitMQ unavailable in degraded mode: %v. Proceeding without deficit reservation.", err)
+	} else {
+		defer conn.Close()
 
-	done := make(chan struct{}, 1)
-	var consumeErr error
+		done := make(chan struct{}, 1)
+		var consumeErr error
 
-	go func() {
-		defer func() { close(done) }()
-		msg, ok, err := conn.GetFromPool(false)
-		if err != nil {
-			consumeErr = err
-			return
-		}
-		if !ok {
-			consumeErr = ErrInsufficientDeficit
-			return
-		}
-		var d messaging.DeficitMessage
-		if err := json.Unmarshal(msg.Body, &d); err != nil {
-			_ = conn.Nack(msg.DeliveryTag, true)
-			consumeErr = err
-			return
-		}
-		if d.SKU != sku || d.Qty < qty {
-			_ = conn.Nack(msg.DeliveryTag, true)
-			consumeErr = ErrInsufficientDeficit
-			return
-		}
-		reservedMsg := messaging.DeficitMessage{
-			SKU: sku,
-			Qty: qty,
-		}
-		if err := conn.PublishToReserved(ctx, reservedMsg); err != nil {
-			_ = conn.Nack(msg.DeliveryTag, true)
-			consumeErr = err
-			return
-		}
-		if err := conn.Ack(msg.DeliveryTag); err != nil {
-			consumeErr = err
-			return
-		}
-	}()
+		go func() {
+			defer func() { close(done) }()
+			msg, ok, err := conn.GetFromPool(false)
+			if err != nil {
+				consumeErr = err
+				return
+			}
+			if !ok {
+				consumeErr = ErrInsufficientDeficit
+				return
+			}
+			var d messaging.DeficitMessage
+			if err := json.Unmarshal(msg.Body, &d); err != nil {
+				_ = conn.Nack(msg.DeliveryTag, true)
+				consumeErr = err
+				return
+			}
+			if d.SKU != sku || d.Qty < qty {
+				_ = conn.Nack(msg.DeliveryTag, true)
+				consumeErr = ErrInsufficientDeficit
+				return
+			}
+			reservedMsg := messaging.DeficitMessage{
+				SKU: sku,
+				Qty: qty,
+			}
+			if err := conn.PublishToReserved(ctx, reservedMsg); err != nil {
+				_ = conn.Nack(msg.DeliveryTag, true)
+				consumeErr = err
+				return
+			}
+			if err := conn.Ack(msg.DeliveryTag); err != nil {
+				consumeErr = err
+				return
+			}
+		}()
 
-	select {
-	case <-done:
-		if consumeErr != nil {
-			return consumeErr
+		select {
+		case <-done:
+			if consumeErr != nil {
+				return consumeErr
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Second):
+			return ErrInsufficientDeficit
 		}
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(5 * time.Second):
-		return ErrInsufficientDeficit
 	}
 
 	var catalog models.ComponentStock

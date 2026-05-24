@@ -1,14 +1,28 @@
 package middleware
 
 import (
+	"strings"
 	"zeus-scm-service/internal/exception"
-	"zeus-scm-service/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
-func RequireRoleLevel(rbacSvc *service.RBACService) gin.HandlerFunc {
+func RequireRoles(allowedRoles ...string) gin.HandlerFunc {
+	normalizedRoles := make([]string, 0, len(allowedRoles))
+	for _, role := range allowedRoles {
+		role = strings.TrimSpace(role)
+		if role == "" {
+			continue
+		}
+		normalizedRoles = append(normalizedRoles, role)
+	}
+
 	return func(c *gin.Context) {
+		if len(normalizedRoles) == 0 {
+			exception.WriteError(c, exception.ErrForbidden)
+			return
+		}
+
 		role, exists := c.Get(ContextKeyRole)
 		if !exists {
 			exception.WriteError(c, exception.ErrMissingRole)
@@ -21,19 +35,19 @@ func RequireRoleLevel(rbacSvc *service.RBACService) gin.HandlerFunc {
 			return
 		}
 
-		method := c.Request.Method
-		path := c.FullPath()
-
-		allowed, err := rbacSvc.CanAccess(roleStr, method, path)
-		if err != nil {
-			exception.WriteError(c, exception.ErrAccessCheck.WithError(err))
-			return
-		}
-		if !allowed {
-			exception.WriteError(c, exception.ErrForbidden)
+		roleStr = strings.TrimSpace(roleStr)
+		if strings.EqualFold(roleStr, "api_key") {
+			c.Next()
 			return
 		}
 
-		c.Next()
+		for _, allowedRole := range normalizedRoles {
+			if strings.EqualFold(allowedRole, roleStr) {
+				c.Next()
+				return
+			}
+		}
+
+		exception.WriteError(c, exception.ErrForbidden)
 	}
 }

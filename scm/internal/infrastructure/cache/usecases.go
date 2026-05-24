@@ -2,7 +2,8 @@ package cache
 
 import (
 	"context"
-	"fmt"
+	"log"
+	"time"
 
 	"github.com/valkey-io/valkey-go"
 )
@@ -24,28 +25,35 @@ func (c *ValkeyCache) Set(ctx context.Context, key string, data []byte) error {
 	_, err := c.withClient(ctx, func(client valkey.Client) ([]byte, error) {
 		return nil, client.Do(ctx, client.B().Set().Key(key).Value(string(data)).Build()).Error()
 	})
-	return err
+	if err != nil {
+		log.Printf("Warning: Valkey Set failed (degraded cache mode): %v", err)
+	}
+	return nil
 }
 
 func (c *ValkeyCache) Delete(ctx context.Context, key string) error {
 	_, err := c.withClient(ctx, func(client valkey.Client) ([]byte, error) {
 		return nil, client.Do(ctx, client.B().Del().Key(key).Build()).Error()
 	})
-	return err
+	if err != nil {
+		log.Printf("Warning: Valkey Delete failed (degraded cache mode): %v", err)
+	}
+	return nil
 }
 
 func (c *ValkeyCache) Flush(ctx context.Context) error {
 	_, err := c.withClient(ctx, func(client valkey.Client) ([]byte, error) {
 		return nil, client.Do(ctx, client.B().Flushall().Build()).Error()
 	})
-	return err
+	if err != nil {
+		log.Printf("Warning: Valkey Flush failed (degraded cache mode): %v", err)
+	}
+	return nil
 }
 
 func (c *ValkeyCache) Warm(ctx context.Context, entries map[string][]byte) error {
 	for key, data := range entries {
-		if err := c.Set(ctx, key, data); err != nil {
-			return err
-		}
+		_ = c.Set(ctx, key, data)
 	}
 	return nil
 }
@@ -55,10 +63,24 @@ func (c *ValkeyCache) withClient(ctx context.Context, fn func(valkey.Client) ([]
 		InitAddress: []string{c.addr},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Valkey client: %w", err)
+		log.Printf("Warning: Valkey client creation failed (degraded cache mode): %v", err)
+		return nil, nil
 	}
 	defer client.Close()
-	return fn(client)
+
+	pingCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+	if err := client.Do(pingCtx, client.B().Ping().Build()).Error(); err != nil {
+		log.Printf("Warning: Valkey ping failed (degraded cache mode): %v", err)
+		return nil, nil
+	}
+
+	res, err := fn(client)
+	if err != nil {
+		log.Printf("Warning: Valkey operation failed (degraded cache mode): %v", err)
+		return nil, nil
+	}
+	return res, nil
 }
 
 // NoopCache operations
