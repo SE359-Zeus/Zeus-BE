@@ -16,6 +16,7 @@ import (
 	sqliteRepo "zeus-scm-service/internal/repository/sqlite"
 	"zeus-scm-service/internal/service"
 
+	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
 )
@@ -119,23 +120,24 @@ func main() {
 	public := r.Group("/")
 	public.Use(middleware.Public())
 	{
-		public.GET("/docs", func(c *gin.Context) {
-			c.File("./docs/index.html")
-		})
-		public.GET("/docs/index.html", func(c *gin.Context) {
-			c.File("./docs/index.html")
-		})
-		public.GET("/docs/swagger.html", func(c *gin.Context) {
-			c.File("./docs/swagger.html")
-		})
-		public.GET("/docs/openapi.json", func(c *gin.Context) {
-			jsonBytes, err := buildOpenAPISpec(cfg.ServerPort)()
-			if err != nil {
-				c.JSON(500, gin.H{"error": err.Error()})
-				return
-			}
-			c.Data(200, "application/json", jsonBytes)
-		})
+		specPath := findOpenAPISpec()
+		specURL := runtimeServerURL(cfg.ServerPort)
+		spec, err := loadOpenAPISpec(specPath, specURL)
+		if err != nil {
+			log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
+		}
+
+		public.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
+			Title:   "Zeus SCM API",
+			SpecURL: "./openapi.json",
+			SpecProvider: func() ([]byte, error) {
+				if spec == nil {
+					return buildOpenAPISpec(cfg.ServerPort)()
+				}
+				return spec, nil
+			},
+			Theme: "dark",
+		}))
 		public.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "ok"})
 		})
