@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 
 	"zeus-system-service/internal/config"
+	"zeus-system-service/internal/consumer"
 	"zeus-system-service/internal/handler"
 	"zeus-system-service/internal/handler/middleware"
 	"zeus-system-service/internal/infrastructure/cache"
@@ -156,10 +157,12 @@ func main() {
 		log.Printf("Warning: action type cache warm failed: %v", err)
 	}
 
-	emailSvc, err := service.NewResendEmailService(
-		cfg.ResendAPIKey,
+	emailSvc, err := service.NewSMTPEmailService(
+		cfg.SMTPHost,
+		cfg.SMTPPort,
+		cfg.SMTPUser,
+		cfg.SMTPPass,
 		cfg.EmailFromAddress,
-		cfg.EmailFromName,
 		cfg.EmailTemplateDir,
 	)
 	if err != nil {
@@ -173,6 +176,11 @@ func main() {
 	privateKey := loadPrivateKey(cfg.JWTKeyPath)
 	authSvc := service.NewAuthService(userSvc, refreshTokenRepo, sessionRepo, privateKey)
 	auditSvc := service.NewAuditService(auditRepo, actionTypeSvc)
+
+	auditConsumer := consumer.NewAuditConsumer(cfg.RabbitMQURL, auditSvc)
+	if err := auditConsumer.Start(context.Background()); err != nil {
+		log.Printf("Warning: failed to start audit RabbitMQ consumer: %v", err)
+	}
 
 	sessions, err := sessionRepo.ListActive(context.Background())
 	if err != nil {

@@ -18,15 +18,6 @@ type UserRepository interface {
 	SetStatus(ctx context.Context, id uuid.UUID, status models.AccountStatus) error
 }
 
-type RefreshTokenRepository interface {
-	SaveRefreshToken(ctx context.Context, jti, userID string) error
-	ValidateRefreshToken(ctx context.Context, jti string) (string, error)
-	DeleteUserTokens(ctx context.Context, userID string) error
-	DeleteExpired(ctx context.Context) error
-	BlacklistAccessToken(ctx context.Context, jti string, ttl time.Duration) error
-	IsAccessTokenBlacklisted(ctx context.Context, jti string) (bool, error)
-}
-
 type AuditRepository interface {
 	Insert(ctx context.Context, log *models.AuditLog) error
 	Query(ctx context.Context, filter models.AuditFilter, page, limit int) ([]models.AuditLog, int64, error)
@@ -52,16 +43,3 @@ type SessionRepository interface {
 	DeleteExpired(ctx context.Context) error
 	ListActive(ctx context.Context) ([]models.Session, error)
 }
-
-type ActionTypeCacheRepository interface {
-	Warm(ctx context.Context, names []string) error
-	IsValid(ctx context.Context, name string) (bool, error)
-}
-
-type UserCacheRepository interface {
-	Set(ctx context.Context, user *models.User) error
-	GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
-	GetByEmail(ctx context.Context, email string) (*models.User, error)
-	Delete(ctx context.Context, id uuid.UUID, email string) error
-}
-

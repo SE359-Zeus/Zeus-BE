@@ -15,6 +15,7 @@ const (
 	ReservedQueue = "system.deficit.reserved"
 	DLXExchange   = "system.dlx"
 	DLXQueue      = "system.deficit.dlx"
+	AuditQueue    = "system.audit.log"
 )
 
 var ErrUnavailable = errors.New("rabbitmq unavailable")
@@ -85,6 +86,9 @@ func setupQueues(channel *amqp.Channel) error {
 	}
 	if _, err := channel.QueueDeclare(DLXQueue, true, false, false, false, nil); err != nil {
 		return fmt.Errorf("failed to declare DLX queue: %w", err)
+	}
+	if _, err := channel.QueueDeclare(AuditQueue, true, false, false, false, nil); err != nil {
+		return fmt.Errorf("failed to declare audit queue: %w", err)
 	}
 	if _, err := channel.QueueDeclare(
 		ReservedQueue,
@@ -318,3 +322,30 @@ func (c *Connection) PublishToReserved(ctx context.Context, msg DeficitMessage) 
 	}
 	return c.channel.PublishWithContext(ctx, "", ReservedQueue, true, false, amqp.Publishing{ContentType: "application/json", Body: body, Expiration: fmt.Sprintf("%d", 30*60*1000), DeliveryMode: amqp.Persistent})
 }
+
+func (r *RabbitMQ) ConsumeAudit() (<-chan amqp.Delivery, error) {
+	return r.consume(AuditQueue, false, false)
+}
+
+func (c *Connection) ConsumeAudit() (<-chan amqp.Delivery, error) {
+	if c == nil || c.channel == nil {
+		return nil, ErrUnavailable
+	}
+	return c.channel.Consume(AuditQueue, "", false, false, false, false, nil)
+}
+
+func (c *Connection) PublishToAudit(ctx context.Context, msg any) error {
+	if c == nil || c.channel == nil {
+		return ErrUnavailable
+	}
+	body, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	return c.channel.PublishWithContext(ctx, "", AuditQueue, true, false, amqp.Publishing{
+		ContentType:  "application/json",
+		Body:         body,
+		DeliveryMode: amqp.Persistent,
+	})
+}
+

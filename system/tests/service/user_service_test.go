@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"zeus-system-service/internal/models"
 	"zeus-system-service/internal/service"
@@ -76,6 +77,7 @@ func TestUserService_Create_SendsAccountEmail(t *testing.T) {
 	user, err := svc.Create(context.Background(), req)
 	assert.NoError(t, err)
 	assert.NotNil(t, user)
+	time.Sleep(50 * time.Millisecond)
 	repo.AssertExpectations(t)
 	rbacSvc.AssertExpectations(t)
 	emailSender.AssertExpectations(t)

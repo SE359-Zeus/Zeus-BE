@@ -5,6 +5,7 @@ import (
 	"log"
 	"math"
 	"strings"
+	"time"
 
 	"zeus-system-service/internal/models"
 	"zeus-system-service/internal/repository"
@@ -84,21 +85,24 @@ func (s *userService) Create(ctx context.Context, req models.CreateUserRequest) 
 	}
 
 	if s.emailSender != nil {
-		if err := s.emailSender.SendTemplate(ctx, EmailTemplateRequest{
-			To:       user.Email,
-			Subject:  "Your Zeus System account is ready",
-			Template: "create_account.html",
-			Data: CreateAccountEmailData{
-				To:        user.Email,
-				FullName:  user.FullName,
-				Username:  user.Email,
-				Password:  req.Password,
-				Role:      user.Role,
-				CreatedAt: user.CreatedAt,
-			},
-		}); err != nil {
-			log.Printf("Warning: failed to send create-account email to %s: %v", user.Email, err)
-		}
+		go func(to, fullName, password, role string, createdAt time.Time) {
+			bgCtx := context.Background()
+			if err := s.emailSender.SendTemplate(bgCtx, EmailTemplateRequest{
+				To:       to,
+				Subject:  "Your Zeus System account is ready",
+				Template: "create_account.html",
+				Data: CreateAccountEmailData{
+					To:        to,
+					FullName:  fullName,
+					Username:  to,
+					Password:  password,
+					Role:      role,
+					CreatedAt: createdAt,
+				},
+			}); err != nil {
+				log.Printf("Warning: failed to send create-account email to %s: %v", to, err)
+			}
+		}(user.Email, user.FullName, req.Password, user.Role, user.CreatedAt)
 	}
 
 	return user, nil

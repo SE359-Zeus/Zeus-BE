@@ -9,7 +9,6 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/rabbitmq/amqp091-go v1.11.0
-	github.com/resend/resend-go/v3 v3.7.0
 	github.com/stretchr/testify v1.11.1
 	github.com/valkey-io/valkey-go v1.0.75
 	golang.org/x/crypto v0.50.0

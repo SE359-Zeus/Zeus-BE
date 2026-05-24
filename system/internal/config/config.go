@@ -14,10 +14,14 @@ type Config struct {
 	DBPath           string
 	JWTKeyPath       string
 	ValkeyAddr       string
-	ResendAPIKey     string
+	SMTPHost         string
+	SMTPPort         string
+	SMTPUser         string
+	SMTPPass         string
 	EmailFromAddress string
 	EmailFromName    string
 	EmailTemplateDir string
+	RabbitMQURL      string
 }
 
 func Load() *Config {
@@ -29,10 +33,14 @@ func Load() *Config {
 		DBPath:           getEnv("DB_PATH", "system.db"),
 		JWTKeyPath:       getEnv("JWT_PRIVATE_KEY_PATH", ""),
 		ValkeyAddr:       normalizeAddr(getEnv("VALKEY_ADDR", "localhost:6379")),
-		ResendAPIKey:     getEnv("RESEND_API_KEY", ""),
-		EmailFromAddress: getEnv("EMAIL_FROM_ADDRESS", getEnv("RESEND_FROM_EMAIL", "")),
+		SMTPHost:         getEnv("SMTP_HOST", "smtp.gmail.com"),
+		SMTPPort:         getEnv("SMTP_PORT", "587"),
+		SMTPUser:         getEnv("SMTP_USER", ""),
+		SMTPPass:         getEnv("SMTP_PASS", ""),
+		EmailFromAddress: getEnv("EMAIL_FROM_ADDRESS", ""),
 		EmailFromName:    getEnv("EMAIL_FROM_NAME", ""),
 		EmailTemplateDir: strings.TrimSpace(getEnv("EMAIL_TEMPLATE_DIR", "templates")),
+		RabbitMQURL:      getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
 	}
 }
 

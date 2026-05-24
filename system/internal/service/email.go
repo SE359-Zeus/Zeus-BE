@@ -6,8 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"io"
-	"net/http"
+	"net/smtp"
 	"os"
 	"path/filepath"
 	"sort"
@@ -15,8 +14,6 @@ import (
 	"time"
 
 	"log"
-
-	"github.com/resend/resend-go/v3"
 )
 
 type EmailTemplateRequest struct {
@@ -30,10 +27,13 @@ type EmailService interface {
 	SendTemplate(ctx context.Context, req EmailTemplateRequest) error
 }
 
-type ResendEmailService struct {
+type SMTPEmailService struct {
+	host      string
+	port      string
+	user      string
+	password  string
 	from      string
 	templates map[string]*template.Template
-	client    *resend.Client
 }
 
 type CreateAccountEmailData struct {
@@ -45,17 +45,28 @@ type CreateAccountEmailData struct {
 	CreatedAt time.Time
 }
 
-func NewResendEmailService(apiKey, fromAddress, fromName, templateDir string) (*ResendEmailService, error) {
-	apiKey = strings.TrimSpace(apiKey)
+func NewSMTPEmailService(host, port, user, password, fromAddress, templateDir string) (*SMTPEmailService, error) {
+	host = strings.TrimSpace(host)
+	port = strings.TrimSpace(port)
+	user = strings.TrimSpace(user)
+	password = strings.TrimSpace(password)
 	fromAddress = strings.TrimSpace(fromAddress)
-	fromName = strings.TrimSpace(fromName)
 	templateDir = strings.TrimSpace(templateDir)
 
-	if apiKey == "" {
-		return nil, errors.New("resend api key is required")
+	if host == "" {
+		return nil, errors.New("smtp host is required")
+	}
+	if port == "" {
+		return nil, errors.New("smtp port is required")
+	}
+	if user == "" {
+		return nil, errors.New("smtp user is required")
+	}
+	if password == "" {
+		return nil, errors.New("smtp password is required")
 	}
 	if fromAddress == "" {
-		return nil, errors.New("resend from address is required")
+		fromAddress = user
 	}
 	if templateDir == "" {
 		templateDir = "templates"
@@ -66,86 +77,16 @@ func NewResendEmailService(apiKey, fromAddress, fromName, templateDir string) (*
 		return nil, err
 	}
 
-	httpClient := &http.Client{Timeout: 10 * time.Second}
-	httpClient.Transport = &debugTransport{base: http.DefaultTransport}
-	client := resend.NewCustomClient(httpClient, apiKey)
-
-	return &ResendEmailService{
-		from:      formatResendFrom(fromAddress, fromName),
+	return &SMTPEmailService{
+		host:      host,
+		port:      port,
+		user:      user,
+		password:  password,
+		from:      fromAddress,
 		templates: templates,
-		client:    client,
 	}, nil
 }
 
-func formatResendFrom(address, name string) string {
-	address = strings.TrimSpace(address)
-	name = strings.TrimSpace(name)
-	if address == "" {
-		return ""
-	}
-	if name == "" {
-		return address
-	}
-	return fmt.Sprintf("%s <%s>", name, address)
-}
-
-// debugTransport logs outbound requests and responses for troubleshooting.
-// It redacts the Authorization header when logging.
-type debugTransport struct {
-	base http.RoundTripper
-}
-
-func (t *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	base := t.base
-	if base == nil {
-		base = http.DefaultTransport
-	}
-
-	var reqBody []byte
-	if req.Body != nil {
-		b, _ := io.ReadAll(req.Body)
-		reqBody = b
-		req.Body = io.NopCloser(bytes.NewReader(b))
-	}
-
-	// prepare redacted headers for logging
-	loggedHeaders := make(map[string][]string)
-	for k, v := range req.Header {
-		if strings.ToLower(k) == "authorization" {
-			loggedHeaders[k] = []string{"<redacted>"}
-		} else {
-			loggedHeaders[k] = v
-		}
-	}
-
-	log.Printf("Resend HTTP Request: %s %s headers=%v body_len=%d", req.Method, req.URL.String(), loggedHeaders, len(reqBody))
-
-	resp, err := base.RoundTrip(req)
-	if err != nil {
-		log.Printf("Resend HTTP roundtrip error: %v", err)
-		return resp, err
-	}
-
-	if resp.Body != nil {
-		b, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		resp.Body = io.NopCloser(bytes.NewReader(b))
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			bodyStr := strings.TrimSpace(string(b))
-			if len(bodyStr) > 0 {
-				log.Printf("Resend HTTP Response: status=%s body=%s", resp.Status, bodyStr)
-			} else {
-				log.Printf("Resend HTTP Response: status=%s (empty body)", resp.Status)
-			}
-		} else {
-			log.Printf("Resend HTTP Response: status=%s body_len=%d", resp.Status, len(b))
-		}
-	} else {
-		log.Printf("Resend HTTP Response: status=%s (no body)", resp.Status)
-	}
-
-	return resp, err
-}
 func loadEmailTemplates(templateDir string) (map[string]*template.Template, error) {
 	info, err := os.Stat(templateDir)
 	if err != nil {
@@ -192,7 +133,7 @@ func loadEmailTemplates(templateDir string) (map[string]*template.Template, erro
 	return templates, nil
 }
 
-func (s *ResendEmailService) SendTemplate(ctx context.Context, req EmailTemplateRequest) error {
+func (s *SMTPEmailService) SendTemplate(ctx context.Context, req EmailTemplateRequest) error {
 	if s == nil {
 		return nil
 	}
@@ -219,26 +160,22 @@ func (s *ResendEmailService) SendTemplate(ctx context.Context, req EmailTemplate
 		return fmt.Errorf("render email template %s: %w", req.Template, err)
 	}
 
-	params := &resend.SendEmailRequest{
-		From:    s.from,
-		To:      []string{req.To},
-		Subject: req.Subject,
-		Html:    body.String(),
+	mime := "MIME-Version: 1.0\r\n" +
+		fmt.Sprintf("From: %s\r\n", s.from) +
+		fmt.Sprintf("To: %s\r\n", req.To) +
+		fmt.Sprintf("Subject: %s\r\n", req.Subject) +
+		"Content-Type: text/html; charset=UTF-8\r\n\r\n" +
+		body.String()
+
+	auth := smtp.PlainAuth("", s.user, s.password, s.host)
+	addr := fmt.Sprintf("%s:%s", s.host, s.port)
+
+	log.Printf("Sending SMTP email template=%s to=%s subject=%s", req.Template, req.To, req.Subject)
+	if err := smtp.SendMail(addr, auth, s.from, []string{req.To}, []byte(mime)); err != nil {
+		log.Printf("Error sending SMTP email: %v", err)
+		return fmt.Errorf("smtp send: %w", err)
 	}
 
-	log.Printf("Sending email template=%s to=%s subject=%s", req.Template, req.To, req.Subject)
-	sent, err := s.client.Emails.Send(params)
-	if err != nil {
-		log.Printf("Error sending email template=%s to=%s: %v", req.Template, req.To, err)
-		log.Printf("Resend error type %T", err)
-		return fmt.Errorf("send email: %w", err)
-	}
-
-	if sent.Id != "" {
-		log.Printf("Email sent template=%s to=%s id=%s", req.Template, req.To, sent.Id)
-	} else {
-		log.Printf("Email sent template=%s to=%s (no id returned)", req.Template, req.To)
-	}
-
+	log.Printf("SMTP Email sent successfully to %s", req.To)
 	return nil
 }
