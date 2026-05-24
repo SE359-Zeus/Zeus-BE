@@ -9,7 +9,7 @@ import (
 
 func main() {
 	dbPath := flag.String("db", "scm.db", "path to the SQLite database file")
-	migrationsPath := flag.String("migrations", "internal/migration", "path to SQL migrations")
+	migrationsPath := flag.String("migrations", "migrations", "path to SQL migrations")
 	flag.Parse()
 
 	db, err := sqlite.NewDB(*dbPath)
