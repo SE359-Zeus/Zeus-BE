@@ -7,7 +7,6 @@ import (
 
 	"zeus-system-service/internal/handler"
 	"zeus-system-service/internal/handler/middleware"
-	"zeus-system-service/internal/models"
 	"zeus-system-service/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -40,9 +39,11 @@ func TestJWTAuth_ValidToken(t *testing.T) {
 	userID := uuid.New()
 
 	mockSvc.On("VerifyAccessToken", "valid-token").Return(&service.JWTClaims{
-		UserID: userID,
-		Role:   models.UserRoleAdmin,
-		Email:  "admin@zeus.com",
+		UserID:   userID,
+		Role:     "admin",
+		Email:    "admin@zeus.com",
+		FullName: "System Administrator",
+		Status:   "ACTIVE",
 	}, nil)
 
 	w := httptest.NewRecorder()
@@ -86,5 +87,45 @@ func TestJWTAuth_ExpiredToken(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestRequireRoles_AllowsMatchingRole(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(handler.MockAuthService)
+	r := gin.New()
+	r.Use(middleware.JWTAuth(mockSvc))
+	r.GET("/protected", middleware.RequireRoles("admin", "scm_operator"), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	mockSvc.On("VerifyAccessToken", "valid-token").Return(&service.JWTClaims{Role: "scm_operator"}, nil)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/protected", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestRequireRoles_RejectsNonMatchingRole(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(handler.MockAuthService)
+	r := gin.New()
+	r.Use(middleware.JWTAuth(mockSvc))
+	r.GET("/protected", middleware.RequireRoles("admin"), func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	mockSvc.On("VerifyAccessToken", "valid-token").Return(&service.JWTClaims{Role: "scm_worker"}, nil)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/protected", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
 	mockSvc.AssertExpectations(t)
 }

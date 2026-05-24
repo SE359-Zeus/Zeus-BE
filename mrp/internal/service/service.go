@@ -5,9 +5,15 @@ import (
 )
 
 type ProductionService struct {
-	repo repository.MRPRepository
+	repo  repository.MRPRepository
+	cache repository.CacheRepository
 }
 
-func NewProductionService(repo repository.MRPRepository) *ProductionService {
-	return &ProductionService{repo: repo}
+func NewProductionService(repo repository.MRPRepository, cache ...repository.CacheRepository) *ProductionService {
+	var cacheRepo repository.CacheRepository
+	if len(cache) > 0 {
+		cacheRepo = cache[0]
+	}
+
+	return &ProductionService{repo: repo, cache: cacheRepo}
 }

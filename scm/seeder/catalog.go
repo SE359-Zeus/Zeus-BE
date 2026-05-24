@@ -2,10 +2,12 @@ package seeder
 
 import (
 	"fmt"
-	"github.com/google/uuid"
-	"gorm.io/gorm"
+	"log"
 	"time"
 	"zeus-scm-service/internal/models"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 func seedCatalogs(db *gorm.DB, data *PartsFile) (map[string]int32, map[string]models.PartCatalog) {
@@ -15,7 +17,8 @@ func seedCatalogs(db *gorm.DB, data *PartsFile) (map[string]int32, map[string]mo
 	for i, pt := range data.PartTypes {
 		id := int32(i + 1)
 		desc := pt.Description
-		db.FirstOrCreate(&models.PartType{ID: id, PartTypeName: pt.CommodityType, Description: &desc}, models.PartType{PartTypeName: pt.CommodityType})
+		partType := models.PartType{ID: id, PartTypeName: pt.CommodityType, Description: &desc}
+		db.Where("part_type_name = ?", pt.CommodityType).Assign(partType).FirstOrCreate(&partType)
 		typeMap[pt.CommodityType] = id
 	}
 
@@ -35,9 +38,12 @@ func seedCatalogs(db *gorm.DB, data *PartsFile) (map[string]int32, map[string]mo
 			CreatedAt:     time.Now(),
 			UpdatedAt:     time.Now(),
 		}
-		db.Create(&cat)
+		db.Where("part_number = ? AND mfg_number = ?", pc.PartNumber, pc.MfgNumber).Assign(cat).FirstOrCreate(&cat)
 		key := fmt.Sprintf("%s|%s", pc.PartNumber, pc.MfgNumber)
 		catMap[key] = cat
+	}
+	if err := ensurePartsByModelTable(db); err != nil {
+		log.Printf("warning: failed to ensure parts_by_model table: %v", err)
 	}
 	return typeMap, catMap
 }

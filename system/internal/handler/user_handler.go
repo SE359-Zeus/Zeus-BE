@@ -1,10 +1,11 @@
 package handler
 
 import (
-	"errors"
-	"net/http"
+	"fmt"
+	"log"
 	"strconv"
 
+	"zeus-be/pkg/exception"
 	"zeus-system-service/internal/models"
 	"zeus-system-service/internal/service"
 
@@ -13,61 +14,78 @@ import (
 )
 
 type UserHandler struct {
-	svc service.UserService
+	svc      service.UserService
+	auditSvc service.AuditService
 }
 
-func NewUserHandler(svc service.UserService) *UserHandler {
-	return &UserHandler{svc: svc}
+func NewUserHandler(svc service.UserService, auditSvc ...service.AuditService) *UserHandler {
+	h := &UserHandler{svc: svc}
+	if len(auditSvc) > 0 {
+		h.auditSvc = auditSvc[0]
+	}
+	return h
 }
 
 func (h *UserHandler) Create(c *gin.Context) {
 	var req models.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		WriteAppError(c, exception.ErrInvalidBody)
 		return
 	}
 
 	user, err := h.svc.Create(c.Request.Context(), req)
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrEmptyEmail),
-			errors.Is(err, service.ErrInvalidEmail),
-			errors.Is(err, service.ErrEmptyPassword),
-			errors.Is(err, service.ErrShortPassword),
-			errors.Is(err, service.ErrEmptyName),
-			errors.Is(err, service.ErrInvalidRole),
-			errors.Is(err, service.ErrInvalidInput):
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		case errors.Is(err, service.ErrDuplicateEmail):
-			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		if appErr := exception.Resolve(err); appErr != nil {
+			WriteAppError(c, appErr)
+			return
 		}
+		WriteAppError(c, exception.ErrInternal)
 		return
 	}
 
-	c.JSON(http.StatusCreated, models.ToUserResponse(user))
+	if h.auditSvc != nil {
+		userID, okID := c.Get("user_id")
+		userEmail, okEmail := c.Get("email")
+		if okID && okEmail {
+			uid, _ := userID.(uuid.UUID)
+			email, _ := userEmail.(string)
+			if err := h.auditSvc.Ingest(c.Request.Context(), models.IngestAuditRequest{
+				UserID:         uid,
+				UserEmail:      email,
+				ActionType:     models.ActionType("CREATE"),
+				TargetResource: "users/" + user.ID.String(),
+				Details:        fmt.Sprintf("Created user: %s (Role: %s)", user.Email, user.Role),
+				IPAddress:      c.ClientIP(),
+			}); err != nil {
+				log.Printf("warning: failed to record user creation audit event: %v", err)
+			}
+		} else {
+			log.Printf("warning: missing context keys for user creation audit: id_ok=%t, email_ok=%t", okID, okEmail)
+		}
+	}
+
+	WriteEnvelope(c, 201, "created", gin.H{}, models.ToUserResponse(user))
 }
 
 func (h *UserHandler) GetByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		WriteAppError(c, exception.ErrInvalidResourceID)
 		return
 	}
 
 	user, err := h.svc.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if errors.Is(err, service.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			WriteAppError(c, appErr)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		WriteAppError(c, exception.ErrInternal)
 		return
 	}
 
-	c.JSON(http.StatusOK, models.ToUserResponse(user))
+	WriteJSON(c, 200, models.ToUserResponse(user))
 }
 
 func (h *UserHandler) List(c *gin.Context) {
@@ -77,7 +95,7 @@ func (h *UserHandler) List(c *gin.Context) {
 
 	users, meta, err := h.svc.List(c.Request.Context(), page, limit, q)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		WriteAppError(c, exception.ErrInternal)
 		return
 	}
 
@@ -85,48 +103,41 @@ func (h *UserHandler) List(c *gin.Context) {
 	for i, u := range users {
 		resp[i] = models.ToUserResponse(&u)
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"data":       resp,
-		"pagination": meta,
-	})
+	WriteEnvelope(c, 200, "success", gin.H{"pagination": meta}, gin.H{"items": resp})
 }
 
 func (h *UserHandler) Update(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		WriteAppError(c, exception.ErrInvalidResourceID)
 		return
 	}
 
 	var req models.UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		WriteAppError(c, exception.ErrInvalidBody)
 		return
 	}
 
 	user, err := h.svc.Update(c.Request.Context(), id, req)
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrEmptyName),
-			errors.Is(err, service.ErrInvalidRole):
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		case errors.Is(err, service.ErrNotFound):
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		if appErr := exception.Resolve(err); appErr != nil {
+			WriteAppError(c, appErr)
+			return
 		}
+		WriteAppError(c, exception.ErrInternal)
 		return
 	}
 
-	c.JSON(http.StatusOK, models.ToUserResponse(user))
+	WriteJSON(c, 200, models.ToUserResponse(user))
 }
 
 func (h *UserHandler) SetStatus(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		WriteAppError(c, exception.ErrInvalidResourceID)
 		return
 	}
 
@@ -134,24 +145,24 @@ func (h *UserHandler) SetStatus(c *gin.Context) {
 		Status string `json:"status"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		WriteAppError(c, exception.ErrInvalidBody)
 		return
 	}
 
 	status := models.AccountStatus(req.Status)
 	if status != models.AccountStatusActive && status != models.AccountStatusInactive {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "status must be ACTIVE or INACTIVE"})
+		WriteAppError(c, exception.ErrInvalidInput.WithMessage("status must be ACTIVE or INACTIVE"))
 		return
 	}
 
 	if err := h.svc.SetStatus(c.Request.Context(), id, status); err != nil {
-		if errors.Is(err, service.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			WriteAppError(c, appErr)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		WriteAppError(c, exception.ErrInternal)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "status updated"})
+	WriteEnvelope(c, 200, "status updated", gin.H{}, nil)
 }

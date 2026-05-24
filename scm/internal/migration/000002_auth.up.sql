@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS api_keys (
 INSERT INTO api_keys (id, name, key_prefix, key_hash, active)
 VALUES (
     lower(hex(randomblob(16))),
-    'Default ZeuS API Key',
-    'scm_zeus',
-    '$2a$10$QYXXHtQZn541zxmM15P0kebAjJMg6.VzkRbIWk9F.AZPF6FD3dI7a',
+    'Default SCM API Key',
+    'scmkey01',
+    '$2a$10$w6KpSUPBMyQfgIMjcmKi5uS6sJisStIBfIGOHtJeQn0dnwLXfJhW2',
     1
 );

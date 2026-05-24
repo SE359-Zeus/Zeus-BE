@@ -12,18 +12,23 @@ import (
 )
 
 type auditService struct {
-	repo repository.AuditRepository
+	repo        repository.AuditRepository
+	actionTypeSvc ActionTypeService
 }
 
-func NewAuditService(repo repository.AuditRepository) AuditService {
-	return &auditService{repo: repo}
+func NewAuditService(repo repository.AuditRepository, actionTypeSvc ActionTypeService) *auditService {
+	return &auditService{repo: repo, actionTypeSvc: actionTypeSvc}
 }
 
 func (s *auditService) Ingest(ctx context.Context, req models.IngestAuditRequest) error {
 	if req.ActionType == "" {
 		return ErrInvalidInput
 	}
-	if !models.ValidActionTypes[req.ActionType] {
+	valid, err := s.actionTypeSvc.IsValid(ctx, req.ActionType)
+	if err != nil {
+		return err
+	}
+	if !valid {
 		return ErrInvalidInput
 	}
 	if req.UserID == uuid.Nil {
@@ -43,7 +48,7 @@ func (s *auditService) Ingest(ctx context.Context, req models.IngestAuditRequest
 		TargetResource:  req.TargetResource,
 		Details:         req.Details,
 		IPAddress:       req.IPAddress,
-		IsSecurityEvent: req.IsSecurityEvent || req.ActionType == models.ActionSecurity,
+		IsSecurityEvent: req.IsSecurityEvent || req.ActionType == "SECURITY",
 	}
 
 	return s.repo.Insert(ctx, log)
@@ -77,22 +82,22 @@ func (s *auditService) GetMetrics(ctx context.Context) (*models.AuditMetrics, er
 	today := time.Now().Truncate(24 * time.Hour)
 	tomorrow := today.Add(24 * time.Hour)
 
-	logins, err := s.repo.CountByAction(ctx, models.ActionLogin, today, tomorrow)
+	logins, err := s.repo.CountByAction(ctx, "LOGIN", today, tomorrow)
 	if err != nil {
 		return nil, err
 	}
 
-	securityEvents, err := s.repo.CountByAction(ctx, models.ActionSecurity, today, tomorrow)
+	securityEvents, err := s.repo.CountByAction(ctx, "SECURITY", today, tomorrow)
 	if err != nil {
 		return nil, err
 	}
 
-	updates, err := s.repo.CountByAction(ctx, models.ActionUpdate, today, tomorrow)
+	updates, err := s.repo.CountByAction(ctx, "UPDATE", today, tomorrow)
 	if err != nil {
 		return nil, err
 	}
 
-	deletes, err := s.repo.CountByAction(ctx, models.ActionDelete, today, tomorrow)
+	deletes, err := s.repo.CountByAction(ctx, "DELETE", today, tomorrow)
 	if err != nil {
 		return nil, err
 	}

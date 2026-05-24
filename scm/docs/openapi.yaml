@@ -4,9 +4,7 @@ info:
   description: Supply Chain Management module of the Zeus ERP system. Governs procurement, inventory, goods receipt, and outbound logistics.
   version: "1.0.0"
 servers:
-  - url: http://localhost:8080/api/v1
-    description: Local development
-  - url: /api/v1
+  - url: /api/v1/scm
     description: API base path
 
 components:
@@ -21,6 +19,33 @@ components:
       properties:
         error:
           type: string
+    SuccessResponse:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: success
+        data:
+          nullable: true
+    SuccessListResponse:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: success
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+            pagination:
+              $ref: '#/components/schemas/PaginationMeta'
     PaginationMeta:
       type: object
       properties:
@@ -322,12 +347,16 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  supplier:
-                    $ref: '#/components/schemas/Supplier'
-                  mapping:
-                    $ref: '#/components/schemas/SkuMapping'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          supplier:
+                            $ref: '#/components/schemas/Supplier'
+                          mapping:
+                            $ref: '#/components/schemas/SkuMapping'
         '404':
           description: No optimal supplier found
 
@@ -345,6 +374,10 @@ paths:
       responses:
         '200':
           description: Metrics updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /purchase-orders/draft:
     post:
@@ -369,7 +402,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PurchaseOrder'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/PurchaseOrder'
 
   /purchase-orders/{poId}/line-items:
     post:
@@ -397,6 +434,10 @@ paths:
       responses:
         '200':
           description: Line item added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /purchase-orders/{poId}/approve:
     post:
@@ -411,6 +452,10 @@ paths:
       responses:
         '200':
           description: PO approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /purchase-orders/{poId}/state:
     put:
@@ -436,6 +481,10 @@ paths:
       responses:
         '200':
           description: State transitioned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /goods-receipts/{grId}/lock:
     post:
@@ -460,6 +509,10 @@ paths:
       responses:
         '200':
           description: Lock acquired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
         '409':
           description: Already locked by another operator
     delete:
@@ -474,6 +527,10 @@ paths:
       responses:
         '200':
           description: Lock released
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /goods-receipts/{grId}/process:
     post:
@@ -509,6 +566,10 @@ paths:
       responses:
         '200':
           description: Blind receipt processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /shipments/{shipmentId}/lock:
     post:
@@ -533,6 +594,10 @@ paths:
       responses:
         '200':
           description: Dispatch lock acquired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
         '409':
           description: Already dispatched
 
@@ -563,6 +628,10 @@ paths:
       responses:
         '200':
           description: Shipment dispatched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /inventory/products:
     get:
@@ -605,14 +674,18 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Product'
-                  pagination:
-                    $ref: '#/components/schemas/PaginationMeta'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Product'
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
     post:
       summary: Create a product
       tags: [Inventory]
@@ -625,6 +698,16 @@ paths:
       responses:
         '201':
           description: Product created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      statusCode:
+                        example: 201
+                      data:
+                        $ref: '#/components/schemas/Product'
 
   /inventory/products/{id}:
     get:
@@ -642,7 +725,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Product'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/Product'
     put:
       summary: Update product fields (partial update)
       tags: [Inventory]
@@ -675,7 +762,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Product'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/Product'
         '404':
           description: Product not found
 
@@ -692,6 +783,10 @@ paths:
       responses:
         '200':
           description: Product model
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /inventory/product-models:
     post:
@@ -713,6 +808,10 @@ paths:
       responses:
         '201':
           description: Product model created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /inventory/parts:
     get:
@@ -772,14 +871,18 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Part'
-                  pagination:
-                    $ref: '#/components/schemas/PaginationMeta'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Part'
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
     post:
       summary: Create a part
       tags: [Inventory]
@@ -792,6 +895,16 @@ paths:
       responses:
         '201':
           description: Part created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      statusCode:
+                        example: 201
+                      data:
+                        $ref: '#/components/schemas/Part'
 
   /inventory/parts/{id}:
     get:
@@ -809,7 +922,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Part'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/Part'
     put:
       summary: Update part fields (partial update)
       tags: [Inventory]
@@ -859,7 +976,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Part'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/Part'
         '404':
           description: Part not found
 
@@ -887,6 +1008,10 @@ paths:
       responses:
         '200':
           description: Condition updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /inventory/parts/{id}/scrap:
     post:
@@ -902,6 +1027,10 @@ paths:
       responses:
         '200':
           description: Part scrapped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /inventory/parts/{id}/install:
     post:
@@ -928,6 +1057,10 @@ paths:
       responses:
         '200':
           description: Part installed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /inventory/parts/{id}/remove:
     post:
@@ -943,6 +1076,10 @@ paths:
       responses:
         '200':
           description: Part removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /inventory/part-catalog:
     get:
@@ -991,14 +1128,18 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Part'
-                  pagination:
-                    $ref: '#/components/schemas/PaginationMeta'
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Part'
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
 
   /inventory/part-catalog/{id}:
     get:
@@ -1014,6 +1155,10 @@ paths:
       responses:
         '200':
           description: Part catalog entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 
   /inventory/users/{id}:
     get:
@@ -1029,3 +1174,7 @@ paths:
       responses:
         '200':
           description: User
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'

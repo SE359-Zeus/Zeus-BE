@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -8,17 +9,27 @@ import (
 	"encoding/pem"
 	"log"
 	"os"
+	"path/filepath"
 
 	"zeus-system-service/internal/config"
+	"zeus-system-service/internal/consumer"
 	"zeus-system-service/internal/handler"
 	"zeus-system-service/internal/handler/middleware"
+	"zeus-system-service/internal/infrastructure/cache"
 	"zeus-system-service/internal/repository/sqlite"
+	valkeyRepo "zeus-system-service/internal/repository/valkey"
 	"zeus-system-service/internal/service"
 
 	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
 )
+
+func dialValkey(addr string) func() (cache.ValkeyConn, error) {
+	return func() (cache.ValkeyConn, error) {
+		return cache.DialValkey(addr)
+	}
+}
 
 func loadPrivateKey(path string) *rsa.PrivateKey {
 	if path == "" {
@@ -47,6 +58,73 @@ func loadPrivateKey(path string) *rsa.PrivateKey {
 	return key.(*rsa.PrivateKey)
 }
 
+func buildOpenAPISpec(serverPort string) func() ([]byte, error) {
+	return func() ([]byte, error) {
+		data, err := os.ReadFile("docs/openapi.yaml")
+		if err != nil {
+			return nil, err
+		}
+
+		var parsed map[string]any
+		if err := yaml.Unmarshal(data, &parsed); err != nil {
+			return nil, err
+		}
+
+		parsed["servers"] = []map[string]string{{
+			"url":         runtimeServerURL(serverPort),
+			"description": "Local development",
+		}}
+
+		return json.Marshal(parsed)
+	}
+}
+
+func findOpenAPISpec() string {
+	paths := []string{
+		"docs/openapi.yaml",
+		"./docs/openapi.yaml",
+		filepath.Join(".", "docs", "openapi.yaml"),
+	}
+
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+
+	return "docs/openapi.yaml"
+}
+
+func loadOpenAPISpec(specPath, serverURL string) ([]byte, error) {
+	data, err := os.ReadFile(specPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsed map[string]any
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		return nil, err
+	}
+	parsed["servers"] = []any{map[string]any{"url": serverURL}}
+
+	return json.Marshal(parsed)
+}
+
+func runtimeServerURL(port string) string {
+	// PUBLIC_BASE_URL must be set to the host only (no path) in stack.env:
+	//   PUBLIC_BASE_URL=https://zeus.ryanandexen.qzz.io
+	// Swagger UI calls: PUBLIC_BASE_URL + /api/v1/system + <path-from-spec>
+	// Locally (unset), falls back to http://localhost:<port>.
+	base := os.Getenv("PUBLIC_BASE_URL")
+	if base == "" {
+		if port == "" {
+			port = "8084"
+		}
+		base = "http://localhost:" + port
+	}
+	return base + "/api/v1/system"
+}
+
 func main() {
 	cfg := config.Load()
 
@@ -55,62 +133,117 @@ func main() {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 
-	if err := sqlite.AutoMigrate(db); err != nil {
-		log.Fatalf("AutoMigrate failed: %v", err)
+	if err := sqlite.ApplyMigrations(db, "./migrations", sqlite.DirectionUp); err != nil {
+		log.Fatalf("migration failed: %v", err)
 	}
 
 	userRepo := sqlite.NewUserRepository(db)
-	refreshTokenRepo := sqlite.NewRefreshTokenRepository(db)
 	auditRepo := sqlite.NewAuditRepository(db)
+	roleRepo := sqlite.NewRoleRepository(db)
+	actionTypeRepo := sqlite.NewActionTypeRepository(db)
 
-	userSvc := service.NewUserService(userRepo)
-	privateKey := loadPrivateKey(cfg.JWTKeyPath)
-	authSvc := service.NewAuthService(userSvc, refreshTokenRepo, privateKey)
-	auditSvc := service.NewAuditService(auditRepo)
+	vkDialer := dialValkey(cfg.ValkeyAddr)
 
-	authH := handler.NewAuthHandler(authSvc)
-	userH := handler.NewUserHandler(userSvc)
-	auditH := handler.NewAuditHandler(auditSvc)
+	refreshTokenRepo := valkeyRepo.NewRefreshTokenRepository(vkDialer)
+	actionTypeCacheRepo := valkeyRepo.NewActionTypeCacheRepository(vkDialer)
 
-	r := gin.Default()
-
-	public := r.Group("/")
-	{
-		public.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
-			Title: "Zeus System API",
-			SpecProvider: func() ([]byte, error) {
-				data, err := os.ReadFile("docs/openapi.yaml")
-				if err != nil {
-					return nil, err
-				}
-				var parsed any
-				if err := yaml.Unmarshal(data, &parsed); err != nil {
-					return nil, err
-				}
-				return json.Marshal(parsed)
-			},
-			Theme: "dark",
-		}))
-		public.GET("/health", func(c *gin.Context) {
-			c.JSON(200, gin.H{"status": "ok"})
-		})
-		public.POST("/api/v1/auth/login", authH.Login)
-		public.POST("/api/v1/auth/refresh", authH.Refresh)
+	rbacSvc := service.NewEndpointRBACService(roleRepo)
+	if err := rbacSvc.WarmCache(context.Background()); err != nil {
+		log.Printf("Warning: RBAC cache warm failed: %v", err)
 	}
 
-	api := r.Group("/api/v1")
-	api.Use(middleware.JWTAuth(authSvc))
+	actionTypeSvc := service.NewActionTypeService(actionTypeRepo, actionTypeCacheRepo)
+	if err := actionTypeSvc.WarmCache(context.Background()); err != nil {
+		log.Printf("Warning: action type cache warm failed: %v", err)
+	}
+
+	emailSvc, err := service.NewSMTPEmailService(
+		cfg.SMTPHost,
+		cfg.SMTPPort,
+		cfg.SMTPUser,
+		cfg.SMTPPass,
+		cfg.EmailFromAddress,
+		cfg.EmailTemplateDir,
+	)
+	if err != nil {
+		log.Printf("Warning: account email sender disabled: %v", err)
+	}
+
+	sessionRepo := sqlite.NewSessionRepository(db)
+
+	userCacheRepo := valkeyRepo.NewUserCacheRepository(vkDialer)
+	userSvc := service.NewUserService(userRepo, rbacSvc, emailSvc, userCacheRepo)
+	privateKey := loadPrivateKey(cfg.JWTKeyPath)
+	authSvc := service.NewAuthService(userSvc, refreshTokenRepo, sessionRepo, privateKey)
+	auditSvc := service.NewAuditService(auditRepo, actionTypeSvc)
+
+	auditConsumer := consumer.NewAuditConsumer(cfg.RabbitMQURL, auditSvc)
+	if err := auditConsumer.Start(context.Background()); err != nil {
+		log.Printf("Warning: failed to start audit RabbitMQ consumer: %v", err)
+	}
+
+	sessions, err := sessionRepo.ListActive(context.Background())
+	if err != nil {
+		log.Printf("Warning: failed to load sessions for Valkey warm-up: %v", err)
+	} else {
+		for _, s := range sessions {
+			if err := refreshTokenRepo.SaveRefreshToken(context.Background(), s.JTI, s.UserID.String()); err != nil {
+				log.Printf("Warning: failed to warm refresh token %s: %v", s.JTI, err)
+			}
+		}
+		log.Printf("warmed %d sessions into Valkey", len(sessions))
+	}
+
+	authH := handler.NewAuthHandler(authSvc, auditSvc)
+	userH := handler.NewUserHandler(userSvc, auditSvc)
+	auditH := handler.NewAuditHandler(auditSvc)
+
+	r := gin.New()
+	// Disable Gin's trailing-slash redirect: prevents a 301 /docs → /docs/
+	// from escaping the nginx /system/docs/ proxy prefix in production.
+	r.RedirectTrailingSlash = false
+	r.Use(gin.Logger(), middleware.Recovery())
+
+	specPath := findOpenAPISpec()
+	specURL := runtimeServerURL(cfg.ServerPort)
+	spec, err := loadOpenAPISpec(specPath, specURL)
+	if err != nil {
+		log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
+	}
+
+	r.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
+		Title:   "Zeus System API",
+		SpecURL: "./openapi.json",
+		SpecProvider: func() ([]byte, error) {
+			if spec == nil {
+				return buildOpenAPISpec(cfg.ServerPort)()
+			}
+			return spec, nil
+		},
+		Theme: "dark",
+	}))
+	r.GET("/health", func(c *gin.Context) {
+		handler.WriteEnvelope(c, 200, "ok", gin.H{}, gin.H{"status": "ok"})
+	})
+
+	systemPublic := r.Group("/api/v1/system")
 	{
+		systemPublic.POST("/auth/login", authH.Login)
+		systemPublic.POST("/auth/refresh", authH.Refresh)
+		systemPublic.POST("/auth/logout", authH.Logout)
+	}
 
-		api.POST("/users", userH.Create)
-		api.GET("/users", userH.List)
-		api.GET("/users/:id", userH.GetByID)
-		api.PUT("/users/:id", userH.Update)
-		api.PATCH("/users/:id/status", userH.SetStatus)
+	api := r.Group("/api/v1/system", middleware.JWTAuth(authSvc))
+	{
+		api.POST("/users", middleware.RequireRoles("admin"), userH.Create)
+		api.GET("/users", middleware.RequireRoles("admin"), userH.List)
+		api.GET("/users/:id", middleware.RequireRoles("admin"), userH.GetByID)
+		api.PUT("/users/:id", middleware.RequireRoles("admin"), userH.Update)
+		api.PATCH("/users/:id/status", middleware.RequireRoles("admin"), userH.SetStatus)
 
-		api.POST("/logs/ingest", auditH.Ingest)
-		api.GET("/logs", auditH.Query)
-		api.GET("/logs/metrics", auditH.GetMetrics)
+		api.POST("/logs/ingest", middleware.RequireRoles("admin"), auditH.Ingest)
+		api.GET("/logs", middleware.RequireRoles("admin"), auditH.Query)
+		api.GET("/logs/metrics", middleware.RequireRoles("admin"), auditH.GetMetrics)
 	}
 
 	log.Printf("Zeus System service starting on :%s", cfg.ServerPort)

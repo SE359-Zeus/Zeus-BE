@@ -1,25 +1,45 @@
 package seeder
 
 import (
-	"github.com/brianvoe/gofakeit/v6"
-	"github.com/google/uuid"
-	"gorm.io/gorm"
 	"zeus-scm-service/internal/models"
+
+	"gorm.io/gorm"
 )
 
 func seedSuppliers(db *gorm.DB, count int) []models.Supplier {
+	type supplierSpec struct {
+		Name         string
+		Contact      string
+		LeadTimeDays int
+		QualityScore float64
+		OnTimeRate   float64
+	}
+
+	specs := []supplierSpec{
+		{Name: "Northwind Component Supply", Contact: "orders@northwind.example", LeadTimeDays: 7, QualityScore: 97.5, OnTimeRate: 98.1},
+		{Name: "Apex Industrial Parts", Contact: "sales@apex.example", LeadTimeDays: 10, QualityScore: 95.2, OnTimeRate: 96.4},
+		{Name: "BluePeak Electronics", Contact: "procurement@bluepeak.example", LeadTimeDays: 12, QualityScore: 94.8, OnTimeRate: 95.0},
+		{Name: "Orion Component Works", Contact: "contact@orion.example", LeadTimeDays: 15, QualityScore: 92.6, OnTimeRate: 93.3},
+		{Name: "Vertex Supply Group", Contact: "orders@vertex.example", LeadTimeDays: 18, QualityScore: 90.4, OnTimeRate: 91.7},
+	}
+
 	var suppliers []models.Supplier
-	for i := 0; i < count; i++ {
+	limit := count
+	if limit > len(specs) {
+		limit = len(specs)
+	}
+	for i := 0; i < limit; i++ {
+		spec := specs[i]
 		s := models.Supplier{
-			ID:           uuid.New(),
-			Name:         gofakeit.Company(),
-			Contact:      gofakeit.Email(),
+			ID:           stableUUID("supplier:" + spec.Name),
+			Name:         spec.Name,
+			Contact:      spec.Contact,
 			Tier:         models.SupplierTierQualified,
-			LeadTimeDays: gofakeit.Number(5, 30),
-			QualityScore: gofakeit.Float64Range(80.0, 99.9),
-			OnTimeRate:   gofakeit.Float64Range(80.0, 99.9),
+			LeadTimeDays: spec.LeadTimeDays,
+			QualityScore: spec.QualityScore,
+			OnTimeRate:   spec.OnTimeRate,
 		}
-		db.Create(&s)
+		db.Where("id = ?", s.ID).Assign(s).FirstOrCreate(&s)
 		suppliers = append(suppliers, s)
 	}
 	return suppliers

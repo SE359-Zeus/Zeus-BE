@@ -89,6 +89,11 @@ func (m *MockAuthService) VerifyAccessToken(tokenString string) (*service.JWTCla
 	return nil, args.Error(1)
 }
 
+func (m *MockAuthService) Logout(ctx context.Context, accessToken string) error {
+	args := m.Called(ctx, accessToken)
+	return args.Error(0)
+}
+
 type MockAuditService struct {
 	mock.Mock
 }
@@ -114,4 +119,18 @@ func (m *MockAuditService) GetMetrics(ctx context.Context) (*models.AuditMetrics
 		return args.Get(0).(*models.AuditMetrics), args.Error(1)
 	}
 	return nil, args.Error(1)
+}
+
+type MockEndpointRBACService struct {
+	mock.Mock
+}
+
+func (m *MockEndpointRBACService) ValidateRole(ctx context.Context, role string) error {
+	args := m.Called(ctx, role)
+	return args.Error(0)
+}
+
+func (m *MockEndpointRBACService) WarmCache(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
 }

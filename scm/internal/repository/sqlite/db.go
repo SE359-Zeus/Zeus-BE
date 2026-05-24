@@ -1,8 +1,6 @@
 package sqlite
 
 import (
-	"zeus-scm-service/internal/models"
-
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/golang-migrate/migrate/v4/source/file"
@@ -15,10 +13,31 @@ func NewDB(path string) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if path != ":memory:" && path != "file::memory:" {
+		sqlDB, err := db.DB()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := sqlDB.Exec("PRAGMA journal_mode=WAL;"); err != nil {
+			return nil, err
+		}
+		if _, err := sqlDB.Exec("PRAGMA synchronous=NORMAL;"); err != nil {
+			return nil, err
+		}
+		if _, err := sqlDB.Exec("PRAGMA busy_timeout=5000;"); err != nil {
+			return nil, err
+		}
+	}
+
 	return db, nil
 }
 
 func RunMigrations(db *gorm.DB, migrationsPath string) error {
+	if err := dropLegacySchema(db); err != nil {
+		return err
+	}
+
 	sqlDB, err := db.DB()
 	if err != nil {
 		return err
@@ -41,27 +60,15 @@ func RunMigrations(db *gorm.DB, migrationsPath string) error {
 	return nil
 }
 
-func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(
-		&models.Supplier{},
-		&models.SkuMapping{},
-		&models.PurchaseOrder{},
-		&models.POLineItem{},
-		&models.Shipment{},
-		&models.ShipmentItem{},
-		&models.GoodsReceipt{},
-		&models.GRLineItem{},
-		&models.ComponentStock{},
-		&models.Product{},
-		&models.ProductModel{},
-		&models.Part{},
-		&models.PartCatalog{},
-		&models.PartCondition{},
-		&models.PartMfgStatus{},
-		&models.ApiKey{},
-		&models.PurchaseOrderState{},
-		&models.GoodsReceiptState{},
-		&models.ComponentStockState{},
-		&models.ShipmentState{},
-	)
+func dropLegacySchema(db *gorm.DB) error {
+	statements := []string{
+		"DROP TABLE IF EXISTS parts_by_models",
+		"DROP TABLE IF EXISTS endpoint_roles",
+	}
+	for _, statement := range statements {
+		if err := db.Exec(statement).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }

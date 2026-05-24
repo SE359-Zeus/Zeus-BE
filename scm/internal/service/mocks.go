@@ -1,0 +1,202 @@
+package service
+
+import (
+	"context"
+
+	"zeus-scm-service/internal/models"
+	"zeus-scm-service/internal/pagination"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/mock"
+)
+
+type MockVendorService struct {
+	mock.Mock
+}
+
+func (m *MockVendorService) GetOptimalSupplier(ctx context.Context, sku string) (*models.Supplier, *models.SkuMapping, error) {
+	args := m.Called(ctx, sku)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Supplier), args.Get(1).(*models.SkuMapping), args.Error(2)
+	}
+	return nil, nil, args.Error(2)
+}
+
+func (m *MockVendorService) UpdateSupplierMetrics(ctx context.Context, supplierID uuid.UUID) error {
+	args := m.Called(ctx, supplierID)
+	return args.Error(0)
+}
+
+type MockPOService struct {
+	mock.Mock
+}
+
+func (m *MockPOService) CreateDraft(ctx context.Context, vendorID uuid.UUID, targetBuild string) (*models.PurchaseOrder, error) {
+	args := m.Called(ctx, vendorID, targetBuild)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.PurchaseOrder), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockPOService) AddLineItemWithLock(ctx context.Context, poID string, sku string, qty int) error {
+	args := m.Called(ctx, poID, sku, qty)
+	return args.Error(0)
+}
+
+func (m *MockPOService) ApprovePO(ctx context.Context, poID string) error {
+	args := m.Called(ctx, poID)
+	return args.Error(0)
+}
+
+func (m *MockPOService) TransitionState(ctx context.Context, poID string, newState models.POStatus) error {
+	args := m.Called(ctx, poID, newState)
+	return args.Error(0)
+}
+
+type MockInventoryService struct {
+	mock.Mock
+}
+
+func (m *MockInventoryService) GetProduct(ctx context.Context, id uuid.UUID) (*models.Product, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Product), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockInventoryService) ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error) {
+	args := m.Called(ctx, params, q)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.Product), args.Get(1).(*pagination.Meta), args.Error(2)
+	}
+	return nil, args.Get(1).(*pagination.Meta), args.Error(2)
+}
+
+func (m *MockInventoryService) CreateProduct(ctx context.Context, p *models.Product) error {
+	args := m.Called(ctx, p)
+	return args.Error(0)
+}
+
+func (m *MockInventoryService) UpdateProduct(ctx context.Context, id uuid.UUID, fields map[string]any) (*models.Product, error) {
+	args := m.Called(ctx, id, fields)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Product), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockInventoryService) GetProductModel(ctx context.Context, code string) (*models.ProductModel, error) {
+	args := m.Called(ctx, code)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.ProductModel), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockInventoryService) CreateProductModel(ctx context.Context, model *models.ProductModel) error {
+	args := m.Called(ctx, model)
+	return args.Error(0)
+}
+
+func (m *MockInventoryService) GetPart(ctx context.Context, id uuid.UUID) (*models.Part, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Part), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockInventoryService) ListParts(ctx context.Context, catalogID *uuid.UUID, productID *uuid.UUID, conditionID *int32, params pagination.Params, q string) ([]models.Part, *pagination.Meta, error) {
+	args := m.Called(ctx, catalogID, productID, conditionID, params, q)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.Part), args.Get(1).(*pagination.Meta), args.Error(2)
+	}
+	return nil, args.Get(1).(*pagination.Meta), args.Error(2)
+}
+
+func (m *MockInventoryService) CreatePart(ctx context.Context, p *models.Part) error {
+	args := m.Called(ctx, p)
+	return args.Error(0)
+}
+
+func (m *MockInventoryService) UpdatePart(ctx context.Context, id uuid.UUID, fields map[string]any) (*models.Part, error) {
+	args := m.Called(ctx, id, fields)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Part), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockInventoryService) UpdatePartCondition(ctx context.Context, partID uuid.UUID, conditionID int32) error {
+	args := m.Called(ctx, partID, conditionID)
+	return args.Error(0)
+}
+
+func (m *MockInventoryService) MarkPartScrapped(ctx context.Context, partID uuid.UUID) error {
+	args := m.Called(ctx, partID)
+	return args.Error(0)
+}
+
+func (m *MockInventoryService) InstallPart(ctx context.Context, partID uuid.UUID, productID uuid.UUID) error {
+	args := m.Called(ctx, partID, productID)
+	return args.Error(0)
+}
+
+func (m *MockInventoryService) RemovePart(ctx context.Context, partID uuid.UUID) error {
+	args := m.Called(ctx, partID)
+	return args.Error(0)
+}
+
+func (m *MockInventoryService) GetPartCatalog(ctx context.Context, id uuid.UUID) (*models.PartCatalog, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.PartCatalog), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockInventoryService) ListPartCatalog(ctx context.Context, typeID *int32, params pagination.Params, q string) ([]models.PartCatalog, *pagination.Meta, error) {
+	args := m.Called(ctx, typeID, params, q)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.PartCatalog), args.Get(1).(*pagination.Meta), args.Error(2)
+	}
+	return nil, args.Get(1).(*pagination.Meta), args.Error(2)
+}
+
+type MockShipmentService struct {
+	mock.Mock
+}
+
+func (m *MockShipmentService) AcquireDispatchLock(ctx context.Context, shipmentID string, operatorID string) error {
+	args := m.Called(ctx, shipmentID, operatorID)
+	return args.Error(0)
+}
+
+func (m *MockShipmentService) DispatchShipment(ctx context.Context, shipmentID string, operatorID string) error {
+	args := m.Called(ctx, shipmentID, operatorID)
+	return args.Error(0)
+}
+
+type MockGoodsReceiptService struct {
+	mock.Mock
+}
+
+func (m *MockGoodsReceiptService) AcquireLock(ctx context.Context, grID string, operatorID string) error {
+	args := m.Called(ctx, grID, operatorID)
+	return args.Error(0)
+}
+
+func (m *MockGoodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID string, operatorID string, counts map[string]struct {
+	Received  int
+	Defective int
+}) error {
+	args := m.Called(ctx, grID, operatorID, counts)
+	return args.Error(0)
+}
+
+func (m *MockGoodsReceiptService) ReleaseLock(ctx context.Context, grID string) error {
+	args := m.Called(ctx, grID)
+	return args.Error(0)
+}

@@ -11,77 +11,161 @@ import (
 	"gorm.io/gorm"
 )
 
+type roleSeed struct {
+	Name        string
+	DisplayName string
+	Level       string
+	Module      string
+	Description string
+}
+
+var roles = []roleSeed{
+	{Name: "admin", DisplayName: "Administrator", Level: "Administrator", Module: "Global", Description: "Global system control, user management, and employee oversight."},
+	{Name: "scm_operator", DisplayName: "SCM Operator", Level: "Operator", Module: "SCM", Description: "Resolve vendor selection, approve POs, orchestrate outbound dispatch."},
+	{Name: "scm_worker", DisplayName: "SCM Worker", Level: "Worker", Module: "SCM", Description: "Physical validation of inbound shipments, inventory ledger updates."},
+	{Name: "mrp_operator", DisplayName: "MRP Operator", Level: "Operator", Module: "MRP", Description: "Manage Component Catalog/BOM, trigger calculation runs."},
+	{Name: "mrp_worker", DisplayName: "MRP Worker", Level: "Worker", Module: "MRP", Description: "Monitor material readiness and generate warehouse pick lists."},
+	{Name: "sales_operator", DisplayName: "Sales Operator", Level: "Operator", Module: "Sales", Description: "Manage Client Registry, resolve fulfillment bottlenecks."},
+	{Name: "sales_worker", DisplayName: "Sales Worker", Level: "Worker", Module: "Sales", Description: "API order validation, sales order creation."},
+}
+
+type actionTypeSeed struct {
+	Name        string
+	Description string
+	IsSecurity  bool
+}
+
+var actionTypes = []actionTypeSeed{
+	{Name: "LOGIN", Description: "User login event", IsSecurity: false},
+	{Name: "CREATE", Description: "Resource creation event", IsSecurity: false},
+	{Name: "UPDATE", Description: "Resource update event", IsSecurity: false},
+	{Name: "DELETE", Description: "Resource deletion event", IsSecurity: false},
+	{Name: "SECURITY", Description: "Security-related event", IsSecurity: true},
+}
+
 func SeedAll(db *gorm.DB) error {
 	log.Println("Seeding system service data...")
 
-	admin := seedUser(db, "admin@zeus.com", "admin123", "System Administrator", models.UserRoleAdmin)
-	editor := seedUser(db, "editor@zeus.com", "editor123", "Production Editor", models.UserRoleEditor)
-	viewer := seedUser(db, "viewer@zeus.com", "viewer123", "Read-Only Viewer", models.UserRoleViewer)
-
-	seedAuditLogs(db, admin, editor, viewer)
+	seedRoles(db)
+	seedActionTypes(db)
+	seedUsers(db)
+	seedAuditLogs(db)
 
 	log.Println("Seeding complete.")
 	return nil
 }
 
-func seedUser(db *gorm.DB, email, password, fullName string, role models.UserRole) *models.User {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		log.Fatalf("failed to hash password for %s: %v", email, err)
+func seedRoles(db *gorm.DB) {
+	for _, rs := range roles {
+		role := models.Role{
+			Name:        rs.Name,
+			DisplayName: rs.DisplayName,
+			Level:       rs.Level,
+			Module:      rs.Module,
+			Description: rs.Description,
+		}
+		result := db.Where("name = ?", rs.Name).FirstOrCreate(&role)
+		if result.Error != nil {
+			log.Fatalf("failed to seed role %s: %v", rs.Name, result.Error)
+		}
+		if result.RowsAffected > 0 {
+			log.Printf("Created role: %s (%s)", rs.Name, rs.DisplayName)
+		}
 	}
-
-	user := &models.User{
-		Email:        email,
-		PasswordHash: string(hash),
-		FullName:     fullName,
-		Role:         role,
-		Status:       models.AccountStatusActive,
-	}
-
-	result := db.Where("email = ?", email).FirstOrCreate(user)
-	if result.Error != nil {
-		log.Fatalf("failed to seed user %s: %v", email, result.Error)
-	}
-
-	if result.RowsAffected > 0 {
-		log.Printf("Created user: %s (%s) — %s", email, string(role), fullName)
-	} else {
-		log.Printf("User already exists: %s", email)
-	}
-
-	return user
 }
 
-func seedAuditLogs(db *gorm.DB, users ...*models.User) {
+func seedActionTypes(db *gorm.DB) {
+	for _, at := range actionTypes {
+		entry := models.ActionTypeEntry{
+			Name:        at.Name,
+			Description: at.Description,
+			IsSecurity:  at.IsSecurity,
+		}
+		result := db.Where("name = ?", at.Name).FirstOrCreate(&entry)
+		if result.Error != nil {
+			log.Fatalf("failed to seed action type %s: %v", at.Name, result.Error)
+		}
+		if result.RowsAffected > 0 {
+			log.Printf("Created action type: %s", at.Name)
+		}
+	}
+}
+
+func seedUsers(db *gorm.DB) {
+	type seedUser struct {
+		Email    string
+		Password string
+		FullName string
+		Role     string
+	}
+
+	users := []seedUser{
+		{Email: "admin@zeus.com", Password: "admin123", FullName: "System Administrator", Role: "admin"},
+		{Email: "scm-operator@zeus.com", Password: "scm123", FullName: "SCM Operator", Role: "scm_operator"},
+		{Email: "scm-worker@zeus.com", Password: "scm123", FullName: "SCM Worker", Role: "scm_worker"},
+		{Email: "mrp-operator@zeus.com", Password: "mrp123", FullName: "MRP Operator", Role: "mrp_operator"},
+		{Email: "mrp-worker@zeus.com", Password: "mrp123", FullName: "MRP Worker", Role: "mrp_worker"},
+		{Email: "sales-operator@zeus.com", Password: "sales123", FullName: "Sales Operator", Role: "sales_operator"},
+		{Email: "sales-worker@zeus.com", Password: "sales123", FullName: "Sales Worker", Role: "sales_worker"},
+	}
+
+	for _, u := range users {
+		hash, err := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
+		if err != nil {
+			log.Fatalf("failed to hash password for %s: %v", u.Email, err)
+		}
+
+		user := &models.User{
+			Email:        u.Email,
+			PasswordHash: string(hash),
+			FullName:     u.FullName,
+			Role:         u.Role,
+			Status:       models.AccountStatusActive,
+		}
+
+		result := db.Where("email = ?", u.Email).FirstOrCreate(user)
+		if result.Error != nil {
+			log.Fatalf("failed to seed user %s: %v", u.Email, result.Error)
+		}
+		if result.RowsAffected > 0 {
+			log.Printf("Created user: %s (%s) — %s", u.Email, u.Role, u.FullName)
+		} else {
+			log.Printf("User already exists: %s", u.Email)
+		}
+	}
+}
+
+func seedAuditLogs(db *gorm.DB) {
 	now := time.Now()
 
+	var allUsers []models.User
+	if err := db.Find(&allUsers).Error; err != nil {
+		log.Printf("Warning: failed to fetch users for audit log seeding: %v", err)
+		return
+	}
+	if len(allUsers) == 0 {
+		return
+	}
+	admin := &allUsers[0]
+
 	type seedEvent struct {
-		user            *models.User
-		action          models.ActionType
-		target          string
-		details         string
-		ip              string
-		isSecurity      bool
-		hoursAgo        int
+		user       *models.User
+		action     string
+		target     string
+		details    string
+		ip         string
+		isSecurity bool
+		hoursAgo   int
 	}
 
 	events := []seedEvent{
-		{users[0], models.ActionLogin, "auth/login", "Successful login", "10.0.0.1", false, 1},
-		{users[0], models.ActionLogin, "auth/login", "Successful login", "10.0.0.1", false, 2},
-		{users[1], models.ActionLogin, "auth/login", "Successful login", "10.0.0.2", false, 3},
-		{users[0], models.ActionCreate, "users/" + users[1].ID.String(), "Created editor account", "10.0.0.1", false, 4},
-		{users[0], models.ActionCreate, "users/" + users[2].ID.String(), "Created viewer account", "10.0.0.1", false, 5},
-		{users[1], models.ActionUpdate, "users/" + users[2].ID.String(), "Updated user role", "10.0.0.2", false, 6},
-		{users[0], models.ActionUpdate, "users/" + users[1].ID.String(), "Updated user profile", "10.0.0.1", false, 7},
-		{users[0], models.ActionDelete, "users/old-user-id", "Removed inactive account", "10.0.0.1", false, 8},
-		{users[0], models.ActionSecurity, "auth/login", "Failed login attempt from unknown IP", "203.0.113.1", true, 9},
-		{users[0], models.ActionSecurity, "auth/login", "Brute force attempt detected", "198.51.100.1", true, 10},
-		{users[1], models.ActionCreate, "reports/Q1-2026", "Created quarterly report", "10.0.0.2", false, 11},
-		{users[0], models.ActionUpdate, "config/security", "Updated password policy", "10.0.0.1", false, 12},
-		{users[0], models.ActionLogin, "auth/login", "Successful login", "10.0.0.1", false, 13},
-		{users[0], models.ActionCreate, "roles/custom-role", "Created custom audit role", "10.0.0.1", false, 14},
-		{users[1], models.ActionUpdate, "reports/Q1-2026", "Updated report filters", "10.0.0.2", false, 15},
-		{users[0], models.ActionSecurity, "resources/confidential", "Unauthorized access attempt", "192.0.2.1", true, 16},
+		{admin, "LOGIN", "auth/login", "Successful login", "10.0.0.1", false, 1},
+		{admin, "LOGIN", "auth/login", "Successful login", "10.0.0.1", false, 2},
+		{admin, "CREATE", "users/" + admin.ID.String(), "Created admin account", "10.0.0.1", false, 4},
+		{admin, "UPDATE", "config/security", "Updated password policy", "10.0.0.1", false, 12},
+		{admin, "SECURITY", "auth/login", "Failed login attempt from unknown IP", "203.0.113.1", true, 9},
+		{admin, "SECURITY", "auth/login", "Brute force attempt detected", "198.51.100.1", true, 10},
+		{admin, "SECURITY", "resources/confidential", "Unauthorized access attempt", "192.0.2.1", true, 16},
 	}
 
 	for _, e := range events {
@@ -89,7 +173,7 @@ func seedAuditLogs(db *gorm.DB, users ...*models.User) {
 		logEntry := &models.AuditLog{
 			UserID:          e.user.ID,
 			UserEmail:       e.user.Email,
-			ActionType:      e.action,
+			ActionType:      models.ActionType(e.action),
 			TargetResource:  e.target,
 			Details:         e.details,
 			IPAddress:       e.ip,
@@ -107,5 +191,5 @@ func seedAuditLogs(db *gorm.DB, users ...*models.User) {
 }
 
 func init() {
-	uuid.New() // ensure uuid package is linked
+	uuid.New()
 }

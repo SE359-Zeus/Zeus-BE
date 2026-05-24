@@ -1,32 +1,30 @@
 package main
 
 import (
+	"flag"
 	"log"
+
 	"zeus-scm-service/internal/repository/sqlite"
 	"zeus-scm-service/seeder"
 )
 
 func main() {
-	// 1. Initialize DB
-	db, err := sqlite.NewDB("scm.db")
+	dbPath := flag.String("db", "scm.db", "path to the SQLite database file")
+	migrationsPath := flag.String("migrations", "migrations", "path to SQL migrations")
+	partsDataPath := flag.String("parts-data", "reference/seeder/parts.json", "path to the parts seed data JSON")
+	flag.Parse()
+
+	db, err := sqlite.NewDB(*dbPath)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 
-	// 2. Run GORM AutoMigrate for basic structures
-	log.Println("Running AutoMigrate...")
-	if err := sqlite.AutoMigrate(db); err != nil {
-		log.Fatalf("AutoMigrate failed: %v", err)
-	}
-
-	// 3. Run SQL Migrations (000001 - 000005) for FKs and LUTs
 	log.Println("Running SQL Migrations...")
-	if err := sqlite.RunMigrations(db, "internal/migration"); err != nil {
+	if err := sqlite.RunMigrations(db, *migrationsPath); err != nil {
 		log.Printf("Migration warning (might already be up to date): %v", err)
 	}
 
-	// 4. Seed Data
-	if err := seeder.SeedAll(db); err != nil {
+	if err := seeder.SeedAll(db, *partsDataPath); err != nil {
 		log.Fatalf("Seeding failed: %v", err)
 	}
 

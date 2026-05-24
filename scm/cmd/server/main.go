@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"os"
 	"time"
 
+	"zeus-scm-service/internal/cache"
 	"zeus-scm-service/internal/config"
 	"zeus-scm-service/internal/handler"
 	"zeus-scm-service/internal/handler/middleware"
@@ -15,9 +17,10 @@ import (
 
 	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
+
+const scmAPIPrefix = "/api/v1/scm"
 
 func main() {
 	cfg := config.Load()
@@ -27,85 +30,128 @@ func main() {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 
-	if err := sqliteRepo.AutoMigrate(db); err != nil {
-		log.Printf("auto-migrate warning: %v", err)
-	}
-
-	db.Exec(`
-		CREATE TABLE IF NOT EXISTS api_keys (
-			id TEXT PRIMARY KEY,
-			name TEXT NOT NULL,
-			key_prefix TEXT NOT NULL,
-			key_hash TEXT NOT NULL UNIQUE,
-			active INTEGER NOT NULL DEFAULT 1,
-			expires_at DATETIME,
-			last_used_at DATETIME,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			deleted_at DATETIME
-		)
-	`)
-	var keyCount int64
-	db.Raw("SELECT COUNT(*) FROM api_keys WHERE deleted_at IS NULL").Scan(&keyCount)
-	if keyCount == 0 {
-		db.Exec(
-			"INSERT INTO api_keys (id, name, key_prefix, key_hash, active) VALUES (?, ?, ?, ?, ?)",
-			uuid.New().String(), "Default ZeuS API Key", "scm_zeus",
-			"$2a$10$QYXXHtQZn541zxmM15P0kebAjJMg6.VzkRbIWk9F.AZPF6FD3dI7a", true,
-		)
-		log.Println("seeded default API key: scm_zeus_master_key_2026")
-	}
-
 	mq, err := messaging.NewRabbitMQ(cfg.RabbitMQURL)
 	if err != nil {
-		log.Printf("RabbitMQ unavailable (deficit pool disabled): %v", err)
+		log.Printf("running in degraded mode: RabbitMQ unavailable [RabbitMQURL: %s], deficit pool disabled: %v", cfg.RabbitMQURL, err)
 		mq = nil
 	} else {
+		log.Printf("RabbitMQ connected: %s", cfg.RabbitMQURL)
 		defer mq.Close()
 		stop := make(chan struct{})
 		defer close(stop)
 		mq.StartExpiryReconciler(5*time.Minute, stop)
 	}
 
-	vendorSvc := service.NewVendorService(db, mq)
-	poSvc := service.NewPOService(db, mq)
-	grSvc := service.NewGoodsReceiptService(db, mq, cfg.AgingThresholdYears)
-	shipmentSvc := service.NewShipmentService(db, mq)
-	inventorySvc := service.NewInventoryService(db, mq)
+	vendorSvc := service.NewVendorService(db)
+	poSvc := service.NewPOService(db, cfg.RabbitMQURL)
+	grSvc := service.NewGoodsReceiptService(db, cfg.AgingThresholdYears)
+	shipmentSvc := service.NewShipmentService(db)
+	inventorySvc := service.NewInventoryService(db)
 
 	vendorH := handler.NewVendorHandler(vendorSvc)
 	poH := handler.NewPOHandler(poSvc)
 	grH := handler.NewGoodsReceiptHandler(grSvc)
 	shipmentH := handler.NewShipmentHandler(shipmentSvc)
+
+	jwtSvc, err := service.NewJWTService(cfg.JwtPublicKeyPath)
+	if err != nil {
+		log.Fatalf("JWT service init failed: %v", err)
+	}
+
+	routeAccessRules := []service.RouteAccessRule{
+		{Method: "GET", Path: "/api/v1/scm/inventory/products", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/scm/inventory/products/:id", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/inventory/products", RequiredLevel: "Operator"},
+		{Method: "PUT", Path: "/api/v1/scm/inventory/products/:id", RequiredLevel: "Operator"},
+		{Method: "GET", Path: "/api/v1/scm/inventory/product-models/:code", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/inventory/product-models", RequiredLevel: "Operator"},
+		{Method: "GET", Path: "/api/v1/scm/inventory/parts", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/scm/inventory/parts/:id", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/inventory/parts", RequiredLevel: "Operator"},
+		{Method: "PUT", Path: "/api/v1/scm/inventory/parts/:id", RequiredLevel: "Operator"},
+		{Method: "PUT", Path: "/api/v1/scm/inventory/parts/:id/condition", RequiredLevel: "Operator"},
+		{Method: "POST", Path: "/api/v1/scm/inventory/parts/:id/scrap", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/inventory/parts/:id/install", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/inventory/parts/:id/remove", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/scm/inventory/part-catalog", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/scm/inventory/part-catalog/:id", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/scm/vendors/optimal", RequiredLevel: "Operator"},
+		{Method: "POST", Path: "/api/v1/scm/vendors/:id/recalc-metrics", RequiredLevel: "Operator"},
+		{Method: "POST", Path: "/api/v1/scm/purchase-orders/draft", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/purchase-orders/:poId/line-items", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/purchase-orders/:poId/approve", RequiredLevel: "Operator"},
+		{Method: "PUT", Path: "/api/v1/scm/purchase-orders/:poId/state", RequiredLevel: "Operator"},
+		{Method: "POST", Path: "/api/v1/scm/goods-receipts/:grId/lock", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/goods-receipts/:grId/process", RequiredLevel: "Worker"},
+		{Method: "DELETE", Path: "/api/v1/scm/goods-receipts/:grId/lock", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/shipments/:shipmentId/lock", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/shipments/:shipmentId/dispatch", RequiredLevel: "Worker"},
+	}
+
+	roleLevels := map[string]int{
+		"admin":          3,
+		"scm_operator":   2,
+		"scm_worker":     1,
+		"mrp_operator":   2,
+		"mrp_worker":     1,
+		"sales_operator": 2,
+		"sales_worker":   1,
+	}
+
+	rbacSvc := service.NewRBACService(routeAccessRules, roleLevels)
+
+	var cacheBackend cache.Cache = cache.NewNoop()
+	if cfg.ValkeyAddr != "" {
+		if valkeyCache, err := cache.NewValkey(cfg.ValkeyAddr); err != nil {
+			log.Printf("running in degraded mode: Valkey unavailable [ValkeyAddr: %s], cache disabled: %v", cfg.ValkeyAddr, err)
+		} else {
+			cacheBackend = valkeyCache
+			log.Printf("Valkey connected: %s", cfg.ValkeyAddr)
+			service.WarmupCache(context.Background(), db, cacheBackend)
+		}
+	}
+	inventorySvc = service.NewCachedInventoryService(inventorySvc, cacheBackend)
 	inventoryH := handler.NewInventoryHandler(inventorySvc)
 
-	r := gin.Default()
+	r := gin.New()
+	// Disable Gin's automatic trailing-slash redirect. Without this, a request
+	// for GET /docs (no slash) would get a 301 → /docs/ from the Go server.
+	// Since nginx strips the /scm/ prefix before forwarding, that redirect
+	// would send the browser to /docs/ (not /scm/docs/) → catch-all "Success!".
+	r.RedirectTrailingSlash = false
+	r.Use(gin.Logger(), middleware.Recovery())
 
-	public := r.Group("/")
-	public.Use(middleware.Public())
+	// ── Public routes (no auth) ──────────────────────────────────────────────
 	{
-		public.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
-			Title: "Zeus SCM API",
+		specPath := findOpenAPISpec()
+		specURL := runtimeServerURL(cfg.ServerPort)
+		spec, err := loadOpenAPISpec(specPath, specURL)
+		if err != nil {
+			log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
+		}
+
+		// Register docs routes directly on r (same pattern as MRP/Sales).
+		// Using a Group("/") with middleware.Public() caused the wildcard route
+		// FullPath to include the group prefix, which confused the openapiui handler.
+		r.Use(middleware.Public())
+		r.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
+			Title:   "Zeus SCM API",
+			SpecURL: "./openapi.json",
 			SpecProvider: func() ([]byte, error) {
-				data, err := os.ReadFile("docs/openapi.yaml")
-				if err != nil {
-					return nil, err
+				if spec == nil {
+					return buildOpenAPISpec(cfg.ServerPort)()
 				}
-				var parsed any
-				if err := yaml.Unmarshal(data, &parsed); err != nil {
-					return nil, err
-				}
-				return json.Marshal(parsed)
+				return spec, nil
 			},
 			Theme: "dark",
 		}))
-		public.GET("/health", func(c *gin.Context) {
+		r.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "ok"})
 		})
 	}
 
-	api := r.Group("/api/v1")
-	api.Use(middleware.APIKeyAuth(db))
+	api := r.Group(scmAPIPrefix)
+	api.Use(middleware.Authenticate(jwtSvc, db), middleware.RequireRoleLevel(rbacSvc))
 	{
 		api.GET("/vendors/optimal", vendorH.GetOptimalSupplier)
 		api.POST("/vendors/:id/recalc-metrics", vendorH.UpdateSupplierMetrics)
@@ -144,4 +190,54 @@ func main() {
 	if err := r.Run(":" + cfg.ServerPort); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}
+}
+
+func findOpenAPISpec() string {
+	paths := []string{"docs/openapi.yaml", "./docs/openapi.yaml"}
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return "docs/openapi.yaml"
+}
+
+func loadOpenAPISpec(specPath, serverURL string) ([]byte, error) {
+	data, err := os.ReadFile(specPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsed map[string]any
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		return nil, err
+	}
+	parsed["servers"] = []any{map[string]any{"url": serverURL}}
+
+	return json.Marshal(parsed)
+}
+
+func buildOpenAPISpec(serverPort string) func() ([]byte, error) {
+	return func() ([]byte, error) {
+		specPath := findOpenAPISpec()
+		data, err := os.ReadFile(specPath)
+		if err != nil {
+			return nil, err
+		}
+
+		var parsed map[string]any
+		if err := yaml.Unmarshal(data, &parsed); err != nil {
+			return nil, err
+		}
+		parsed["servers"] = []any{map[string]any{"url": runtimeServerURL(serverPort)}}
+
+		return json.Marshal(parsed)
+	}
+}
+
+func runtimeServerURL(port string) string {
+	if port == "" {
+		port = "8081"
+	}
+	return "http://localhost:" + port + scmAPIPrefix
 }
