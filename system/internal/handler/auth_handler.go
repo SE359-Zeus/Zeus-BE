@@ -2,7 +2,9 @@ package handler
 
 import (
 	"log"
+	"net/http"
 	"strings"
+	"time"
 
 	"zeus-be/pkg/exception"
 	"zeus-system-service/internal/models"
@@ -24,6 +26,34 @@ func NewAuthHandler(authSvc service.AuthService, auditSvc ...service.AuditServic
 	return h
 }
 
+// setRefreshCookie writes the refresh token as an HttpOnly cookie.
+func setRefreshCookie(c *gin.Context, token string) {
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie(
+		models.RefreshTokenCookieName,
+		token,
+		int(models.RefreshTokenDuration/time.Second),
+		"/",
+		"",   // domain — empty = same host
+		true, // Secure (HTTPS only)
+		true, // HttpOnly
+	)
+}
+
+// clearRefreshCookie removes the refresh token cookie on logout.
+func clearRefreshCookie(c *gin.Context) {
+	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetCookie(
+		models.RefreshTokenCookieName,
+		"",
+		-1,
+		"/",
+		"",
+		true,
+		true,
+	)
+}
+
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req models.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -31,7 +61,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	pair, err := h.authSvc.Login(c.Request.Context(), req)
+	result, err := h.authSvc.Login(c.Request.Context(), req)
 	if err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			WriteAppError(c, appErr)
@@ -42,7 +72,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	if h.auditSvc != nil {
-		if claims, err := h.authSvc.VerifyAccessToken(pair.AccessToken); err == nil {
+		if claims, err := h.authSvc.VerifyAccessToken(result.Tokens.AccessToken); err == nil {
 			if err := h.auditSvc.Ingest(c.Request.Context(), models.IngestAuditRequest{
 				UserID:         claims.UserID,
 				UserEmail:      claims.Email,
@@ -58,20 +88,31 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		}
 	}
 
-	WriteJSON(c, 200, gin.H{
-		"access_token":  pair.AccessToken,
-		"refresh_token": pair.RefreshToken,
+	setRefreshCookie(c, result.Tokens.RefreshToken)
+
+	WriteJSON(c, 200, models.AuthResponse{
+		AccessToken: result.Tokens.AccessToken,
+		TokenType:   result.Tokens.TokenType,
+		ExpiresIn:   result.Tokens.ExpiresIn,
+		User:        models.ToUserResponse(result.User),
 	})
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	var req models.RefreshRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		WriteAppError(c, exception.ErrInvalidBody)
-		return
+	// Prefer cookie; fall back to JSON body for backward compatibility.
+	refreshToken, err := c.Cookie(models.RefreshTokenCookieName)
+	if err != nil || refreshToken == "" {
+		var req models.RefreshRequest
+		if err := c.ShouldBindJSON(&req); err != nil || req.RefreshToken == "" {
+			WriteAppError(c, exception.ErrInvalidBody)
+			return
+		}
+		refreshToken = req.RefreshToken
 	}
 
-	pair, err := h.authSvc.Refresh(c.Request.Context(), req)
+	result, err := h.authSvc.Refresh(c.Request.Context(), models.RefreshRequest{
+		RefreshToken: refreshToken,
+	})
 	if err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			WriteAppError(c, appErr)
@@ -81,7 +122,14 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	WriteJSON(c, 200, pair)
+	setRefreshCookie(c, result.Tokens.RefreshToken)
+
+	WriteJSON(c, 200, models.AuthResponse{
+		AccessToken: result.Tokens.AccessToken,
+		TokenType:   result.Tokens.TokenType,
+		ExpiresIn:   result.Tokens.ExpiresIn,
+		User:        models.ToUserResponse(result.User),
+	})
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
@@ -102,5 +150,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
+	clearRefreshCookie(c)
 	WriteEnvelope(c, 200, "logged out successfully", gin.H{}, nil)
 }
+

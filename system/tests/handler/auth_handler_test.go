@@ -52,15 +52,25 @@ func TestAuthHandler_Login_200(t *testing.T) {
 	r, mockSvc := setupAuthTest()
 
 	req := models.LoginRequest{Email: "admin@zeus.com", Password: "pass123"}
-	pair := &models.TokenPair{
-		AccessToken:  "access-token-value",
-		RefreshToken: "refresh-token-value",
-		TokenType:    "Bearer",
-		ExpiresIn:    900,
+	userID := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	result := &models.AuthLoginResult{
+		Tokens: &models.TokenPair{
+			AccessToken:  "access-token-value",
+			RefreshToken: "refresh-token-value",
+			TokenType:    "Bearer",
+			ExpiresIn:    900,
+		},
+		User: &models.User{
+			ID:       userID,
+			Email:    req.Email,
+			FullName: "Admin User",
+			Role:     "admin",
+			Status:   models.AccountStatusActive,
+		},
 	}
 	body, _ := json.Marshal(req)
 
-	mockSvc.On("Login", mock.Anything, mock.AnythingOfType("models.LoginRequest")).Return(pair, nil)
+	mockSvc.On("Login", mock.Anything, mock.AnythingOfType("models.LoginRequest")).Return(result, nil)
 
 	w := httptest.NewRecorder()
 	reqHTTP, _ := http.NewRequest("POST", "/auth/login", bytes.NewReader(body))
@@ -68,6 +78,10 @@ func TestAuthHandler_Login_200(t *testing.T) {
 	r.ServeHTTP(w, reqHTTP)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	// Refresh token must be in Set-Cookie, not in the body.
+	assert.Contains(t, w.Header().Get("Set-Cookie"), models.RefreshTokenCookieName)
+	assert.Contains(t, w.Header().Get("Set-Cookie"), "HttpOnly")
+
 	var env struct {
 		StatusCode int             `json:"statusCode"`
 		Data       json.RawMessage `json:"data"`
@@ -76,13 +90,19 @@ func TestAuthHandler_Login_200(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 200, env.StatusCode)
 	var data struct {
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		User        struct {
+			Email string `json:"email"`
+			Role  string `json:"role"`
+		} `json:"user"`
 	}
 	err = json.Unmarshal(env.Data, &data)
 	assert.NoError(t, err)
-	assert.Equal(t, pair.AccessToken, data.AccessToken)
-	assert.Equal(t, pair.RefreshToken, data.RefreshToken)
+	assert.Equal(t, result.Tokens.AccessToken, data.AccessToken)
+	assert.Equal(t, "Bearer", data.TokenType)
+	assert.Equal(t, req.Email, data.User.Email)
+	assert.Equal(t, "admin", data.User.Role)
 	mockSvc.AssertExpectations(t)
 }
 
@@ -90,14 +110,24 @@ func TestAuthHandler_Login_200_WritesAudit(t *testing.T) {
 	r, authSvc, auditSvc := setupAuthAuditTest()
 
 	req := models.LoginRequest{Email: "admin@zeus.com", Password: "pass123"}
-	pair := &models.TokenPair{
-		AccessToken:  "access-token-value",
-		RefreshToken: "refresh-token-value",
-		TokenType:    "Bearer",
-		ExpiresIn:    900,
+	userID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	result := &models.AuthLoginResult{
+		Tokens: &models.TokenPair{
+			AccessToken:  "access-token-value",
+			RefreshToken: "refresh-token-value",
+			TokenType:    "Bearer",
+			ExpiresIn:    900,
+		},
+		User: &models.User{
+			ID:       userID,
+			Email:    req.Email,
+			FullName: "Admin User",
+			Role:     "admin",
+			Status:   models.AccountStatusActive,
+		},
 	}
 	claims := &service.JWTClaims{
-		UserID:   uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+		UserID:   userID,
 		Email:    req.Email,
 		FullName: "Admin User",
 		Role:     "admin",
@@ -105,8 +135,8 @@ func TestAuthHandler_Login_200_WritesAudit(t *testing.T) {
 	}
 	body, _ := json.Marshal(req)
 
-	authSvc.On("Login", mock.Anything, mock.AnythingOfType("models.LoginRequest")).Return(pair, nil)
-	authSvc.On("VerifyAccessToken", pair.AccessToken).Return(claims, nil)
+	authSvc.On("Login", mock.Anything, mock.AnythingOfType("models.LoginRequest")).Return(result, nil)
+	authSvc.On("VerifyAccessToken", result.Tokens.AccessToken).Return(claims, nil)
 	auditSvc.On("Ingest", mock.Anything, mock.MatchedBy(func(req models.IngestAuditRequest) bool {
 		return req.UserID == claims.UserID &&
 			req.UserEmail == claims.Email &&
@@ -123,6 +153,7 @@ func TestAuthHandler_Login_200_WritesAudit(t *testing.T) {
 	r.ServeHTTP(w, reqHTTP)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Header().Get("Set-Cookie"), models.RefreshTokenCookieName)
 	var env struct {
 		StatusCode int             `json:"statusCode"`
 		Data       json.RawMessage `json:"data"`
@@ -131,13 +162,11 @@ func TestAuthHandler_Login_200_WritesAudit(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 200, env.StatusCode)
 	var data struct {
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
+		AccessToken string `json:"access_token"`
 	}
 	err = json.Unmarshal(env.Data, &data)
 	assert.NoError(t, err)
-	assert.Equal(t, pair.AccessToken, data.AccessToken)
-	assert.Equal(t, pair.RefreshToken, data.RefreshToken)
+	assert.Equal(t, result.Tokens.AccessToken, data.AccessToken)
 	authSvc.AssertExpectations(t)
 	auditSvc.AssertExpectations(t)
 }
@@ -190,23 +219,35 @@ func TestAuthHandler_Login_401_Inactive(t *testing.T) {
 func TestAuthHandler_Refresh_200(t *testing.T) {
 	r, mockSvc := setupAuthTest()
 
-	req := models.RefreshRequest{RefreshToken: "valid-refresh-token"}
-	pair := &models.TokenPair{
-		AccessToken:  "new-access-token",
-		RefreshToken: "new-refresh-token",
-		TokenType:    "Bearer",
-		ExpiresIn:    900,
+	userID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+	// Send refresh token via cookie (the new primary path).
+	result := &models.AuthLoginResult{
+		Tokens: &models.TokenPair{
+			AccessToken:  "new-access-token",
+			RefreshToken: "new-refresh-token",
+			TokenType:    "Bearer",
+			ExpiresIn:    900,
+		},
+		User: &models.User{
+			ID:     userID,
+			Email:  "admin@zeus.com",
+			Role:   "admin",
+			Status: models.AccountStatusActive,
+		},
 	}
-	body, _ := json.Marshal(req)
 
-	mockSvc.On("Refresh", mock.Anything, mock.AnythingOfType("models.RefreshRequest")).Return(pair, nil)
+	mockSvc.On("Refresh", mock.Anything, mock.AnythingOfType("models.RefreshRequest")).Return(result, nil)
 
 	w := httptest.NewRecorder()
-	reqHTTP, _ := http.NewRequest("POST", "/auth/refresh", bytes.NewReader(body))
+	reqHTTP, _ := http.NewRequest("POST", "/auth/refresh", nil)
 	reqHTTP.Header.Set("Content-Type", "application/json")
+	reqHTTP.AddCookie(&http.Cookie{Name: models.RefreshTokenCookieName, Value: "valid-refresh-token"})
 	r.ServeHTTP(w, reqHTTP)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Header().Get("Set-Cookie"), models.RefreshTokenCookieName)
+	assert.Contains(t, w.Header().Get("Set-Cookie"), "HttpOnly")
+
 	var env struct {
 		StatusCode int             `json:"statusCode"`
 		Data       json.RawMessage `json:"data"`
@@ -214,9 +255,14 @@ func TestAuthHandler_Refresh_200(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &env)
 	assert.NoError(t, err)
 	assert.Equal(t, 200, env.StatusCode)
-	var data models.TokenPair
+	var data struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+	}
 	err = json.Unmarshal(env.Data, &data)
 	assert.NoError(t, err)
+	assert.Equal(t, result.Tokens.AccessToken, data.AccessToken)
+	assert.Equal(t, "Bearer", data.TokenType)
 	mockSvc.AssertExpectations(t)
 }
 
