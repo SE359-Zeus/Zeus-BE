@@ -43,11 +43,18 @@ func main() {
 		mq.StartExpiryReconciler(5*time.Minute, stop)
 	}
 
-	vendorSvc := service.NewVendorService(db)
-	poSvc := service.NewPOService(db, cfg.RabbitMQURL)
-	grSvc := service.NewGoodsReceiptService(db, cfg.AgingThresholdYears)
-	shipmentSvc := service.NewShipmentService(db)
-	inventorySvc := service.NewInventoryService(db)
+	vendorRepo := sqliteRepo.NewVendorRepository(db)
+	poRepo := sqliteRepo.NewPORepository(db)
+	grRepo := sqliteRepo.NewGoodsReceiptRepository(db)
+	shipmentRepo := sqliteRepo.NewShipmentRepository(db)
+	inventoryRepo := sqliteRepo.NewInventoryRepository(db)
+	stockRepo := sqliteRepo.NewStockRepository(db)
+
+	vendorSvc := service.NewVendorService(vendorRepo)
+	poSvc := service.NewPOService(poRepo, stockRepo, cfg.RabbitMQURL)
+	grSvc := service.NewGoodsReceiptService(grRepo, stockRepo, poRepo, cfg.AgingThresholdYears)
+	shipmentSvc := service.NewShipmentService(shipmentRepo, stockRepo)
+	inventorySvc := service.NewInventoryService(inventoryRepo)
 
 	vendorH := handler.NewVendorHandler(vendorSvc)
 	poH := handler.NewPOHandler(poSvc)
@@ -138,6 +145,7 @@ func main() {
 		api.GET("/inventory/products", middleware.RequireRoles(rolesWorker...), inventoryH.ListProducts)
 		api.GET("/inventory/products/:id", middleware.RequireRoles(rolesWorker...), inventoryH.GetProduct)
 		api.POST("/inventory/products", middleware.RequireRoles(rolesOperator...), inventoryH.CreateProduct)
+		api.POST("/inventory/products/register", middleware.RequireRoles(rolesOperator...), inventoryH.RegisterProduct)
 		api.PUT("/inventory/products/:id", middleware.RequireRoles(rolesOperator...), inventoryH.UpdateProduct)
 		api.GET("/inventory/product-models/:code", middleware.RequireRoles(rolesWorker...), inventoryH.GetProductModel)
 		api.POST("/inventory/product-models", middleware.RequireRoles(rolesOperator...), inventoryH.CreateProductModel)

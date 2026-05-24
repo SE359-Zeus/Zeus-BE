@@ -44,6 +44,11 @@ type procurementBundle struct {
 }
 
 func seedProcurementData(db *gorm.DB, suppliers []models.Supplier, data *PartsFile) {
+	var existingCount int64
+	if err := db.Model(&models.PurchaseOrder{}).Count(&existingCount).Error; err == nil && existingCount > 0 {
+		return
+	}
+
 	uniqueCatalogs := uniquePartCatalogs(data.PartCatalogs)
 	if len(suppliers) == 0 || len(uniqueCatalogs) == 0 {
 		return

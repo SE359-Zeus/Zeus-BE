@@ -5,10 +5,11 @@ import (
 )
 
 type ProductModel struct {
-	ModelCode   string    `gorm:"type:varchar;primaryKey"`
-	ModelName   string    `gorm:"type:varchar;not null"`
-	Description *string   `gorm:"type:text"`
-	CreatedAt   time.Time `gorm:"not null"`
-	UpdatedAt   time.Time `gorm:"not null"`
-	DeletedAt   *time.Time
+	ModelCode   string     `gorm:"type:varchar;primaryKey" json:"model_code"`
+	ModelName   string     `gorm:"type:varchar;not null" json:"model_name"`
+	Description *string    `gorm:"type:text" json:"description"`
+	ImageName   *string    `gorm:"type:varchar" json:"image_name"`
+	CreatedAt   time.Time  `gorm:"not null" json:"created_at"`
+	UpdatedAt   time.Time  `gorm:"not null" json:"updated_at"`
+	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
 }

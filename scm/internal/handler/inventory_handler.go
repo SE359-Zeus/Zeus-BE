@@ -363,3 +363,32 @@ func (h *InventoryHandler) UpdatePart(c *gin.Context) {
 	}
 	writeJSON(c, 200, p)
 }
+
+func (h *InventoryHandler) RegisterProduct(c *gin.Context) {
+	var req struct {
+		ProductModelCode string    `json:"product_model_code" binding:"required"`
+		CustomerID       uuid.UUID `json:"customer_id" binding:"required"`
+		ProductName      string    `json:"product_name" binding:"required"`
+		SerialNumber     string    `json:"serial_number" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		exception.WriteError(c, exception.ErrInvalidBody)
+		return
+	}
+	p := models.Product{
+		ID:               uuid.New(),
+		ProductModelCode: req.ProductModelCode,
+		CustomerID:       req.CustomerID,
+		ProductName:      req.ProductName,
+		SerialNumber:     req.SerialNumber,
+	}
+	if err := h.svc.CreateProduct(c.Request.Context(), &p); err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
+		return
+	}
+	writeJSON(c, 201, p)
+}

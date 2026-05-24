@@ -11,6 +11,11 @@ import (
 )
 
 func seedProductsAndParts(db *gorm.DB, modelsList []models.ProductModel, catMap map[string]models.PartCatalog) {
+	var existingCount int64
+	if err := db.Model(&models.Product{}).Count(&existingCount).Error; err == nil && existingCount > 0 {
+		return
+	}
+
 	_ = catMap
 	for modelIndex, pm := range modelsList {
 		for productIndex := 0; productIndex < 2; productIndex++ {

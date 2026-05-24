@@ -15,6 +15,13 @@ func seedProductModels(db *gorm.DB, installs map[string][]PartInstallationData, 
 		log.Printf("warning: failed to ensure parts_by_model table: %v", err)
 	}
 
+	var existingCount int64
+	if err := db.Model(&models.ProductModel{}).Count(&existingCount).Error; err == nil && existingCount > 0 {
+		var modelsList []models.ProductModel
+		db.Find(&modelsList)
+		return modelsList
+	}
+
 	baseModels := []models.ProductModel{
 		{ModelCode: "82SN003JVN", ModelName: "IdeaPad 5 Pro 16ARH7"},
 		{ModelCode: "83LY00HQVN", ModelName: "Legion 5 15IRX10"},
@@ -60,6 +67,7 @@ func ensurePartsByModelTable(db *gorm.DB) error {
     part_catalog_id TEXT NOT NULL,
     product_model_code TEXT NOT NULL,
     quantity INTEGER NOT NULL,
+    image_name TEXT,
     PRIMARY KEY (part_catalog_id, product_model_code)
 )`).Error
 }

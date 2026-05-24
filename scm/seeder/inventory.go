@@ -8,6 +8,11 @@ import (
 )
 
 func seedInventory(db *gorm.DB, catMap map[string]models.PartCatalog, suppliers []models.Supplier) {
+	var existingCount int64
+	if err := db.Model(&models.ComponentStock{}).Count(&existingCount).Error; err == nil && existingCount > 0 {
+		return
+	}
+
 	for _, cat := range catMap {
 		sup := suppliers[gofakeit.Number(0, len(suppliers)-1)]
 		desc := ""

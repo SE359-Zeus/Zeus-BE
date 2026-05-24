@@ -17,6 +17,11 @@ const (
 )
 
 func seedAPIKeys(db *gorm.DB) string {
+	var existingCount int64
+	if err := db.Model(&models.ApiKey{}).Count(&existingCount).Error; err == nil && existingCount > 0 {
+		return defaultAPIKeyPlaintext
+	}
+
 	apiKey := models.ApiKey{}
 	err := db.Unscoped().Where("key_prefix = ?", defaultAPIKeyPrefix).First(&apiKey).Error
 	switch {
