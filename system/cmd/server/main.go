@@ -194,10 +194,10 @@ func main() {
 
 	r.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
 		Title:   "Zeus System API",
-		SpecURL: "/docs/openapi.json",
+		SpecURL: "/openapi.json",
 		Theme:   "dark",
 	}))
-	r.GET("/docs/openapi.json", func(c *gin.Context) {
+	r.GET("/openapi.json", func(c *gin.Context) {
 		if spec != nil {
 			c.Data(200, "application/json", spec)
 			return
