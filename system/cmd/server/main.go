@@ -19,7 +19,6 @@ import (
 	valkeyRepo "zeus-system-service/internal/repository/valkey"
 	"zeus-system-service/internal/service"
 
-	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
 )
@@ -183,13 +182,6 @@ func main() {
 
 	r := gin.New()
 	r.Use(gin.Logger(), middleware.Recovery())
-
-	specPath := findOpenAPISpec()
-	specURL := runtimeServerURL(cfg.ServerPort)
-	spec, err := loadOpenAPISpec(specPath, specURL)
-	if err != nil {
-		log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
-	}
 
 	specPath := findOpenAPISpec()
 	specURL := runtimeServerURL(cfg.ServerPort)
