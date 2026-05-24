@@ -103,7 +103,7 @@ jobs:
       - name: Build scm image
         uses: docker/build-push-action@v5
         with:
-          context: ./scm
+          context: .
           file: ./scm/Dockerfile
           push: true
           platforms: linux/arm64
