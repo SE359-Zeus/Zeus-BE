@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"net/http"
-
-	"zeus-be/pkg/response"
+	"zeus-scm-service/internal/exception"
 	"zeus-scm-service/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -25,14 +23,18 @@ func (h *GoodsReceiptHandler) AcquireLock(c *gin.Context) {
 	grID := c.Param("grId")
 	var req acquireLockRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 	if err := h.svc.AcquireLock(c.Request.Context(), grID, req.OperatorID); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	response.OKWithMessage(c, http.StatusOK, "lock acquired")
+	writeJSON(c, 200, gin.H{"message": "lock acquired"})
 }
 
 type lineItemCount struct {
@@ -49,7 +51,7 @@ func (h *GoodsReceiptHandler) ProcessBlindReceipt(c *gin.Context) {
 	grID := c.Param("grId")
 	var req processBlindReceiptRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 	counts := make(map[string]struct {
@@ -63,17 +65,25 @@ func (h *GoodsReceiptHandler) ProcessBlindReceipt(c *gin.Context) {
 		}{Received: cnt.Received, Defective: cnt.Defective}
 	}
 	if err := h.svc.ProcessBlindReceipt(c.Request.Context(), grID, req.OperatorID, counts); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	response.OKWithMessage(c, http.StatusOK, "blind receipt processed")
+	writeJSON(c, 200, gin.H{"message": "blind receipt processed"})
 }
 
 func (h *GoodsReceiptHandler) ReleaseLock(c *gin.Context) {
 	grID := c.Param("grId")
 	if err := h.svc.ReleaseLock(c.Request.Context(), grID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	response.OKWithMessage(c, http.StatusOK, "lock released")
+	writeJSON(c, 200, gin.H{"message": "lock released"})
 }

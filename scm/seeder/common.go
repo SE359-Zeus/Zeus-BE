@@ -3,6 +3,8 @@ package seeder
 import (
 	"encoding/json"
 	"os"
+
+	"github.com/google/uuid"
 )
 
 type PartTypeData struct {
@@ -39,4 +41,8 @@ func loadPartsData(path string) (*PartsFile, error) {
 		return nil, err
 	}
 	return &data, nil
+}
+
+func stableUUID(seed string) uuid.UUID {
+	return uuid.NewMD5(uuid.Nil, []byte(seed))
 }

@@ -1,26 +1,29 @@
 package seeder
 
 import (
-	"github.com/brianvoe/gofakeit/v6"
-	"github.com/google/uuid"
-	"gorm.io/gorm"
+	"fmt"
 	"time"
+
 	"zeus-scm-service/internal/models"
+
+	"github.com/brianvoe/gofakeit/v6"
+	"gorm.io/gorm"
 )
 
 func seedProductsAndParts(db *gorm.DB, modelsList []models.ProductModel, catMap map[string]models.PartCatalog) {
-	for _, pm := range modelsList {
-		for i := 0; i < 2; i++ {
+	_ = catMap
+	for modelIndex, pm := range modelsList {
+		for productIndex := 0; productIndex < 2; productIndex++ {
 			prod := models.Product{
-				ID:               uuid.New(),
+				ID:               stableUUID("product:" + pm.ModelCode + ":" + fmt.Sprintf("%d", productIndex)),
 				ProductModelCode: pm.ModelCode,
-				CustomerID:       uuid.New(), // Random UUID for customer
+				CustomerID:       stableUUID("customer:" + pm.ModelCode + ":" + fmt.Sprintf("%d", productIndex)),
 				ProductName:      pm.ModelName + " Build " + gofakeit.LetterN(3),
-				SerialNumber:     "SN-" + gofakeit.LetterN(8),
+				SerialNumber:     fmt.Sprintf("SN-%s-%02d", pm.ModelCode, productIndex+1),
 				CreatedAt:        time.Now(),
 				UpdatedAt:        time.Now(),
 			}
-			db.Create(&prod)
+			db.Where("id = ?", prod.ID).Assign(prod).FirstOrCreate(&prod)
 
 			var boms []models.PartsByModel
 			db.Where("product_model_code = ?", pm.ModelCode).Find(&boms)
@@ -29,17 +32,17 @@ func seedProductsAndParts(db *gorm.DB, modelsList []models.ProductModel, catMap 
 				for q := int32(0); q < bom.Quantity; q++ {
 					pid := prod.ID
 					p := models.Part{
-						ID:               uuid.New(),
+						ID:               stableUUID("part:" + prod.ID.String() + ":" + bom.PartCatalogID.String() + ":" + fmt.Sprintf("%d", q)),
 						PartCatalogID:    bom.PartCatalogID,
 						ProductID:        &pid,
-						SerialNumber:     "PART-" + gofakeit.LetterN(10),
+						SerialNumber:     fmt.Sprintf("PART-%s-%d-%d", pm.ModelCode, modelIndex, q+1),
 						PartConditionID:  1,
 						ManufacturedDate: time.Now().AddDate(0, -gofakeit.Number(1, 12), 0),
 						InstallationDate: &prod.CreatedAt,
 						CreatedAt:        time.Now(),
 						UpdatedAt:        time.Now(),
 					}
-					db.Create(&p)
+					db.Where("id = ?", p.ID).Assign(p).FirstOrCreate(&p)
 				}
 			}
 		}

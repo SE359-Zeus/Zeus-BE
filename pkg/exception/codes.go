@@ -73,8 +73,8 @@ var (
 
 // ─── Inventory (SCM) ─────────────────────────────────────────────────────────
 var (
-	ErrAgingQuarantine = New("INV_001", "Component exceeds aging threshold", http.StatusBadRequest)
-	ErrNoOptimalSupplier = New("VEN_001", "No optimal supplier found for the given SKU", http.StatusNotFound)
-	ErrStateRegression = New("PO_003", "State regression is not allowed", http.StatusBadRequest)
+	ErrAgingQuarantine     = New("INV_001", "Component exceeds aging threshold", http.StatusBadRequest)
 	ErrInsufficientDeficit = New("INV_002", "Insufficient deficit in pool for this SKU", http.StatusBadRequest)
+	ErrNoOptimalSupplier   = New("VEN_001", "No optimal supplier found for the given SKU", http.StatusNotFound)
+	ErrStateRegression     = New("PO_003", "State regression is not allowed", http.StatusBadRequest)
 )

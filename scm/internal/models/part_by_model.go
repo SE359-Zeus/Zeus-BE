@@ -9,3 +9,7 @@ type PartsByModel struct {
 	ProductModelCode string    `gorm:"primaryKey;type:varchar"`
 	Quantity         int32     `gorm:"not null"`
 }
+
+func (PartsByModel) TableName() string {
+	return "parts_by_model"
+}

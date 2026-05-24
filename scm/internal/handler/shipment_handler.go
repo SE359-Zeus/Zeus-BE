@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"net/http"
-
-	"zeus-be/pkg/response"
+	"zeus-scm-service/internal/exception"
 	"zeus-scm-service/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -25,14 +23,18 @@ func (h *ShipmentHandler) AcquireDispatchLock(c *gin.Context) {
 	shipmentID := c.Param("shipmentId")
 	var req acquireDispatchLockRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 	if err := h.svc.AcquireDispatchLock(c.Request.Context(), shipmentID, req.OperatorID); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	response.OKWithMessage(c, http.StatusOK, "dispatch lock acquired")
+	writeJSON(c, 200, gin.H{"message": "dispatch lock acquired"})
 }
 
 type dispatchShipmentRequest struct {
@@ -45,12 +47,16 @@ func (h *ShipmentHandler) DispatchShipment(c *gin.Context) {
 	shipmentID := c.Param("shipmentId")
 	var req dispatchShipmentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 	if err := h.svc.DispatchShipment(c.Request.Context(), shipmentID, req.OperatorID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	response.OKWithMessage(c, http.StatusOK, "shipment dispatched")
+	writeJSON(c, 200, gin.H{"message": "shipment dispatched"})
 }

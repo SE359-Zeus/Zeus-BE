@@ -1,6 +1,5 @@
 PRAGMA foreign_keys=off;
 
--- Rollback rename if needed
-ALTER TABLE parts_by_models RENAME TO parts_by_model;
+-- No-op migration retained for version history.
 
 PRAGMA foreign_keys=on;

@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"log"
 	"os"
+	"path/filepath"
 
 	"zeus-system-service/internal/cache"
 	"zeus-system-service/internal/config"
@@ -17,9 +18,6 @@ import (
 	"zeus-system-service/internal/repository/sqlite"
 	valkeyRepo "zeus-system-service/internal/repository/valkey"
 	"zeus-system-service/internal/service"
-
-	"fmt"
-	"path/filepath"
 
 	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
 	"github.com/gin-gonic/gin"
@@ -92,6 +90,7 @@ func findOpenAPISpec() string {
 			return p
 		}
 	}
+
 	return "docs/openapi.yaml"
 }
 
@@ -114,7 +113,7 @@ func runtimeServerURL(port string) string {
 	if port == "" {
 		port = "8083"
 	}
-	return fmt.Sprintf("http://localhost:%s/api/v1/system", port)
+	return "http://localhost:" + port + "/api/v1/system"
 }
 
 func main() {
@@ -192,17 +191,34 @@ func main() {
 		log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
 	}
 
-	r.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
-		Title:   "Zeus System API",
-		SpecURL: "./openapi.json",
-		SpecProvider: func() ([]byte, error) {
-			if spec == nil {
-				return buildOpenAPISpec(cfg.ServerPort)()
-			}
-			return spec, nil
-		},
-		Theme: "dark",
-	}))
+	specPath := findOpenAPISpec()
+	specURL := runtimeServerURL(cfg.ServerPort)
+	spec, err := loadOpenAPISpec(specPath, specURL)
+	if err != nil {
+		log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
+	}
+
+	r.GET("/docs", func(c *gin.Context) {
+		c.File("./docs/index.html")
+	})
+	r.GET("/docs/index.html", func(c *gin.Context) {
+		c.File("./docs/index.html")
+	})
+	r.GET("/docs/swagger.html", func(c *gin.Context) {
+		c.File("./docs/swagger.html")
+	})
+	r.GET("/docs/openapi.json", func(c *gin.Context) {
+		if spec != nil {
+			c.Data(200, "application/json", spec)
+			return
+		}
+		jsonBytes, err := buildOpenAPISpec(cfg.ServerPort)()
+		if err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		c.Data(200, "application/json", jsonBytes)
+	})
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
