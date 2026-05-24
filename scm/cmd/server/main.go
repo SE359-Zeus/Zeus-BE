@@ -229,8 +229,5 @@ func buildOpenAPISpec(serverPort string) func() ([]byte, error) {
 }
 
 func runtimeServerURL(port string) string {
-	if port == "" {
-		port = "8081"
-	}
-	return "http://localhost:" + port + scmAPIPrefix
+	return scmAPIPrefix
 }
