@@ -115,6 +115,10 @@ func main() {
 	inventoryH := handler.NewInventoryHandler(inventorySvc)
 
 	r := gin.New()
+	// Disable trailing-slash redirect: prevents Gin from issuing a 301/302
+	// from /docs/ → /docs, which would escape the nginx /scm/docs/ proxy
+	// and fall through to the catch-all "Success!" location.
+	r.RedirectTrailingSlash = false
 	r.Use(gin.Logger(), middleware.Recovery())
 
 	public := r.Group("/")
@@ -127,9 +131,16 @@ func main() {
 			log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
 		}
 
+		// /docs (no trailing slash) → /docs/ so the UI assets load correctly.
+		// Works both locally (localhost:8081/docs → /docs/) and in production
+		// where nginx strips the /scm prefix before forwarding to this server.
+		public.GET("/docs", func(c *gin.Context) { c.Redirect(302, "/docs/") })
 		public.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
 			Title:   "Zeus SCM API",
-			SpecURL: "./openapi.json",
+			// Absolute path: avoids browser resolving "./openapi.json" relative
+			// to whatever page URL the user happens to be on, which would
+			// produce a duplicated or wrong path.
+			SpecURL: "/docs/openapi.json",
 			SpecProvider: func() ([]byte, error) {
 				if spec == nil {
 					return buildOpenAPISpec(cfg.ServerPort)()
@@ -229,5 +240,18 @@ func buildOpenAPISpec(serverPort string) func() ([]byte, error) {
 }
 
 func runtimeServerURL(port string) string {
-	return scmAPIPrefix
+	// PUBLIC_BASE_URL is set in stack.env on the production server.
+	// e.g. PUBLIC_BASE_URL=https://zeus.ryanandexen.qzz.io
+	// Swagger UI will call: PUBLIC_BASE_URL + /api/v1/scm + <path-from-spec>
+	//
+	// Locally (no env var set), falls back to http://localhost:<port>.
+	// Swagger UI will call: http://localhost:8081 + /api/v1/scm + <path>
+	base := os.Getenv("PUBLIC_BASE_URL")
+	if base == "" {
+		if port == "" {
+			port = "8081"
+		}
+		base = "http://localhost:" + port
+	}
+	return base + scmAPIPrefix
 }
