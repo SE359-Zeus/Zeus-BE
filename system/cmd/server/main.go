@@ -11,10 +11,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"zeus-system-service/internal/cache"
 	"zeus-system-service/internal/config"
 	"zeus-system-service/internal/handler"
 	"zeus-system-service/internal/handler/middleware"
+	"zeus-system-service/internal/infrastructure/cache"
 	"zeus-system-service/internal/repository/sqlite"
 	valkeyRepo "zeus-system-service/internal/repository/valkey"
 	"zeus-system-service/internal/service"
@@ -168,7 +168,8 @@ func main() {
 
 	sessionRepo := sqlite.NewSessionRepository(db)
 
-	userSvc := service.NewUserService(userRepo, rbacSvc, emailSvc)
+	userCacheRepo := valkeyRepo.NewUserCacheRepository(vkDialer)
+	userSvc := service.NewUserService(userRepo, rbacSvc, emailSvc, userCacheRepo)
 	privateKey := loadPrivateKey(cfg.JWTKeyPath)
 	authSvc := service.NewAuthService(userSvc, refreshTokenRepo, sessionRepo, privateKey)
 	auditSvc := service.NewAuditService(auditRepo, actionTypeSvc)
@@ -185,8 +186,8 @@ func main() {
 		log.Printf("warmed %d sessions into Valkey", len(sessions))
 	}
 
-	authH := handler.NewAuthHandler(authSvc)
-	userH := handler.NewUserHandler(userSvc)
+	authH := handler.NewAuthHandler(authSvc, auditSvc)
+	userH := handler.NewUserHandler(userSvc, auditSvc)
 	auditH := handler.NewAuditHandler(auditSvc)
 
 	r := gin.New()
@@ -214,7 +215,7 @@ func main() {
 		Theme: "dark",
 	}))
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
+		handler.WriteEnvelope(c, 200, "ok", gin.H{}, gin.H{"status": "ok"})
 	})
 
 	systemPublic := r.Group("/api/v1/system")

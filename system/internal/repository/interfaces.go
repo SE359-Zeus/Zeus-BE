@@ -57,3 +57,11 @@ type ActionTypeCacheRepository interface {
 	Warm(ctx context.Context, names []string) error
 	IsValid(ctx context.Context, name string) (bool, error)
 }
+
+type UserCacheRepository interface {
+	Set(ctx context.Context, user *models.User) error
+	GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
+	GetByEmail(ctx context.Context, email string) (*models.User, error)
+	Delete(ctx context.Context, id uuid.UUID, email string) error
+}
+

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"zeus-system-service/internal/cache"
+	"zeus-system-service/internal/infrastructure/cache"
 	"zeus-system-service/internal/repository"
 
 	"github.com/valkey-io/valkey-go"

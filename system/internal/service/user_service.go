@@ -17,14 +17,21 @@ type userService struct {
 	repo        repository.UserRepository
 	rbacSvc     EndpointRBACService
 	emailSender EmailService
+	cacheRepo   repository.UserCacheRepository
 }
 
-func NewUserService(repo repository.UserRepository, rbacSvc EndpointRBACService, emailSender ...EmailService) UserService {
-	var sender EmailService
-	if len(emailSender) > 0 {
-		sender = emailSender[0]
+func NewUserService(
+	repo repository.UserRepository,
+	rbacSvc EndpointRBACService,
+	emailSender EmailService,
+	cacheRepo repository.UserCacheRepository,
+) UserService {
+	return &userService{
+		repo:        repo,
+		rbacSvc:     rbacSvc,
+		emailSender: emailSender,
+		cacheRepo:   cacheRepo,
 	}
-	return &userService{repo: repo, rbacSvc: rbacSvc, emailSender: sender}
 }
 
 func (s *userService) Create(ctx context.Context, req models.CreateUserRequest) (*models.User, error) {
@@ -72,6 +79,10 @@ func (s *userService) Create(ctx context.Context, req models.CreateUserRequest) 
 		return nil, err
 	}
 
+	if s.cacheRepo != nil {
+		_ = s.cacheRepo.Set(ctx, user)
+	}
+
 	if s.emailSender != nil {
 		if err := s.emailSender.SendTemplate(ctx, EmailTemplateRequest{
 			To:       user.Email,
@@ -98,12 +109,22 @@ func (s *userService) GetByID(ctx context.Context, id uuid.UUID) (*models.User, 
 		return nil, ErrNilID
 	}
 
+	if s.cacheRepo != nil {
+		if cached, err := s.cacheRepo.GetByID(ctx, id); err == nil && cached != nil {
+			return cached, nil
+		}
+	}
+
 	user, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	if user == nil {
 		return nil, ErrNotFound
+	}
+
+	if s.cacheRepo != nil {
+		_ = s.cacheRepo.Set(ctx, user)
 	}
 
 	return user, nil
@@ -164,6 +185,10 @@ func (s *userService) Update(ctx context.Context, id uuid.UUID, req models.Updat
 		return nil, err
 	}
 
+	if s.cacheRepo != nil {
+		_ = s.cacheRepo.Set(ctx, user)
+	}
+
 	return user, nil
 }
 
@@ -180,7 +205,16 @@ func (s *userService) SetStatus(ctx context.Context, id uuid.UUID, status models
 		return ErrNotFound
 	}
 
-	return s.repo.SetStatus(ctx, id, status)
+	if err := s.repo.SetStatus(ctx, id, status); err != nil {
+		return err
+	}
+
+	updatedUser, err := s.repo.GetByID(ctx, id)
+	if err == nil && updatedUser != nil && s.cacheRepo != nil {
+		_ = s.cacheRepo.Set(ctx, updatedUser)
+	}
+
+	return nil
 }
 
 func (s *userService) Authenticate(ctx context.Context, email, password string) (*models.User, error) {
@@ -193,12 +227,25 @@ func (s *userService) Authenticate(ctx context.Context, email, password string) 
 		return nil, ErrEmptyPassword
 	}
 
-	user, err := s.repo.GetByEmail(ctx, email)
-	if err != nil {
-		return nil, err
+	var user *models.User
+	var err error
+	if s.cacheRepo != nil {
+		if cached, err := s.cacheRepo.GetByEmail(ctx, email); err == nil && cached != nil {
+			user = cached
+		}
 	}
+
 	if user == nil {
-		return nil, ErrNotFound
+		user, err = s.repo.GetByEmail(ctx, email)
+		if err != nil {
+			return nil, err
+		}
+		if user == nil {
+			return nil, ErrNotFound
+		}
+		if s.cacheRepo != nil {
+			_ = s.cacheRepo.Set(ctx, user)
+		}
 	}
 
 	if user.Status == models.AccountStatusInactive {

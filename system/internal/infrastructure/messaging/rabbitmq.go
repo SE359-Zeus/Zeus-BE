@@ -11,10 +11,10 @@ import (
 )
 
 const (
-	PoolQueue     = "scm.deficit.pool"
-	ReservedQueue = "scm.deficit.reserved"
-	DLXExchange   = "scm.dlx"
-	DLXQueue      = "scm.deficit.dlx"
+	PoolQueue     = "system.deficit.pool"
+	ReservedQueue = "system.deficit.reserved"
+	DLXExchange   = "system.dlx"
+	DLXQueue      = "system.deficit.dlx"
 )
 
 var ErrUnavailable = errors.New("rabbitmq unavailable")
@@ -317,41 +317,4 @@ func (c *Connection) PublishToReserved(ctx context.Context, msg DeficitMessage) 
 		return err
 	}
 	return c.channel.PublishWithContext(ctx, "", ReservedQueue, true, false, amqp.Publishing{ContentType: "application/json", Body: body, Expiration: fmt.Sprintf("%d", 30*60*1000), DeliveryMode: amqp.Persistent})
-}
-
-func (c *Connection) QueueSize(queue string) (int, error) {
-	if c == nil || c.channel == nil {
-		return 0, ErrUnavailable
-	}
-	q, err := c.channel.QueueInspect(queue)
-	if err != nil {
-		return 0, err
-	}
-	return q.Messages, nil
-}
-
-func (c *Connection) Ack(tag uint64) error {
-	if c == nil || c.channel == nil {
-		return ErrUnavailable
-	}
-	return c.channel.Ack(tag, false)
-}
-
-func (c *Connection) Nack(tag uint64, requeue bool) error {
-	if c == nil || c.channel == nil {
-		return ErrUnavailable
-	}
-	return c.channel.Nack(tag, false, requeue)
-}
-
-func (c *Connection) Close() {
-	if c == nil {
-		return
-	}
-	if c.channel != nil {
-		_ = c.channel.Close()
-	}
-	if c.conn != nil {
-		_ = c.conn.Close()
-	}
 }

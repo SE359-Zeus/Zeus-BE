@@ -77,10 +77,7 @@ func (h *AuditHandler) Query(c *gin.Context) {
 		return
 	}
 
-	WriteJSON(c, 200, gin.H{
-		"items":      logs,
-		"pagination": meta,
-	})
+	WriteEnvelope(c, 200, "success", gin.H{"pagination": meta}, gin.H{"items": logs})
 }
 
 func (h *AuditHandler) GetMetrics(c *gin.Context) {

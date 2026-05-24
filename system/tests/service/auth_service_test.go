@@ -92,7 +92,7 @@ func setupAuthSvc(t *testing.T) (service.AuthService, *service.MockUserRepositor
 	rbacSvc := new(service.MockEndpointRBACService)
 	rbacSvc.On("ValidateRole", anyCtx, mock.AnythingOfType("string")).Return(nil)
 
-	userSvc := service.NewUserService(userRepo, rbacSvc)
+	userSvc := service.NewUserService(userRepo, rbacSvc, nil, nil)
 	svc := service.NewAuthService(userSvc, refreshRepo, sessionRepo, key)
 
 	return svc, userRepo, refreshRepo, sessionRepo

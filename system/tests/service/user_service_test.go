@@ -18,7 +18,7 @@ var anyCtx = mock.Anything
 func setupUserSvc() (service.UserService, *service.MockUserRepository, *service.MockEndpointRBACService) {
 	repo := new(service.MockUserRepository)
 	rbacSvc := new(service.MockEndpointRBACService)
-	svc := service.NewUserService(repo, rbacSvc)
+	svc := service.NewUserService(repo, rbacSvc, nil, nil)
 	return svc, repo, rbacSvc
 }
 
@@ -26,7 +26,7 @@ func setupUserSvcWithEmail() (service.UserService, *service.MockUserRepository, 
 	repo := new(service.MockUserRepository)
 	rbacSvc := new(service.MockEndpointRBACService)
 	emailSender := new(service.MockEmailService)
-	svc := service.NewUserService(repo, rbacSvc, emailSender)
+	svc := service.NewUserService(repo, rbacSvc, emailSender, nil)
 	return svc, repo, rbacSvc, emailSender
 }
 
