@@ -27,7 +27,7 @@ run:
 	go run $(CMD_DIR)
 
 seed:
-	go run ./cmd/seeder
+	go run ./cmd/seeder -db $(DB_PATH) -migrations ./internal/migration -parts-data ../reference/seeder/parts.json
 
 migrate:
 	go run ./cmd/migrate -db $(DB_PATH) -migrations ./internal/migration

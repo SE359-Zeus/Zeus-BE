@@ -1,13 +1,14 @@
 FROM golang:1.25-alpine AS builder
 
-WORKDIR /app
+WORKDIR /src/scm
 
 RUN apk add --no-cache build-base
 
-COPY go.mod go.sum ./
+COPY scm/go.mod scm/go.sum ./
 RUN go mod download
 
-COPY . .
+COPY scm/. .
+COPY reference/seeder/parts.json /src/reference/seeder/parts.json
 
 ENV CGO_ENABLED=1
 
@@ -28,8 +29,9 @@ LABEL org.opencontainers.image.version=$VERSION
 COPY --from=builder /out/server /app/server
 COPY --from=builder /out/migrate /app/migrate
 COPY --from=builder /out/seeder /app/seeder
-COPY --from=builder /app/docs ./docs
-COPY --from=builder /app/internal/migration ./migrations
+COPY --from=builder /src/scm/docs ./docs
+COPY --from=builder /src/scm/internal/migration ./migrations
+COPY --from=builder /src/reference/seeder/parts.json ./reference/seeder/parts.json
 
 EXPOSE 8081
 
