@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"zeus-scm-service/internal/cache"
 	"zeus-scm-service/internal/config"
 	"zeus-scm-service/internal/handler"
 	"zeus-scm-service/internal/handler/middleware"
-	"zeus-scm-service/internal/messaging"
+	"zeus-scm-service/internal/infrastructure/cache"
+	"zeus-scm-service/internal/infrastructure/messaging"
 	sqliteRepo "zeus-scm-service/internal/repository/sqlite"
 	"zeus-scm-service/internal/service"
 

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"log"
 
-	"zeus-scm-service/internal/cache"
+	"zeus-scm-service/internal/infrastructure/cache"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
 

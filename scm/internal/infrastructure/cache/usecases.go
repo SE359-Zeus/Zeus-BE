@@ -3,31 +3,9 @@ package cache
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/valkey-io/valkey-go"
 )
-
-type ValkeyCache struct {
-	addr string
-}
-
-func NewValkey(addr string) (*ValkeyCache, error) {
-	client, err := valkey.NewClient(valkey.ClientOption{
-		InitAddress: []string{addr},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Valkey client: %w", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := client.Do(ctx, client.B().Ping().Build()).Error(); err != nil {
-		client.Close()
-		return nil, fmt.Errorf("failed to connect to Valkey: %w", err)
-	}
-	client.Close()
-	return &ValkeyCache{addr: addr}, nil
-}
 
 func (c *ValkeyCache) Get(ctx context.Context, key string) ([]byte, error) {
 	return c.withClient(ctx, func(client valkey.Client) ([]byte, error) {
@@ -40,7 +18,6 @@ func (c *ValkeyCache) Get(ctx context.Context, key string) ([]byte, error) {
 		}
 		return []byte(val), nil
 	})
-
 }
 
 func (c *ValkeyCache) Set(ctx context.Context, key string, data []byte) error {
@@ -82,4 +59,25 @@ func (c *ValkeyCache) withClient(ctx context.Context, fn func(valkey.Client) ([]
 	}
 	defer client.Close()
 	return fn(client)
+}
+
+// NoopCache operations
+func (c *NoopCache) Get(_ context.Context, _ string) ([]byte, error) {
+	return nil, nil
+}
+
+func (c *NoopCache) Set(_ context.Context, _ string, _ []byte) error {
+	return nil
+}
+
+func (c *NoopCache) Delete(_ context.Context, _ string) error {
+	return nil
+}
+
+func (c *NoopCache) Flush(_ context.Context) error {
+	return nil
+}
+
+func (c *NoopCache) Warm(_ context.Context, _ map[string][]byte) error {
+	return nil
 }

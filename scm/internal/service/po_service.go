@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"zeus-scm-service/internal/messaging"
+	"zeus-scm-service/internal/infrastructure/messaging"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/repository"
 
