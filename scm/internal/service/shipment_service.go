@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"zeus-scm-service/internal/models"
+	"zeus-scm-service/internal/repository"
 
 	"gorm.io/gorm"
 )
@@ -18,8 +19,38 @@ type shipmentService struct {
 	db *gorm.DB
 }
 
-func NewShipmentService(db *gorm.DB) IShipmentService {
-	return &shipmentService{db: db}
+type shipmentServiceRepo struct {
+	repo  repository.IShipmentRepository
+	stock repository.IStockRepository
+}
+
+func NewShipmentService(arg interface{}, args ...interface{}) IShipmentService {
+	switch v := arg.(type) {
+	case *gorm.DB:
+		// support NewShipmentService(db) and NewShipmentService(db, shipmentRepo, stockRepo)
+		if len(args) > 0 {
+			if repoArg, ok := args[0].(repository.IShipmentRepository); ok {
+				var stock repository.IStockRepository
+				if len(args) > 1 {
+					if r, ok := args[1].(repository.IStockRepository); ok {
+						stock = r
+					}
+				}
+				return &shipmentServiceRepo{repo: repoArg, stock: stock}
+			}
+		}
+		return &shipmentService{db: v}
+	case repository.IShipmentRepository:
+		var stock repository.IStockRepository
+		if len(args) > 0 {
+			if r, ok := args[0].(repository.IStockRepository); ok {
+				stock = r
+			}
+		}
+		return &shipmentServiceRepo{repo: v, stock: stock}
+	default:
+		panic("invalid NewShipmentService usage")
+	}
 }
 
 func (s *shipmentService) AcquireDispatchLock(ctx context.Context, shipmentID string, operatorID string) error {
@@ -77,4 +108,50 @@ func (s *shipmentService) DispatchShipment(ctx context.Context, shipmentID strin
 	}
 
 	return tx.Commit().Error
+}
+
+// repo-backed implementation
+func (s *shipmentServiceRepo) AcquireDispatchLock(ctx context.Context, shipmentID string, operatorID string) error {
+	shipment, err := s.repo.GetShipmentByID(ctx, shipmentID)
+	if err != nil || shipment == nil {
+		return ErrNotFound
+	}
+	if shipment.Status == models.ShipmentStatusInTransit || shipment.Status == models.ShipmentStatusDelivered {
+		return ErrAlreadyLocked
+	}
+	return s.repo.UpdateShipmentFields(ctx, shipmentID, map[string]interface{}{"ship_date": time.Now()})
+}
+
+func (s *shipmentServiceRepo) DispatchShipment(ctx context.Context, shipmentID string, operatorID string) error {
+	shipment, err := s.repo.GetShipmentByID(ctx, shipmentID)
+	if err != nil || shipment == nil {
+		return ErrNotFound
+	}
+	if shipment.Status != models.ShipmentStatusScheduled {
+		return ErrInvalidTransition
+	}
+
+	items, err := s.repo.GetShipmentItemsByShipmentID(ctx, shipmentID)
+	if err != nil {
+		return err
+	}
+
+	// emulate transaction by applying changes and failing early on errors
+	for _, item := range items {
+		stock, err := s.stock.GetStockBySKU(ctx, item.SKU)
+		if err != nil {
+			return err
+		}
+		if stock.StockQty < item.Qty {
+			return ErrInsufficientDeficit
+		}
+		stock.StockQty -= item.Qty
+		if err := s.stock.SaveStock(ctx, stock); err != nil {
+			return err
+		}
+	}
+
+	shipment.Status = models.ShipmentStatusInTransit
+	shipment.ShipDate = time.Now()
+	return s.repo.UpdateShipment(ctx, shipment)
 }

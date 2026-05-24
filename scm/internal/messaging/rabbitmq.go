@@ -32,8 +32,7 @@ type DeficitPoolStats struct {
 }
 
 type RabbitMQ struct {
-	conn    *amqp.Connection
-	channel *amqp.Channel
+	url string
 }
 
 type Connection struct {
@@ -42,47 +41,52 @@ type Connection struct {
 }
 
 func NewRabbitMQ(url string) (*RabbitMQ, error) {
-	conn, err := amqp.Dial(url)
+	conn, channel, err := dialChannel(url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
-	}
-	channel, err := conn.Channel()
-	if err != nil {
-		_ = conn.Close()
-		return nil, fmt.Errorf("failed to open channel: %w", err)
-	}
-	rabbit := &RabbitMQ{conn: conn, channel: channel}
-	if err := rabbit.setupQueues(); err != nil {
-		rabbit.Close()
 		return nil, err
 	}
-	return rabbit, nil
+	_ = channel.Close()
+	_ = conn.Close()
+	return &RabbitMQ{url: url}, nil
 }
 
 func Dial(url string) (*Connection, error) {
-	conn, err := amqp.Dial(url)
+	conn, channel, err := dialChannel(url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
-	}
-	channel, err := conn.Channel()
-	if err != nil {
-		_ = conn.Close()
-		return nil, fmt.Errorf("failed to open channel: %w", err)
+		return nil, err
 	}
 	return &Connection{conn: conn, channel: channel}, nil
 }
 
-func (r *RabbitMQ) setupQueues() error {
-	if r == nil || r.channel == nil {
+func dialChannel(url string) (*amqp.Connection, *amqp.Channel, error) {
+	conn, err := amqp.Dial(url)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
+	}
+	channel, err := conn.Channel()
+	if err != nil {
+		_ = conn.Close()
+		return nil, nil, fmt.Errorf("failed to open channel: %w", err)
+	}
+	if err := setupQueues(channel); err != nil {
+		_ = channel.Close()
+		_ = conn.Close()
+		return nil, nil, err
+	}
+	return conn, channel, nil
+}
+
+func setupQueues(channel *amqp.Channel) error {
+	if channel == nil {
 		return ErrUnavailable
 	}
-	if _, err := r.channel.QueueDeclare(PoolQueue, true, false, false, false, nil); err != nil {
+	if _, err := channel.QueueDeclare(PoolQueue, true, false, false, false, nil); err != nil {
 		return fmt.Errorf("failed to declare pool queue: %w", err)
 	}
-	if _, err := r.channel.QueueDeclare(DLXQueue, true, false, false, false, nil); err != nil {
+	if _, err := channel.QueueDeclare(DLXQueue, true, false, false, false, nil); err != nil {
 		return fmt.Errorf("failed to declare DLX queue: %w", err)
 	}
-	if _, err := r.channel.QueueDeclare(
+	if _, err := channel.QueueDeclare(
 		ReservedQueue,
 		true,
 		false,
@@ -99,75 +103,98 @@ func (r *RabbitMQ) setupQueues() error {
 	return nil
 }
 
-func (r *RabbitMQ) PublishToPool(msg DeficitMessage) error {
-	if r == nil || r.channel == nil {
+func (r *RabbitMQ) withChannel(fn func(*amqp.Channel) error) error {
+	if r == nil || r.url == "" {
 		return ErrUnavailable
 	}
-	body, err := json.Marshal(msg)
+	conn, channel, err := dialChannel(r.url)
 	if err != nil {
 		return err
 	}
-	return r.channel.PublishWithContext(context.Background(), "", PoolQueue, true, false, amqp.Publishing{
-		ContentType: "application/json",
-		Body:        body,
+	defer conn.Close()
+	defer channel.Close()
+	return fn(channel)
+}
+
+func (r *RabbitMQ) consume(queue string, autoAck bool, exclusive bool) (<-chan amqp.Delivery, error) {
+	if r == nil || r.url == "" {
+		return nil, ErrUnavailable
+	}
+	conn, channel, err := dialChannel(r.url)
+	if err != nil {
+		return nil, err
+	}
+	msgs, err := channel.Consume(queue, "", autoAck, exclusive, false, false, nil)
+	if err != nil {
+		_ = channel.Close()
+		_ = conn.Close()
+		return nil, err
+	}
+	out := make(chan amqp.Delivery)
+	go func() {
+		defer close(out)
+		defer channel.Close()
+		defer conn.Close()
+		for msg := range msgs {
+			out <- msg
+		}
+	}()
+	return out, nil
+}
+
+func (r *RabbitMQ) PublishToPool(msg DeficitMessage) error {
+	return r.withChannel(func(channel *amqp.Channel) error {
+		body, err := json.Marshal(msg)
+		if err != nil {
+			return err
+		}
+		return channel.PublishWithContext(context.Background(), "", PoolQueue, true, false, amqp.Publishing{
+			ContentType: "application/json",
+			Body:        body,
+		})
 	})
 }
 
 func (r *RabbitMQ) ConsumeFromPool() (<-chan amqp.Delivery, error) {
-	if r == nil || r.channel == nil {
-		return nil, ErrUnavailable
-	}
-	return r.channel.Consume(PoolQueue, "", true, true, false, false, nil)
+	return r.consume(PoolQueue, true, true)
 }
 
 func (r *RabbitMQ) PublishToReserved(msg DeficitMessage) error {
-	if r == nil || r.channel == nil {
-		return ErrUnavailable
-	}
-	body, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	return r.channel.PublishWithContext(context.Background(), "", ReservedQueue, true, false, amqp.Publishing{
-		ContentType:  "application/json",
-		Body:         body,
-		Expiration:   fmt.Sprintf("%d", 30*60*1000),
-		DeliveryMode: amqp.Persistent,
+	return r.withChannel(func(channel *amqp.Channel) error {
+		body, err := json.Marshal(msg)
+		if err != nil {
+			return err
+		}
+		return channel.PublishWithContext(context.Background(), "", ReservedQueue, true, false, amqp.Publishing{
+			ContentType:  "application/json",
+			Body:         body,
+			Expiration:   fmt.Sprintf("%d", 30*60*1000),
+			DeliveryMode: amqp.Persistent,
+		})
 	})
 }
 
 func (r *RabbitMQ) ConsumeReserved() (<-chan amqp.Delivery, error) {
-	if r == nil || r.channel == nil {
-		return nil, ErrUnavailable
-	}
-	return r.channel.Consume(ReservedQueue, "", false, false, false, false, nil)
+	return r.consume(ReservedQueue, false, false)
 }
 
 func (r *RabbitMQ) Ack(tag uint64) error {
-	if r == nil || r.channel == nil {
-		return ErrUnavailable
-	}
-	return r.channel.Ack(tag, false)
+	return r.withChannel(func(channel *amqp.Channel) error {
+		return channel.Ack(tag, false)
+	})
 }
 
 func (r *RabbitMQ) Nack(tag uint64, requeue bool) error {
-	if r == nil || r.channel == nil {
-		return ErrUnavailable
-	}
-	return r.channel.Nack(tag, false, requeue)
+	return r.withChannel(func(channel *amqp.Channel) error {
+		return channel.Nack(tag, false, requeue)
+	})
 }
 
 func (r *RabbitMQ) ConsumeDLX() (<-chan amqp.Delivery, error) {
-	if r == nil || r.channel == nil {
-		return nil, ErrUnavailable
-	}
-	return r.channel.Consume(DLXQueue, "", true, false, false, false, nil)
+	return r.consume(DLXQueue, true, false)
 }
 
 func (r *RabbitMQ) RequeueFromDLX(delivery amqp.Delivery) error {
-	if r == nil || r.channel == nil {
-		return ErrUnavailable
-	}
 	var msg DeficitMessage
 	if err := json.Unmarshal(delivery.Body, &msg); err != nil {
 		return err
@@ -176,20 +203,19 @@ func (r *RabbitMQ) RequeueFromDLX(delivery amqp.Delivery) error {
 }
 
 func (r *RabbitMQ) QueueSize(queue string) (int, error) {
-	if r == nil || r.channel == nil {
-		return 0, ErrUnavailable
-	}
-	q, err := r.channel.QueueInspect(queue)
-	if err != nil {
-		return 0, err
-	}
-	return q.Messages, nil
+	var size int
+	err := r.withChannel(func(channel *amqp.Channel) error {
+		q, err := channel.QueueInspect(queue)
+		if err != nil {
+			return err
+		}
+		size = q.Messages
+		return nil
+	})
+	return size, err
 }
 
 func (r *RabbitMQ) Stats() (*DeficitPoolStats, error) {
-	if r == nil || r.channel == nil {
-		return nil, ErrUnavailable
-	}
 	pool, err := r.QueueSize(PoolQueue)
 	if err != nil {
 		return nil, err
@@ -206,26 +232,14 @@ func (r *RabbitMQ) Stats() (*DeficitPoolStats, error) {
 }
 
 func (r *RabbitMQ) Channel() *amqp.Channel {
-	if r == nil {
-		return nil
-	}
-	return r.channel
+	return nil
 }
 
 func (r *RabbitMQ) Close() {
-	if r == nil {
-		return
-	}
-	if r.channel != nil {
-		_ = r.channel.Close()
-	}
-	if r.conn != nil {
-		_ = r.conn.Close()
-	}
 }
 
 func (r *RabbitMQ) StartExpiryReconciler(interval time.Duration, stop <-chan struct{}) {
-	if r == nil || r.channel == nil {
+	if r == nil || r.url == "" {
 		return
 	}
 	go func() {
@@ -234,13 +248,34 @@ func (r *RabbitMQ) StartExpiryReconciler(interval time.Duration, stop <-chan str
 		for {
 			select {
 			case <-ticker.C:
-				msgs, err := r.ConsumeDLX()
-				if err != nil {
-					continue
-				}
-				for msg := range msgs {
-					_ = r.RequeueFromDLX(msg)
-				}
+				_ = r.withChannel(func(channel *amqp.Channel) error {
+					for {
+						delivery, ok, err := channel.Get(DLXQueue, false)
+						if err != nil {
+							return err
+						}
+						if !ok {
+							return nil
+						}
+						var msg DeficitMessage
+						if err := json.Unmarshal(delivery.Body, &msg); err != nil {
+							_ = channel.Nack(delivery.DeliveryTag, false, false)
+							continue
+						}
+						body, err := json.Marshal(msg)
+						if err != nil {
+							_ = channel.Nack(delivery.DeliveryTag, false, true)
+							continue
+						}
+						if err := channel.PublishWithContext(context.Background(), "", PoolQueue, true, false, amqp.Publishing{ContentType: "application/json", Body: body}); err != nil {
+							_ = channel.Nack(delivery.DeliveryTag, false, true)
+							continue
+						}
+						if err := channel.Ack(delivery.DeliveryTag, false); err != nil {
+							return err
+						}
+					}
+				})
 			case <-stop:
 				return
 			}

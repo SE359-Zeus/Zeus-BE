@@ -13,6 +13,8 @@ func SeedAll(db *gorm.DB) error {
 	gofakeit.Seed(0)
 
 	seedLookupTables(db)
+	apiKey := seedAPIKeys(db)
+	log.Printf("Seeded SCM API key: %s", apiKey)
 	suppliers := seedSuppliers(db, 5)
 
 	data, err := loadPartsData("../reference/seeder/parts.json")

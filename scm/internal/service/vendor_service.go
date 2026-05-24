@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"zeus-scm-service/internal/models"
+	"zeus-scm-service/internal/repository"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -19,8 +20,19 @@ type vendorService struct {
 	db *gorm.DB
 }
 
-func NewVendorService(db *gorm.DB) IVendorService {
-	return &vendorService{db: db}
+type vendorServiceRepo struct {
+	repo repository.IVendorRepository
+}
+
+func NewVendorService(arg interface{}) IVendorService {
+	switch v := arg.(type) {
+	case *gorm.DB:
+		return &vendorService{db: v}
+	case repository.IVendorRepository:
+		return &vendorServiceRepo{repo: v}
+	default:
+		panic("invalid NewVendorService usage")
+	}
 }
 
 func (s *vendorService) GetOptimalSupplier(ctx context.Context, sku string) (*models.Supplier, *models.SkuMapping, error) {
@@ -100,4 +112,72 @@ func (s *vendorService) UpdateSupplierMetrics(ctx context.Context, supplierID uu
 			"on_time_rate":  math.Round(onTimeRate*100) / 100,
 			"quality_score": math.Round(qualityScore*100) / 100,
 		}).Error
+}
+
+// repo-backed implementation
+func (s *vendorServiceRepo) GetOptimalSupplier(ctx context.Context, sku string) (*models.Supplier, *models.SkuMapping, error) {
+	mappings, err := s.repo.FindSkuMappingsBySKU(ctx, sku)
+	if err != nil || len(mappings) == 0 {
+		return nil, nil, ErrNoOptimalSupplier
+	}
+	var bestSupplier *models.Supplier
+	var bestMapping *models.SkuMapping
+	bestScore := -1.0
+	for i := range mappings {
+		supplier, err := s.repo.GetSupplierByID(ctx, mappings[i].SupplierID)
+		if err != nil || supplier == nil {
+			continue
+		}
+		score := (supplier.QualityScore*0.6 + supplier.OnTimeRate*0.4) - (mappings[i].UnitPrice / 10000.0)
+		if score > bestScore {
+			bestScore = score
+			bestSupplier = supplier
+			bestMapping = &mappings[i]
+		}
+	}
+	if bestSupplier == nil {
+		return nil, nil, ErrNoOptimalSupplier
+	}
+	return bestSupplier, bestMapping, nil
+}
+
+func (s *vendorServiceRepo) UpdateSupplierMetrics(ctx context.Context, supplierID uuid.UUID) error {
+	totalGRs, err := s.repo.CountGoodsReceiptsByVendor(ctx, supplierID)
+	if err != nil {
+		return err
+	}
+	if totalGRs == 0 {
+		return s.repo.UpdateSupplier(ctx, supplierID, map[string]interface{}{
+			"on_time_rate":  0,
+			"quality_score": 100,
+			"updated_at":    nil,
+		})
+	}
+
+	receipts, err := s.repo.FindGoodsReceiptsByVendor(ctx, supplierID)
+	if err != nil {
+		return err
+	}
+
+	var defectiveGRs int64
+	var onTimeGRs int64
+	for _, gr := range receipts {
+		items, _ := s.repo.FindGRLineItemsByGRID(ctx, gr.ID)
+		for _, item := range items {
+			if item.DefectiveQty != nil && *item.DefectiveQty > 0 {
+				defectiveGRs++
+			}
+		}
+		if gr.Status == models.GRStatusComplete {
+			onTimeGRs++
+		}
+	}
+
+	onTimeRate := float64(onTimeGRs) / math.Max(float64(totalGRs), 1) * 100
+	qualityScore := 100.0 - (float64(defectiveGRs)/math.Max(float64(totalGRs), 1))*100
+
+	return s.repo.UpdateSupplier(ctx, supplierID, map[string]interface{}{
+		"on_time_rate":  math.Round(onTimeRate*100) / 100,
+		"quality_score": math.Round(qualityScore*100) / 100,
+	})
 }

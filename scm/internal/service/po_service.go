@@ -8,6 +8,7 @@ import (
 
 	"zeus-scm-service/internal/messaging"
 	"zeus-scm-service/internal/models"
+	"zeus-scm-service/internal/repository"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -25,8 +26,39 @@ type poService struct {
 	mqURL string
 }
 
-func NewPOService(db *gorm.DB, mqURL string) IPOService {
-	return &poService{db: db, mqURL: mqURL}
+type poServiceRepo struct {
+	poRepo    repository.IPORepository
+	stockRepo repository.IStockRepository
+	mqURL     string
+}
+
+func NewPOService(arg interface{}, args ...interface{}) IPOService {
+	switch v := arg.(type) {
+	case *gorm.DB:
+		mqURL := ""
+		if len(args) > 0 {
+			if s, ok := args[0].(string); ok {
+				mqURL = s
+			}
+		}
+		return &poService{db: v, mqURL: mqURL}
+	case repository.IPORepository:
+		var stock repository.IStockRepository
+		var mqURL string
+		if len(args) > 0 {
+			if r, ok := args[0].(repository.IStockRepository); ok {
+				stock = r
+			}
+		}
+		if len(args) > 1 {
+			if s, ok := args[1].(string); ok {
+				mqURL = s
+			}
+		}
+		return &poServiceRepo{poRepo: v, stockRepo: stock, mqURL: mqURL}
+	default:
+		panic("invalid NewPOService usage")
+	}
 }
 
 func (s *poService) CreateDraft(ctx context.Context, vendorID uuid.UUID, targetBuild string) (*models.PurchaseOrder, error) {
@@ -135,6 +167,137 @@ func (s *poService) AddLineItemWithLock(ctx context.Context, poID string, sku st
 		UnitPrice:  catalog.UnitCost,
 	}
 	return s.db.WithContext(ctx).Create(lineItem).Error
+}
+
+// repo-backed implementation
+func (s *poServiceRepo) CreateDraft(ctx context.Context, vendorID uuid.UUID, targetBuild string) (*models.PurchaseOrder, error) {
+	existing, err := s.poRepo.FindPOByVendorAndStatuses(ctx, vendorID, []models.POStatus{models.POStatusDraft, models.POStatusApproved, models.POStatusInTransit})
+	if err == nil && existing != nil {
+		return nil, ErrMonoVendorViolation
+	}
+	year := time.Now().Year()
+	count, err := s.poRepo.CountPOsByYearPattern(ctx, year, "PO-%d-%%")
+	if err != nil {
+		return nil, err
+	}
+	po := &models.PurchaseOrder{
+		ID:          fmt.Sprintf("PO-%d-%d", year, count+1),
+		VendorID:    vendorID,
+		TargetBuild: targetBuild,
+		Status:      models.POStatusDraft,
+		TotalValue:  0,
+	}
+	if err := s.poRepo.CreatePO(ctx, po); err != nil {
+		return nil, err
+	}
+	return po, nil
+}
+
+func (s *poServiceRepo) AddLineItemWithLock(ctx context.Context, poID string, sku string, qty int) error {
+	po, err := s.poRepo.GetPOByID(ctx, poID)
+	if err != nil || po == nil {
+		return ErrNotFound
+	}
+	if po.Status != models.POStatusDraft {
+		return ErrInvalidTransition
+	}
+
+	conn, err := messaging.Dial(s.mqURL)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	done := make(chan struct{}, 1)
+	var consumeErr error
+
+	go func() {
+		defer func() { close(done) }()
+		msg, ok, err := conn.GetFromPool(false)
+		if err != nil {
+			consumeErr = err
+			return
+		}
+		if !ok {
+			consumeErr = ErrInsufficientDeficit
+			return
+		}
+		var d messaging.DeficitMessage
+		if err := json.Unmarshal(msg.Body, &d); err != nil {
+			_ = conn.Nack(msg.DeliveryTag, true)
+			consumeErr = err
+			return
+		}
+		if d.SKU != sku || d.Qty < qty {
+			_ = conn.Nack(msg.DeliveryTag, true)
+			consumeErr = ErrInsufficientDeficit
+			return
+		}
+		reservedMsg := messaging.DeficitMessage{SKU: sku, Qty: qty}
+		if err := conn.PublishToReserved(ctx, reservedMsg); err != nil {
+			_ = conn.Nack(msg.DeliveryTag, true)
+			consumeErr = err
+			return
+		}
+		if err := conn.Ack(msg.DeliveryTag); err != nil {
+			consumeErr = err
+			return
+		}
+	}()
+
+	select {
+	case <-done:
+		if consumeErr != nil {
+			return consumeErr
+		}
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(5 * time.Second):
+		return ErrInsufficientDeficit
+	}
+
+	catalog, err := s.stockRepo.GetStockBySKU(ctx, sku)
+	if err != nil {
+		return err
+	}
+
+	lineItem := &models.POLineItem{
+		ID:         uuid.New(),
+		POID:       poID,
+		SKU:        sku,
+		OrderedQty: qty,
+		UnitPrice:  catalog.UnitCost,
+	}
+	return s.poRepo.CreatePOLineItem(ctx, lineItem)
+}
+
+func (s *poServiceRepo) ApprovePO(ctx context.Context, poID string) error {
+	po, err := s.poRepo.GetPOByID(ctx, poID)
+	if err != nil || po == nil {
+		return ErrNotFound
+	}
+	if po.Status != models.POStatusDraft {
+		return ErrInvalidTransition
+	}
+	items, _ := s.poRepo.GetPOLineItemsByPOID(ctx, poID)
+	var totalValue float64
+	for _, item := range items {
+		totalValue += float64(item.OrderedQty) * item.UnitPrice
+	}
+	po.Status = models.POStatusApproved
+	po.TotalValue = totalValue
+	return s.poRepo.SavePO(ctx, po)
+}
+
+func (s *poServiceRepo) TransitionState(ctx context.Context, poID string, newState models.POStatus) error {
+	po, err := s.poRepo.GetPOByID(ctx, poID)
+	if err != nil || po == nil {
+		return ErrNotFound
+	}
+	if !validTransition(po.Status, newState) {
+		return ErrStateRegression
+	}
+	return s.poRepo.UpdatePOStatus(ctx, poID, newState)
 }
 
 func (s *poService) ApprovePO(ctx context.Context, poID string) error {

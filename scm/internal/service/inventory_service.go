@@ -6,6 +6,7 @@ import (
 
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
+	"zeus-scm-service/internal/repository"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -37,8 +38,19 @@ type inventoryService struct {
 	db *gorm.DB
 }
 
-func NewInventoryService(db *gorm.DB) IInventoryService {
-	return &inventoryService{db: db}
+type inventoryServiceRepo struct {
+	repo repository.IInventoryRepository
+}
+
+func NewInventoryService(arg interface{}) IInventoryService {
+	switch v := arg.(type) {
+	case *gorm.DB:
+		return &inventoryService{db: v}
+	case repository.IInventoryRepository:
+		return &inventoryServiceRepo{repo: v}
+	default:
+		panic("invalid NewInventoryService usage")
+	}
 }
 
 func (s *inventoryService) GetProduct(ctx context.Context, id uuid.UUID) (*models.Product, error) {
@@ -64,6 +76,129 @@ func (s *inventoryService) ListProducts(ctx context.Context, params pagination.P
 		return nil, nil, err
 	}
 	return products, meta, nil
+}
+
+// repo-backed implementation (used by unit tests with mocks)
+func (s *inventoryServiceRepo) GetProduct(ctx context.Context, id uuid.UUID) (*models.Product, error) {
+	p, err := s.repo.GetProductByID(ctx, id)
+	if err != nil || p == nil {
+		return nil, ErrNotFound
+	}
+	return p, nil
+}
+
+func (s *inventoryServiceRepo) ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error) {
+	return s.repo.ListProducts(ctx, params, q)
+}
+
+func (s *inventoryServiceRepo) UpdateProduct(ctx context.Context, id uuid.UUID, fields map[string]any) (*models.Product, error) {
+	rows, err := s.repo.UpdateProduct(ctx, id, fields)
+	if err != nil {
+		return nil, err
+	}
+	if rows == 0 {
+		return nil, ErrNotFound
+	}
+	return s.repo.GetProductByID(ctx, id)
+}
+
+func (s *inventoryServiceRepo) CreateProduct(ctx context.Context, p *models.Product) error {
+	return s.repo.CreateProduct(ctx, p)
+}
+
+func (s *inventoryServiceRepo) GetProductModel(ctx context.Context, code string) (*models.ProductModel, error) {
+	m, err := s.repo.GetProductModelByCode(ctx, code)
+	if err != nil || m == nil {
+		return nil, ErrNotFound
+	}
+	return m, nil
+}
+
+func (s *inventoryServiceRepo) CreateProductModel(ctx context.Context, m *models.ProductModel) error {
+	return s.repo.CreateProductModel(ctx, m)
+}
+
+func (s *inventoryServiceRepo) GetPart(ctx context.Context, id uuid.UUID) (*models.Part, error) {
+	p, err := s.repo.GetPartByID(ctx, id)
+	if err != nil || p == nil {
+		return nil, ErrNotFound
+	}
+	return p, nil
+}
+
+func (s *inventoryServiceRepo) ListParts(ctx context.Context, catalogID *uuid.UUID, productID *uuid.UUID, conditionID *int32, params pagination.Params, q string) ([]models.Part, *pagination.Meta, error) {
+	return s.repo.ListParts(ctx, catalogID, productID, conditionID, params, q)
+}
+
+func (s *inventoryServiceRepo) CreatePart(ctx context.Context, p *models.Part) error {
+	return s.repo.CreatePart(ctx, p)
+}
+
+func (s *inventoryServiceRepo) UpdatePart(ctx context.Context, id uuid.UUID, fields map[string]any) (*models.Part, error) {
+	rows, err := s.repo.UpdatePart(ctx, id, fields)
+	if err != nil {
+		return nil, err
+	}
+	if rows == 0 {
+		return nil, ErrNotFound
+	}
+	return s.repo.GetPartByID(ctx, id)
+}
+
+func (s *inventoryServiceRepo) UpdatePartCondition(ctx context.Context, partID uuid.UUID, conditionID int32) error {
+	rows, err := s.repo.UpdatePartFields(ctx, partID, map[string]interface{}{"part_condition_id": conditionID})
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *inventoryServiceRepo) MarkPartScrapped(ctx context.Context, partID uuid.UUID) error {
+	rows, err := s.repo.UpdatePartFields(ctx, partID, map[string]interface{}{"scrapped_date": time.Now()})
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *inventoryServiceRepo) InstallPart(ctx context.Context, partID uuid.UUID, productID uuid.UUID) error {
+	rows, err := s.repo.UpdatePartFields(ctx, partID, map[string]interface{}{"product_id": productID, "installation_date": time.Now()})
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *inventoryServiceRepo) RemovePart(ctx context.Context, partID uuid.UUID) error {
+	rows, err := s.repo.UpdatePartFields(ctx, partID, map[string]interface{}{"product_id": nil, "removal_date": time.Now()})
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *inventoryServiceRepo) GetPartCatalog(ctx context.Context, id uuid.UUID) (*models.PartCatalog, error) {
+	c, err := s.repo.GetPartCatalogByID(ctx, id)
+	if err != nil || c == nil {
+		return nil, ErrNotFound
+	}
+	return c, nil
+}
+
+func (s *inventoryServiceRepo) ListPartCatalog(ctx context.Context, typeID *int32, params pagination.Params, q string) ([]models.PartCatalog, *pagination.Meta, error) {
+	return s.repo.ListPartCatalog(ctx, typeID, params, q)
 }
 
 func (s *inventoryService) UpdateProduct(ctx context.Context, id uuid.UUID, fields map[string]any) (*models.Product, error) {
