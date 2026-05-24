@@ -128,10 +128,10 @@ func main() {
 
 		public.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
 			Title:   "Zeus SCM API",
-			SpecURL: "/docs/openapi.json",
+			SpecURL: "/openapi.json",
 			Theme:   "dark",
 		}))
-		public.GET("/docs/openapi.json", func(c *gin.Context) {
+		public.GET("/openapi.json", func(c *gin.Context) {
 			if spec != nil {
 				c.Data(200, "application/json", spec)
 				return
