@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"zeus-be/pkg/exception"
+	"zeus-scm-service/internal/exception"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/service"
 

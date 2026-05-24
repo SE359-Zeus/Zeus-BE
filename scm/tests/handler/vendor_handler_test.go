@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"zeus-be/pkg/response"
 	"zeus-scm-service/internal/handler"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/service"
@@ -49,7 +48,7 @@ func TestVendorHandler_GetOptimalSupplier_Success(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	var resp response.SuccessResponse
+	var resp handler.ResponseEnvelope
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	mockSvc.AssertExpectations(t)
 }

@@ -3,8 +3,9 @@ package middleware
 import (
 	"log"
 
+	"zeus-scm-service/internal/exception"
+
 	"github.com/gin-gonic/gin"
-	"zeus-be/pkg/exception"
 )
 
 func Recovery() gin.HandlerFunc {

@@ -16,12 +16,7 @@ require (
 	golang.org/x/crypto v0.50.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1
-	zeus-be/pkg/exception v0.0.0
-	zeus-be/pkg/response v0.0.0
 )
-
-replace zeus-be/pkg/exception => ../pkg/exception
-replace zeus-be/pkg/response => ../pkg/response
 
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect

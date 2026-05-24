@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"zeus-be/pkg/exception"
+	"zeus-scm-service/internal/exception"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/service"
 
@@ -42,7 +42,7 @@ func (h *POHandler) CreateDraft(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(201, po)
+	writeJSON(c, 201, po)
 }
 
 type addLineItemRequest struct {
@@ -65,7 +65,7 @@ func (h *POHandler) AddLineItemWithLock(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, gin.H{"message": "line item added"})
+	writeJSON(c, 200, gin.H{"message": "line item added"})
 }
 
 func (h *POHandler) ApprovePO(c *gin.Context) {
@@ -78,7 +78,7 @@ func (h *POHandler) ApprovePO(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, gin.H{"message": "PO approved"})
+	writeJSON(c, 200, gin.H{"message": "PO approved"})
 }
 
 type transitionStateRequest struct {
@@ -100,5 +100,5 @@ func (h *POHandler) TransitionState(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, gin.H{"message": "state transitioned"})
+	writeJSON(c, 200, gin.H{"message": "state transitioned"})
 }

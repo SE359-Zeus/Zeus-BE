@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"zeus-be/pkg/exception"
+	"zeus-scm-service/internal/exception"
 	"zeus-scm-service/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -34,7 +34,7 @@ func (h *GoodsReceiptHandler) AcquireLock(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, gin.H{"message": "lock acquired"})
+	writeJSON(c, 200, gin.H{"message": "lock acquired"})
 }
 
 type lineItemCount struct {
@@ -72,7 +72,7 @@ func (h *GoodsReceiptHandler) ProcessBlindReceipt(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, gin.H{"message": "blind receipt processed"})
+	writeJSON(c, 200, gin.H{"message": "blind receipt processed"})
 }
 
 func (h *GoodsReceiptHandler) ReleaseLock(c *gin.Context) {
@@ -85,5 +85,5 @@ func (h *GoodsReceiptHandler) ReleaseLock(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, gin.H{"message": "lock released"})
+	writeJSON(c, 200, gin.H{"message": "lock released"})
 }

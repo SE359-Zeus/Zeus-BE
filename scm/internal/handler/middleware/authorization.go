@@ -1,9 +1,10 @@
 package middleware
 
 import (
-	"github.com/gin-gonic/gin"
-	"zeus-be/pkg/exception"
+	"zeus-scm-service/internal/exception"
 	"zeus-scm-service/internal/service"
+
+	"github.com/gin-gonic/gin"
 )
 
 func RequireRoleLevel(rbacSvc *service.RBACService) gin.HandlerFunc {

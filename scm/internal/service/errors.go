@@ -1,6 +1,6 @@
 package service
 
-import "zeus-be/pkg/exception"
+import "zeus-scm-service/internal/exception"
 
 var (
 	ErrNotImplemented      = exception.ErrNotImplemented

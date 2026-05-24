@@ -3,7 +3,7 @@ package handler
 import (
 	"strconv"
 
-	"zeus-be/pkg/exception"
+	"zeus-scm-service/internal/exception"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/service"
@@ -35,7 +35,7 @@ func (h *InventoryHandler) GetProduct(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, p)
+	writeJSON(c, 200, p)
 }
 
 func parsePaginationParams(c *gin.Context) pagination.Params {
@@ -58,7 +58,7 @@ func (h *InventoryHandler) ListProducts(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal.WithError(err))
 		return
 	}
-	c.JSON(200, pagination.Response{Data: products, Pagination: *meta})
+	writeJSON(c, 200, pagination.Response{Data: products, Pagination: *meta})
 }
 
 func (h *InventoryHandler) CreateProduct(c *gin.Context) {
@@ -75,7 +75,7 @@ func (h *InventoryHandler) CreateProduct(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(201, p)
+	writeJSON(c, 201, p)
 }
 
 func (h *InventoryHandler) GetProductModel(c *gin.Context) {
@@ -89,7 +89,7 @@ func (h *InventoryHandler) GetProductModel(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, m)
+	writeJSON(c, 200, m)
 }
 
 func (h *InventoryHandler) CreateProductModel(c *gin.Context) {
@@ -106,7 +106,7 @@ func (h *InventoryHandler) CreateProductModel(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(201, m)
+	writeJSON(c, 201, m)
 }
 
 func (h *InventoryHandler) GetPart(c *gin.Context) {
@@ -124,7 +124,7 @@ func (h *InventoryHandler) GetPart(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, p)
+	writeJSON(c, 200, p)
 }
 
 func (h *InventoryHandler) ListParts(c *gin.Context) {
@@ -156,7 +156,7 @@ func (h *InventoryHandler) ListParts(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal.WithError(err))
 		return
 	}
-	c.JSON(200, pagination.Response{Data: parts, Pagination: *meta})
+	writeJSON(c, 200, pagination.Response{Data: parts, Pagination: *meta})
 }
 
 func (h *InventoryHandler) CreatePart(c *gin.Context) {
@@ -173,7 +173,7 @@ func (h *InventoryHandler) CreatePart(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(201, p)
+	writeJSON(c, 201, p)
 }
 
 func (h *InventoryHandler) UpdatePartCondition(c *gin.Context) {
@@ -197,7 +197,7 @@ func (h *InventoryHandler) UpdatePartCondition(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, gin.H{"message": "condition updated"})
+	writeJSON(c, 200, gin.H{"message": "condition updated"})
 }
 
 func (h *InventoryHandler) MarkPartScrapped(c *gin.Context) {
@@ -214,7 +214,7 @@ func (h *InventoryHandler) MarkPartScrapped(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, gin.H{"message": "part scrapped"})
+	writeJSON(c, 200, gin.H{"message": "part scrapped"})
 }
 
 func (h *InventoryHandler) InstallPart(c *gin.Context) {
@@ -243,7 +243,7 @@ func (h *InventoryHandler) InstallPart(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, gin.H{"message": "part installed"})
+	writeJSON(c, 200, gin.H{"message": "part installed"})
 }
 
 func (h *InventoryHandler) RemovePart(c *gin.Context) {
@@ -260,7 +260,7 @@ func (h *InventoryHandler) RemovePart(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, gin.H{"message": "part removed"})
+	writeJSON(c, 200, gin.H{"message": "part removed"})
 }
 
 func (h *InventoryHandler) GetPartCatalog(c *gin.Context) {
@@ -278,7 +278,7 @@ func (h *InventoryHandler) GetPartCatalog(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, cat)
+	writeJSON(c, 200, cat)
 }
 
 func (h *InventoryHandler) ListPartCatalog(c *gin.Context) {
@@ -297,7 +297,7 @@ func (h *InventoryHandler) ListPartCatalog(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal.WithError(err))
 		return
 	}
-	c.JSON(200, pagination.Response{Data: catalogs, Pagination: *meta})
+	writeJSON(c, 200, pagination.Response{Data: catalogs, Pagination: *meta})
 }
 
 func (h *InventoryHandler) UpdateProduct(c *gin.Context) {
@@ -329,7 +329,7 @@ func (h *InventoryHandler) UpdateProduct(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, p)
+	writeJSON(c, 200, p)
 }
 
 func (h *InventoryHandler) UpdatePart(c *gin.Context) {
@@ -361,5 +361,5 @@ func (h *InventoryHandler) UpdatePart(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, p)
+	writeJSON(c, 200, p)
 }

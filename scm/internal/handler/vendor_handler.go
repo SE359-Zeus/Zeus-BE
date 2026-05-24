@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"zeus-be/pkg/exception"
+	"zeus-scm-service/internal/exception"
 	"zeus-scm-service/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -31,7 +31,7 @@ func (h *VendorHandler) GetOptimalSupplier(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, gin.H{
+	writeJSON(c, 200, gin.H{
 		"supplier": supplier,
 		"mapping":  mapping,
 	})
@@ -48,5 +48,5 @@ func (h *VendorHandler) UpdateSupplierMetrics(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal.WithError(err))
 		return
 	}
-	c.JSON(200, gin.H{"message": "metrics updated"})
+	writeJSON(c, 200, gin.H{"message": "metrics updated"})
 }

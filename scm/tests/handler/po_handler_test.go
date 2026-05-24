@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"zeus-be/pkg/response"
 	"zeus-scm-service/internal/handler"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/service"
@@ -54,7 +53,7 @@ func TestPOHandler_CreateDraft_201(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
-	var resp response.SuccessResponse
+	var resp handler.ResponseEnvelope
 	json.Unmarshal(w.Body.Bytes(), &resp)
 	mockSvc.AssertExpectations(t)
 }

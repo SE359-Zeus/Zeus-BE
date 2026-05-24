@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"zeus-be/pkg/exception"
+	"zeus-scm-service/internal/exception"
 	"zeus-scm-service/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -34,7 +34,7 @@ func (h *ShipmentHandler) AcquireDispatchLock(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, gin.H{"message": "dispatch lock acquired"})
+	writeJSON(c, 200, gin.H{"message": "dispatch lock acquired"})
 }
 
 type dispatchShipmentRequest struct {
@@ -58,5 +58,5 @@ func (h *ShipmentHandler) DispatchShipment(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(200, gin.H{"message": "shipment dispatched"})
+	writeJSON(c, 200, gin.H{"message": "shipment dispatched"})
 }
