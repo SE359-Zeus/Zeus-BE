@@ -29,7 +29,7 @@ COPY --from=builder /out/server /app/server
 COPY --from=builder /out/migrate /app/migrate
 COPY --from=builder /out/seeder /app/seeder
 COPY --from=builder /app/docs ./docs
-COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/internal/migration ./migrations
 
 EXPOSE 8081
 

@@ -4,9 +4,7 @@ info:
   description: Supply Chain Management module of the Zeus ERP system. Governs procurement, inventory, goods receipt, and outbound logistics.
   version: "1.0.0"
 servers:
-  - url: http://localhost:8080/api/v1
-    description: Local development
-  - url: /api/v1
+  - url: /api/v1/scm
     description: API base path
 
 components:

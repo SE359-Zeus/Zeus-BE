@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"os"
-	"strings"
 	"time"
 
 	"zeus-scm-service/internal/cache"
@@ -17,7 +17,10 @@ import (
 
 	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
 	"github.com/gin-gonic/gin"
+	"gopkg.in/yaml.v3"
 )
+
+const scmAPIPrefix = "/api/v1/scm"
 
 func main() {
 	cfg := config.Load()
@@ -56,33 +59,33 @@ func main() {
 	}
 
 	routeAccessRules := []service.RouteAccessRule{
-		{Method: "GET", Path: "/api/v1/inventory/products", RequiredLevel: "Worker"},
-		{Method: "GET", Path: "/api/v1/inventory/products/:id", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/inventory/products", RequiredLevel: "Operator"},
-		{Method: "PUT", Path: "/api/v1/inventory/products/:id", RequiredLevel: "Operator"},
-		{Method: "GET", Path: "/api/v1/inventory/product-models/:code", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/inventory/product-models", RequiredLevel: "Operator"},
-		{Method: "GET", Path: "/api/v1/inventory/parts", RequiredLevel: "Worker"},
-		{Method: "GET", Path: "/api/v1/inventory/parts/:id", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/inventory/parts", RequiredLevel: "Operator"},
-		{Method: "PUT", Path: "/api/v1/inventory/parts/:id", RequiredLevel: "Operator"},
-		{Method: "PUT", Path: "/api/v1/inventory/parts/:id/condition", RequiredLevel: "Operator"},
-		{Method: "POST", Path: "/api/v1/inventory/parts/:id/scrap", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/inventory/parts/:id/install", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/inventory/parts/:id/remove", RequiredLevel: "Worker"},
-		{Method: "GET", Path: "/api/v1/inventory/part-catalog", RequiredLevel: "Worker"},
-		{Method: "GET", Path: "/api/v1/inventory/part-catalog/:id", RequiredLevel: "Worker"},
-		{Method: "GET", Path: "/api/v1/vendors/optimal", RequiredLevel: "Operator"},
-		{Method: "POST", Path: "/api/v1/vendors/:id/recalc-metrics", RequiredLevel: "Operator"},
-		{Method: "POST", Path: "/api/v1/purchase-orders/draft", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/purchase-orders/:poId/line-items", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/purchase-orders/:poId/approve", RequiredLevel: "Operator"},
-		{Method: "PUT", Path: "/api/v1/purchase-orders/:poId/state", RequiredLevel: "Operator"},
-		{Method: "POST", Path: "/api/v1/goods-receipts/:grId/lock", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/goods-receipts/:grId/process", RequiredLevel: "Worker"},
-		{Method: "DELETE", Path: "/api/v1/goods-receipts/:grId/lock", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/shipments/:shipmentId/lock", RequiredLevel: "Worker"},
-		{Method: "POST", Path: "/api/v1/shipments/:shipmentId/dispatch", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/scm/inventory/products", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/scm/inventory/products/:id", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/inventory/products", RequiredLevel: "Operator"},
+		{Method: "PUT", Path: "/api/v1/scm/inventory/products/:id", RequiredLevel: "Operator"},
+		{Method: "GET", Path: "/api/v1/scm/inventory/product-models/:code", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/inventory/product-models", RequiredLevel: "Operator"},
+		{Method: "GET", Path: "/api/v1/scm/inventory/parts", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/scm/inventory/parts/:id", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/inventory/parts", RequiredLevel: "Operator"},
+		{Method: "PUT", Path: "/api/v1/scm/inventory/parts/:id", RequiredLevel: "Operator"},
+		{Method: "PUT", Path: "/api/v1/scm/inventory/parts/:id/condition", RequiredLevel: "Operator"},
+		{Method: "POST", Path: "/api/v1/scm/inventory/parts/:id/scrap", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/inventory/parts/:id/install", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/inventory/parts/:id/remove", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/scm/inventory/part-catalog", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/scm/inventory/part-catalog/:id", RequiredLevel: "Worker"},
+		{Method: "GET", Path: "/api/v1/scm/vendors/optimal", RequiredLevel: "Operator"},
+		{Method: "POST", Path: "/api/v1/scm/vendors/:id/recalc-metrics", RequiredLevel: "Operator"},
+		{Method: "POST", Path: "/api/v1/scm/purchase-orders/draft", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/purchase-orders/:poId/line-items", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/purchase-orders/:poId/approve", RequiredLevel: "Operator"},
+		{Method: "PUT", Path: "/api/v1/scm/purchase-orders/:poId/state", RequiredLevel: "Operator"},
+		{Method: "POST", Path: "/api/v1/scm/goods-receipts/:grId/lock", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/goods-receipts/:grId/process", RequiredLevel: "Worker"},
+		{Method: "DELETE", Path: "/api/v1/scm/goods-receipts/:grId/lock", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/shipments/:shipmentId/lock", RequiredLevel: "Worker"},
+		{Method: "POST", Path: "/api/v1/scm/shipments/:shipmentId/dispatch", RequiredLevel: "Worker"},
 	}
 
 	roleLevels := map[string]int{
@@ -116,15 +119,31 @@ func main() {
 	public := r.Group("/")
 	public.Use(middleware.Public())
 	{
+		specPath := findOpenAPISpec()
+		specURL := runtimeServerURL(cfg.ServerPort)
+		spec, err := loadOpenAPISpec(specPath, specURL)
+		if err != nil {
+			log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
+		}
+
 		public.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
 			Title: "Zeus SCM API",
 			SpecProvider: func() ([]byte, error) {
-				data, err := os.ReadFile("docs/openapi.yaml")
+				if spec != nil {
+					return spec, nil
+				}
+				data, err := os.ReadFile(specPath)
 				if err != nil {
 					return nil, err
 				}
-				baseURL := "http://localhost:" + cfg.ServerPort + "/api/v1"
-				return []byte(strings.ReplaceAll(string(data), "http://localhost:8080/api/v1", baseURL)), nil
+				var parsed any
+				if err := yaml.Unmarshal(data, &parsed); err != nil {
+					return nil, err
+				}
+				if specMap, ok := parsed.(map[string]any); ok {
+					specMap["servers"] = []any{map[string]any{"url": specURL}}
+				}
+				return json.Marshal(parsed)
 			},
 			Theme: "dark",
 		}))
@@ -133,7 +152,7 @@ func main() {
 		})
 	}
 
-	api := r.Group("/api/v1")
+	api := r.Group(scmAPIPrefix)
 	api.Use(middleware.Authenticate(jwtSvc, db), middleware.RequireRoleLevel(rbacSvc))
 	{
 		api.GET("/vendors/optimal", vendorH.GetOptimalSupplier)
@@ -173,4 +192,36 @@ func main() {
 	if err := r.Run(":" + cfg.ServerPort); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}
+}
+
+func findOpenAPISpec() string {
+	paths := []string{"docs/openapi.yaml", "./docs/openapi.yaml"}
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return "docs/openapi.yaml"
+}
+
+func loadOpenAPISpec(specPath, serverURL string) ([]byte, error) {
+	data, err := os.ReadFile(specPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsed map[string]any
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		return nil, err
+	}
+	parsed["servers"] = []any{map[string]any{"url": serverURL}}
+
+	return json.Marshal(parsed)
+}
+
+func runtimeServerURL(port string) string {
+	if port == "" {
+		port = "8081"
+	}
+	return "http://localhost:" + port + scmAPIPrefix
 }
