@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"zeus-system-service/internal/cache"
+	"zeus-system-service/internal/infrastructure/cache"
 )
 
 const (

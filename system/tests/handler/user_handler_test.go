@@ -35,6 +35,68 @@ func setupUserTest() (*gin.Engine, *handler.MockUserService) {
 	return r, mockSvc
 }
 
+func setupUserAuditTest() (*gin.Engine, *handler.MockUserService, *handler.MockAuditService) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(handler.MockUserService)
+	mockAudit := new(handler.MockAuditService)
+	h := handler.NewUserHandler(mockSvc, mockAudit)
+	r := gin.New()
+
+	r.Use(func(c *gin.Context) {
+		c.Set("user_id", uuid.MustParse("11111111-1111-1111-1111-111111111111"))
+		c.Set("email", "admin@zeus.com")
+		c.Next()
+	})
+
+	users := r.Group("/users")
+	{
+		users.POST("", h.Create)
+	}
+
+	return r, mockSvc, mockAudit
+}
+
+func TestUserHandler_Create_201_WritesAudit(t *testing.T) {
+	r, mockSvc, mockAudit := setupUserAuditTest()
+
+	req := models.CreateUserRequest{
+		Email:    "new@zeus.com",
+		Password: "securepass123",
+		FullName: "New User",
+		Role:     "scm_operator",
+	}
+	created := &models.User{
+		ID:       uuid.MustParse("22222222-2222-2222-2222-222222222222"),
+		Email:    req.Email,
+		FullName: req.FullName,
+		Role:     req.Role,
+		Status:   models.AccountStatusActive,
+	}
+	body, _ := json.Marshal(req)
+
+	mockSvc.On("Create", mock.Anything, mock.AnythingOfType("models.CreateUserRequest")).Return(created, nil)
+	
+	adminID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	adminEmail := "admin@zeus.com"
+	
+	mockAudit.On("Ingest", mock.Anything, mock.MatchedBy(func(req models.IngestAuditRequest) bool {
+		return req.UserID == adminID &&
+			req.UserEmail == adminEmail &&
+			req.ActionType == models.ActionType("CREATE") &&
+			req.TargetResource == "users/" + created.ID.String() &&
+			req.Details == "Created user: new@zeus.com (Role: scm_operator)"
+	})).Return(nil)
+
+	w := httptest.NewRecorder()
+	reqHTTP, _ := http.NewRequest("POST", "/users", bytes.NewReader(body))
+	reqHTTP.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, reqHTTP)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	mockSvc.AssertExpectations(t)
+	mockAudit.AssertExpectations(t)
+}
+
 func TestUserHandler_Create_201(t *testing.T) {
 	r, mockSvc := setupUserTest()
 
@@ -194,19 +256,27 @@ func TestUserHandler_List_200(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	var env struct {
 		StatusCode int             `json:"statusCode"`
+		Metadata   json.RawMessage `json:"metadata"`
 		Data       json.RawMessage `json:"data"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &env)
 	assert.NoError(t, err)
 	assert.Equal(t, 200, env.StatusCode)
-	var data struct {
-		Items      []models.UserResponse  `json:"items"`
+
+	var metadata struct {
 		Pagination models.PaginationMeta  `json:"pagination"`
+	}
+	err = json.Unmarshal(env.Metadata, &metadata)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, metadata.Pagination.TotalPages)
+
+	var data struct {
+		Items []models.UserResponse `json:"items"`
 	}
 	err = json.Unmarshal(env.Data, &data)
 	assert.NoError(t, err)
 	assert.Len(t, data.Items, 2)
-	assert.Equal(t, 1, data.Pagination.TotalPages)
+
 	mockSvc.AssertExpectations(t)
 }
 

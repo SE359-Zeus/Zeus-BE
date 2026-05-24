@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"fmt"
+	"log"
 	"strconv"
 
 	"zeus-be/pkg/exception"
@@ -12,11 +14,16 @@ import (
 )
 
 type UserHandler struct {
-	svc service.UserService
+	svc      service.UserService
+	auditSvc service.AuditService
 }
 
-func NewUserHandler(svc service.UserService) *UserHandler {
-	return &UserHandler{svc: svc}
+func NewUserHandler(svc service.UserService, auditSvc ...service.AuditService) *UserHandler {
+	h := &UserHandler{svc: svc}
+	if len(auditSvc) > 0 {
+		h.auditSvc = auditSvc[0]
+	}
+	return h
 }
 
 func (h *UserHandler) Create(c *gin.Context) {
@@ -34,6 +41,27 @@ func (h *UserHandler) Create(c *gin.Context) {
 		}
 		WriteAppError(c, exception.ErrInternal)
 		return
+	}
+
+	if h.auditSvc != nil {
+		userID, okID := c.Get("user_id")
+		userEmail, okEmail := c.Get("email")
+		if okID && okEmail {
+			uid, _ := userID.(uuid.UUID)
+			email, _ := userEmail.(string)
+			if err := h.auditSvc.Ingest(c.Request.Context(), models.IngestAuditRequest{
+				UserID:         uid,
+				UserEmail:      email,
+				ActionType:     models.ActionType("CREATE"),
+				TargetResource: "users/" + user.ID.String(),
+				Details:        fmt.Sprintf("Created user: %s (Role: %s)", user.Email, user.Role),
+				IPAddress:      c.ClientIP(),
+			}); err != nil {
+				log.Printf("warning: failed to record user creation audit event: %v", err)
+			}
+		} else {
+			log.Printf("warning: missing context keys for user creation audit: id_ok=%t, email_ok=%t", okID, okEmail)
+		}
 	}
 
 	WriteEnvelope(c, 201, "created", gin.H{}, models.ToUserResponse(user))
@@ -75,10 +103,7 @@ func (h *UserHandler) List(c *gin.Context) {
 	for i, u := range users {
 		resp[i] = models.ToUserResponse(&u)
 	}
-	WriteJSON(c, 200, gin.H{
-		"items":      resp,
-		"pagination": meta,
-	})
+	WriteEnvelope(c, 200, "success", gin.H{"pagination": meta}, gin.H{"items": resp})
 }
 
 func (h *UserHandler) Update(c *gin.Context) {

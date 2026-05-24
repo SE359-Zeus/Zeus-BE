@@ -121,8 +121,7 @@ func main() {
 	r.RedirectTrailingSlash = false
 	r.Use(gin.Logger(), middleware.Recovery())
 
-	public := r.Group("/")
-	public.Use(middleware.Public())
+	// ── Public routes (no auth) ──────────────────────────────────────────────
 	{
 		specPath := findOpenAPISpec()
 		specURL := runtimeServerURL(cfg.ServerPort)
@@ -152,7 +151,7 @@ func main() {
 			},
 			Theme: "dark",
 		}))
-		public.GET("/health", func(c *gin.Context) {
+		r.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "ok"})
 		})
 	}

@@ -11,14 +11,16 @@ import (
 	"os"
 	"path/filepath"
 
-	"zeus-system-service/internal/cache"
 	"zeus-system-service/internal/config"
+	"zeus-system-service/internal/consumer"
 	"zeus-system-service/internal/handler"
 	"zeus-system-service/internal/handler/middleware"
+	"zeus-system-service/internal/infrastructure/cache"
 	"zeus-system-service/internal/repository/sqlite"
 	valkeyRepo "zeus-system-service/internal/repository/valkey"
 	"zeus-system-service/internal/service"
 
+	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
 )
@@ -69,7 +71,7 @@ func buildOpenAPISpec(serverPort string) func() ([]byte, error) {
 		}
 
 		parsed["servers"] = []map[string]string{{
-			"url":         "http://localhost:" + serverPort + "/api/v1/system",
+			"url":         runtimeServerURL(serverPort),
 			"description": "Local development",
 		}}
 
@@ -109,10 +111,18 @@ func loadOpenAPISpec(specPath, serverURL string) ([]byte, error) {
 }
 
 func runtimeServerURL(port string) string {
-	if port == "" {
-		port = "8083"
+	// PUBLIC_BASE_URL must be set to the host only (no path) in stack.env:
+	//   PUBLIC_BASE_URL=https://zeus.ryanandexen.qzz.io
+	// Swagger UI calls: PUBLIC_BASE_URL + /api/v1/system + <path-from-spec>
+	// Locally (unset), falls back to http://localhost:<port>.
+	base := os.Getenv("PUBLIC_BASE_URL")
+	if base == "" {
+		if port == "" {
+			port = "8084"
+		}
+		base = "http://localhost:" + port
 	}
-	return "http://localhost:" + port + "/api/v1/system"
+	return base + "/api/v1/system"
 }
 
 func main() {
@@ -147,10 +157,12 @@ func main() {
 		log.Printf("Warning: action type cache warm failed: %v", err)
 	}
 
-	emailSvc, err := service.NewResendEmailService(
-		cfg.ResendAPIKey,
+	emailSvc, err := service.NewSMTPEmailService(
+		cfg.SMTPHost,
+		cfg.SMTPPort,
+		cfg.SMTPUser,
+		cfg.SMTPPass,
 		cfg.EmailFromAddress,
-		cfg.EmailFromName,
 		cfg.EmailTemplateDir,
 	)
 	if err != nil {
@@ -159,10 +171,16 @@ func main() {
 
 	sessionRepo := sqlite.NewSessionRepository(db)
 
-	userSvc := service.NewUserService(userRepo, rbacSvc, emailSvc)
+	userCacheRepo := valkeyRepo.NewUserCacheRepository(vkDialer)
+	userSvc := service.NewUserService(userRepo, rbacSvc, emailSvc, userCacheRepo)
 	privateKey := loadPrivateKey(cfg.JWTKeyPath)
 	authSvc := service.NewAuthService(userSvc, refreshTokenRepo, sessionRepo, privateKey)
 	auditSvc := service.NewAuditService(auditRepo, actionTypeSvc)
+
+	auditConsumer := consumer.NewAuditConsumer(cfg.RabbitMQURL, auditSvc)
+	if err := auditConsumer.Start(context.Background()); err != nil {
+		log.Printf("Warning: failed to start audit RabbitMQ consumer: %v", err)
+	}
 
 	sessions, err := sessionRepo.ListActive(context.Background())
 	if err != nil {
@@ -176,11 +194,14 @@ func main() {
 		log.Printf("warmed %d sessions into Valkey", len(sessions))
 	}
 
-	authH := handler.NewAuthHandler(authSvc)
-	userH := handler.NewUserHandler(userSvc)
+	authH := handler.NewAuthHandler(authSvc, auditSvc)
+	userH := handler.NewUserHandler(userSvc, auditSvc)
 	auditH := handler.NewAuditHandler(auditSvc)
 
 	r := gin.New()
+	// Disable Gin's trailing-slash redirect: prevents a 301 /docs → /docs/
+	// from escaping the nginx /system/docs/ proxy prefix in production.
+	r.RedirectTrailingSlash = false
 	r.Use(gin.Logger(), middleware.Recovery())
 
 	specPath := findOpenAPISpec()
@@ -190,29 +211,19 @@ func main() {
 		log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
 	}
 
-	r.GET("/docs", func(c *gin.Context) {
-		c.File("./docs/index.html")
-	})
-	r.GET("/docs/index.html", func(c *gin.Context) {
-		c.File("./docs/index.html")
-	})
-	r.GET("/docs/swagger.html", func(c *gin.Context) {
-		c.File("./docs/swagger.html")
-	})
-	r.GET("/docs/openapi.json", func(c *gin.Context) {
-		if spec != nil {
-			c.Data(200, "application/json", spec)
-			return
-		}
-		jsonBytes, err := buildOpenAPISpec(cfg.ServerPort)()
-		if err != nil {
-			c.JSON(500, gin.H{"error": err.Error()})
-			return
-		}
-		c.Data(200, "application/json", jsonBytes)
-	})
+	r.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
+		Title:   "Zeus System API",
+		SpecURL: "./openapi.json",
+		SpecProvider: func() ([]byte, error) {
+			if spec == nil {
+				return buildOpenAPISpec(cfg.ServerPort)()
+			}
+			return spec, nil
+		},
+		Theme: "dark",
+	}))
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
+		handler.WriteEnvelope(c, 200, "ok", gin.H{}, gin.H{"status": "ok"})
 	})
 
 	systemPublic := r.Group("/api/v1/system")

@@ -187,3 +187,34 @@ func (m *MockEmailService) SendTemplate(ctx context.Context, req EmailTemplateRe
 	args := m.Called(ctx, req)
 	return args.Error(0)
 }
+
+type MockUserCacheRepository struct {
+	mock.Mock
+}
+
+func (m *MockUserCacheRepository) Set(ctx context.Context, user *models.User) error {
+	args := m.Called(ctx, user)
+	return args.Error(0)
+}
+
+func (m *MockUserCacheRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.User), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockUserCacheRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
+	args := m.Called(ctx, email)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.User), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockUserCacheRepository) Delete(ctx context.Context, id uuid.UUID, email string) error {
+	args := m.Called(ctx, id, email)
+	return args.Error(0)
+}
+

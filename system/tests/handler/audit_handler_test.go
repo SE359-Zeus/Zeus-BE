@@ -106,19 +106,27 @@ func TestAuditHandler_Query_200(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	var env struct {
 		StatusCode int             `json:"statusCode"`
+		Metadata   json.RawMessage `json:"metadata"`
 		Data       json.RawMessage `json:"data"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &env)
 	assert.NoError(t, err)
 	assert.Equal(t, 200, env.StatusCode)
+
+	var metadata struct {
+		Pagination models.PaginationMeta  `json:"pagination"`
+	}
+	err = json.Unmarshal(env.Metadata, &metadata)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, metadata.Pagination.TotalPages)
+
 	var data struct {
-		Items      []models.AuditLog       `json:"items"`
-		Pagination models.PaginationMeta   `json:"pagination"`
+		Items []models.AuditLog `json:"items"`
 	}
 	err = json.Unmarshal(env.Data, &data)
 	assert.NoError(t, err)
 	assert.Len(t, data.Items, 1)
-	assert.Equal(t, 1, data.Pagination.TotalPages)
+
 	mockSvc.AssertExpectations(t)
 }
 
@@ -135,18 +143,26 @@ func TestAuditHandler_Query_200_Empty(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	var env struct {
 		StatusCode int             `json:"statusCode"`
+		Metadata   json.RawMessage `json:"metadata"`
 		Data       json.RawMessage `json:"data"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &env)
 	assert.NoError(t, err)
 	assert.Equal(t, 200, env.StatusCode)
+
+	var metadata struct {
+		Pagination models.PaginationMeta  `json:"pagination"`
+	}
+	err = json.Unmarshal(env.Metadata, &metadata)
+	assert.NoError(t, err)
+
 	var data struct {
-		Items      []models.AuditLog       `json:"items"`
-		Pagination models.PaginationMeta   `json:"pagination"`
+		Items []models.AuditLog `json:"items"`
 	}
 	err = json.Unmarshal(env.Data, &data)
 	assert.NoError(t, err)
 	assert.Len(t, data.Items, 0)
+
 	mockSvc.AssertExpectations(t)
 }
 

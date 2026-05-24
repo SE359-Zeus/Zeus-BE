@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"strings"
 
 	"zeus-be/pkg/exception"
@@ -11,11 +12,16 @@ import (
 )
 
 type AuthHandler struct {
-	svc service.AuthService
+	authSvc  service.AuthService
+	auditSvc service.AuditService
 }
 
-func NewAuthHandler(svc service.AuthService) *AuthHandler {
-	return &AuthHandler{svc: svc}
+func NewAuthHandler(authSvc service.AuthService, auditSvc ...service.AuditService) *AuthHandler {
+	h := &AuthHandler{authSvc: authSvc}
+	if len(auditSvc) > 0 {
+		h.auditSvc = auditSvc[0]
+	}
+	return h
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -25,7 +31,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	pair, err := h.svc.Login(c.Request.Context(), req)
+	pair, err := h.authSvc.Login(c.Request.Context(), req)
 	if err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			WriteAppError(c, appErr)
@@ -33,6 +39,23 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		}
 		WriteAppError(c, exception.ErrInternal)
 		return
+	}
+
+	if h.auditSvc != nil {
+		if claims, err := h.authSvc.VerifyAccessToken(pair.AccessToken); err == nil {
+			if err := h.auditSvc.Ingest(c.Request.Context(), models.IngestAuditRequest{
+				UserID:         claims.UserID,
+				UserEmail:      claims.Email,
+				ActionType:     models.ActionType("LOGIN"),
+				TargetResource: "auth/login",
+				Details:        "Successful login",
+				IPAddress:      c.ClientIP(),
+			}); err != nil {
+				log.Printf("warning: failed to record login audit event: %v", err)
+			}
+		} else {
+			log.Printf("warning: failed to verify access token for login audit: %v", err)
+		}
 	}
 
 	WriteJSON(c, 200, gin.H{
@@ -48,7 +71,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	pair, err := h.svc.Refresh(c.Request.Context(), req)
+	pair, err := h.authSvc.Refresh(c.Request.Context(), req)
 	if err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			WriteAppError(c, appErr)
@@ -74,7 +97,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.Logout(c.Request.Context(), parts[1]); err != nil {
+	if err := h.authSvc.Logout(c.Request.Context(), parts[1]); err != nil {
 		WriteAppError(c, exception.ErrInvalidToken)
 		return
 	}
