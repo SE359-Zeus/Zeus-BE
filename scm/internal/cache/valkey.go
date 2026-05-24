@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/valkey-io/valkey-go"
 )
@@ -17,6 +18,11 @@ func NewValkey(addr string) (*ValkeyCache, error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Valkey client: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := client.Do(ctx, client.B().Ping().Build()).Error(); err != nil {
+		return nil, fmt.Errorf("failed to connect to Valkey: %w", err)
 	}
 	return &ValkeyCache{client: client}, nil
 }

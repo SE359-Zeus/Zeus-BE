@@ -3,9 +3,9 @@ package service
 import (
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"os"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -32,17 +32,17 @@ type JWTService struct {
 	publicKey *rsa.PublicKey
 }
 
-func NewJWTService(pemB64 string) (*JWTService, error) {
-	if pemB64 == "" {
-		return nil, fmt.Errorf("JWT_PUBLIC_KEY is empty")
+func NewJWTService(publicKeyPath string) (*JWTService, error) {
+	if publicKeyPath == "" {
+		return nil, fmt.Errorf("JWT_PUBLIC_KEY_PATH is empty")
 	}
-	der, err := base64.StdEncoding.DecodeString(pemB64)
+	pemBytes, err := os.ReadFile(publicKeyPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode JWT_PUBLIC_KEY: %w", err)
+		return nil, fmt.Errorf("failed to read JWT public key from %s: %w", publicKeyPath, err)
 	}
-	block, _ := pem.Decode(der)
+	block, _ := pem.Decode(pemBytes)
 	if block == nil {
-		return nil, fmt.Errorf("failed to decode PEM block from JWT_PUBLIC_KEY")
+		return nil, fmt.Errorf("failed to decode PEM block from JWT public key file %s", publicKeyPath)
 	}
 	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {

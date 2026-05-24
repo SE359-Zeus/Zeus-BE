@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"time"
 
+	"zeus-scm-service/internal/cache"
 	"zeus-scm-service/internal/config"
 	"zeus-scm-service/internal/handler"
 	"zeus-scm-service/internal/handler/middleware"
@@ -24,17 +26,9 @@ func main() {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 
-	if err := sqliteRepo.AutoMigrate(db); err != nil {
-		log.Printf("auto-migrate warning: %v", err)
-	}
-
-	if err := sqliteRepo.RunMigrations(db, "internal/migration"); err != nil {
-		log.Printf("migration warning: %v", err)
-	}
-
 	mq, err := messaging.NewRabbitMQ(cfg.RabbitMQURL)
 	if err != nil {
-		log.Printf("RabbitMQ unavailable [RabbitMQURL: %s] (deficit pool disabled): %v", cfg.RabbitMQURL, err)
+		log.Printf("running in degraded mode: RabbitMQ unavailable [RabbitMQURL: %s], deficit pool disabled: %v", cfg.RabbitMQURL, err)
 		mq = nil
 	} else {
 		log.Printf("RabbitMQ connected: %s", cfg.RabbitMQURL)
@@ -54,14 +48,13 @@ func main() {
 	poH := handler.NewPOHandler(poSvc)
 	grH := handler.NewGoodsReceiptHandler(grSvc)
 	shipmentH := handler.NewShipmentHandler(shipmentSvc)
-	inventoryH := handler.NewInventoryHandler(inventorySvc)
 
-	jwtSvc, err := service.NewJWTService(cfg.JwtPublicKey)
+	jwtSvc, err := service.NewJWTService(cfg.JwtPublicKeyPath)
 	if err != nil {
 		log.Fatalf("JWT service init failed: %v", err)
 	}
 
-	defaultEndpoints := []service.EndpointRole{
+	routeAccessRules := []service.RouteAccessRule{
 		{Method: "GET", Path: "/api/v1/inventory/products", RequiredLevel: "Worker"},
 		{Method: "GET", Path: "/api/v1/inventory/products/:id", RequiredLevel: "Worker"},
 		{Method: "POST", Path: "/api/v1/inventory/products", RequiredLevel: "Operator"},
@@ -91,15 +84,6 @@ func main() {
 		{Method: "POST", Path: "/api/v1/shipments/:shipmentId/dispatch", RequiredLevel: "Worker"},
 	}
 
-	var count int64
-	db.Model(&sqliteRepo.EndpointRole{}).Count(&count)
-	if count == 0 {
-		for _, e := range defaultEndpoints {
-			db.Create(&sqliteRepo.EndpointRole{Method: e.Method, Path: e.Path, RequiredLevel: e.RequiredLevel})
-		}
-		log.Printf("seeded %d endpoint roles", len(defaultEndpoints))
-	}
-
 	roleLevels := map[string]int{
 		"admin":          3,
 		"scm_operator":   2,
@@ -110,7 +94,20 @@ func main() {
 		"sales_worker":   1,
 	}
 
-	rbacSvc := service.NewRBACService(defaultEndpoints, roleLevels)
+	rbacSvc := service.NewRBACService(routeAccessRules, roleLevels)
+
+	var cacheBackend cache.Cache = cache.NewNoop()
+	if cfg.ValkeyAddr != "" {
+		if valkeyCache, err := cache.NewValkey(cfg.ValkeyAddr); err != nil {
+			log.Printf("running in degraded mode: Valkey unavailable [ValkeyAddr: %s], cache disabled: %v", cfg.ValkeyAddr, err)
+		} else {
+			cacheBackend = valkeyCache
+			log.Printf("Valkey connected: %s", cfg.ValkeyAddr)
+			service.WarmupCache(context.Background(), db, cacheBackend)
+		}
+	}
+	inventorySvc = service.NewCachedInventoryService(inventorySvc, cacheBackend)
+	inventoryH := handler.NewInventoryHandler(inventorySvc)
 
 	r := gin.New()
 	r.Use(gin.Logger(), middleware.Recovery())

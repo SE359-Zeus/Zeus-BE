@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-type EndpointRole struct {
+type RouteAccessRule struct {
 	Method        string
 	Path          string
 	RequiredLevel string
@@ -23,12 +23,12 @@ type RBACService struct {
 	roleLevels     map[string]int
 }
 
-func NewRBACService(endpoints []EndpointRole, roleLevels map[string]int) *RBACService {
+func NewRBACService(rules []RouteAccessRule, roleLevels map[string]int) *RBACService {
 	s := &RBACService{
-		endpointLevels: make(map[string]string, len(endpoints)),
+		endpointLevels: make(map[string]string, len(rules)),
 		roleLevels:     roleLevels,
 	}
-	for _, e := range endpoints {
+	for _, e := range rules {
 		key := fmt.Sprintf("%s:%s", e.Method, e.Path)
 		s.endpointLevels[key] = e.RequiredLevel
 	}

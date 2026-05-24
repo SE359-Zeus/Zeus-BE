@@ -2,6 +2,7 @@ package messaging
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,6 +15,8 @@ const (
 	DLXExchange   = "scm.dlx"
 	DLXQueue      = "scm.deficit.dlx"
 )
+
+var ErrUnavailable = errors.New("rabbitmq unavailable")
 
 type DeficitMessage struct {
 	SKU     string `json:"sku"`
@@ -45,6 +48,9 @@ func NewRabbitMQ(url string) (*RabbitMQ, error) {
 }
 
 func (r *RabbitMQ) setupQueues() error {
+	if r == nil || r.channel == nil {
+		return ErrUnavailable
+	}
 	_, err := r.channel.QueueDeclare(
 		PoolQueue,
 		true, false, false, false, nil,
@@ -78,6 +84,9 @@ func (r *RabbitMQ) setupQueues() error {
 }
 
 func (r *RabbitMQ) PublishToPool(msg DeficitMessage) error {
+	if r == nil || r.channel == nil {
+		return ErrUnavailable
+	}
 	body, err := json.Marshal(msg)
 	if err != nil {
 		return err
@@ -92,12 +101,18 @@ func (r *RabbitMQ) PublishToPool(msg DeficitMessage) error {
 }
 
 func (r *RabbitMQ) ConsumeFromPool() (<-chan amqp.Delivery, error) {
+	if r == nil || r.channel == nil {
+		return nil, ErrUnavailable
+	}
 	return r.channel.Consume(
 		PoolQueue, "", true, true, false, false, nil,
 	)
 }
 
 func (r *RabbitMQ) PublishToReserved(msg DeficitMessage) error {
+	if r == nil || r.channel == nil {
+		return ErrUnavailable
+	}
 	body, err := json.Marshal(msg)
 	if err != nil {
 		return err
@@ -114,26 +129,41 @@ func (r *RabbitMQ) PublishToReserved(msg DeficitMessage) error {
 }
 
 func (r *RabbitMQ) ConsumeReserved() (<-chan amqp.Delivery, error) {
+	if r == nil || r.channel == nil {
+		return nil, ErrUnavailable
+	}
 	return r.channel.Consume(
 		ReservedQueue, "", false, false, false, false, nil,
 	)
 }
 
 func (r *RabbitMQ) Ack(tag uint64) error {
+	if r == nil || r.channel == nil {
+		return ErrUnavailable
+	}
 	return r.channel.Ack(tag, false)
 }
 
 func (r *RabbitMQ) Nack(tag uint64, requeue bool) error {
+	if r == nil || r.channel == nil {
+		return ErrUnavailable
+	}
 	return r.channel.Nack(tag, false, requeue)
 }
 
 func (r *RabbitMQ) ConsumeDLX() (<-chan amqp.Delivery, error) {
+	if r == nil || r.channel == nil {
+		return nil, ErrUnavailable
+	}
 	return r.channel.Consume(
 		DLXQueue, "", true, false, false, false, nil,
 	)
 }
 
 func (r *RabbitMQ) RequeueFromDLX(delivery amqp.Delivery) error {
+	if r == nil || r.channel == nil {
+		return ErrUnavailable
+	}
 	var msg DeficitMessage
 	if err := json.Unmarshal(delivery.Body, &msg); err != nil {
 		return err
@@ -142,6 +172,9 @@ func (r *RabbitMQ) RequeueFromDLX(delivery amqp.Delivery) error {
 }
 
 func (r *RabbitMQ) QueueSize(queue string) (int, error) {
+	if r == nil || r.channel == nil {
+		return 0, ErrUnavailable
+	}
 	q, err := r.channel.QueueInspect(queue)
 	if err != nil {
 		return 0, err
@@ -154,6 +187,9 @@ func (m *DeficitMessage) FromDelivery(delivery amqp.Delivery) error {
 }
 
 func (r *RabbitMQ) Close() {
+	if r == nil {
+		return
+	}
 	if r.channel != nil {
 		r.channel.Close()
 	}
@@ -169,6 +205,9 @@ type DeficitPoolStats struct {
 }
 
 func (r *RabbitMQ) Stats() (*DeficitPoolStats, error) {
+	if r == nil || r.channel == nil {
+		return nil, ErrUnavailable
+	}
 	pool, err := r.QueueSize(PoolQueue)
 	if err != nil {
 		return nil, err
@@ -189,10 +228,16 @@ func (r *RabbitMQ) Stats() (*DeficitPoolStats, error) {
 }
 
 func (r *RabbitMQ) Channel() *amqp.Channel {
+	if r == nil {
+		return nil
+	}
 	return r.channel
 }
 
 func (r *RabbitMQ) StartExpiryReconciler(interval time.Duration, stop <-chan struct{}) {
+	if r == nil || r.channel == nil {
+		return
+	}
 	go func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()

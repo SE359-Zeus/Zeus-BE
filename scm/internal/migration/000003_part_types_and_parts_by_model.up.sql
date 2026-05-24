@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS part_types (
     description TEXT
 );
 
-CREATE TABLE IF NOT EXISTS parts_by_models (
+CREATE TABLE IF NOT EXISTS parts_by_model (
     part_catalog_id TEXT NOT NULL,
     product_model_code TEXT NOT NULL,
     quantity INTEGER NOT NULL,

@@ -12,8 +12,9 @@ type Config struct {
 	ServerPort          string
 	DBPath              string
 	RabbitMQURL         string
+	ValkeyAddr          string
 	AgingThresholdYears int
-	JwtPublicKey        string
+	JwtPublicKeyPath    string
 }
 
 func Load() *Config {
@@ -24,8 +25,9 @@ func Load() *Config {
 		ServerPort:          getEnv("SERVER_PORT", "8080"),
 		DBPath:              getEnv("DB_PATH", "scm.db"),
 		RabbitMQURL:         getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
+		ValkeyAddr:          getEnv("VALKEY_ADDR", "redis://localhost:6379"),
 		AgingThresholdYears: getEnvInt("AGING_THRESHOLD_YEARS", 5),
-		JwtPublicKey:        getEnv("JWT_PUBLIC_KEY", ""),
+		JwtPublicKeyPath:    getEnv("JWT_PUBLIC_KEY_PATH", ""),
 	}
 }
 

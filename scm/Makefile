@@ -1,15 +1,17 @@
-.PHONY: build run seed test clean vet lint dev help
+.PHONY: build run seed migrate test clean vet lint dev help
 
 APP_NAME   := zeus-scm
 BUILD_DIR  := ./build
 CMD_DIR    := ./cmd/server
 GO_FLAGS   := -ldflags="-s -w"
+DB_PATH    ?= scm.db
 
 help:
 	@echo "Usage:"
 	@echo "  make build     - Build the binary"
 	@echo "  make run       - Run the server"
 	@echo "  make seed      - Run the SCM seeder"
+	@echo "  make migrate   - Run SQL migrations"
 	@echo "  make test      - Run all tests"
 	@echo "  make vet       - Run go vet"
 	@echo "  make lint      - Run staticcheck"
@@ -26,6 +28,9 @@ run:
 
 seed:
 	go run ./cmd/seeder
+
+migrate:
+	go run ./cmd/migrate -db $(DB_PATH) -migrations ./internal/migration
 
 test:
 	go test ./... -v -count=1
