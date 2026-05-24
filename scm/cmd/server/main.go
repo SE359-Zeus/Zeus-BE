@@ -131,16 +131,19 @@ func main() {
 			log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
 		}
 
-		// /docs (no trailing slash) → /docs/ so the UI assets load correctly.
-		// Works both locally (localhost:8081/docs → /docs/) and in production
-		// where nginx strips the /scm prefix before forwarding to this server.
-		public.GET("/docs", func(c *gin.Context) { c.Redirect(302, "/docs/") })
+		// NOTE: SpecURL must be a RELATIVE path ("./openapi.json"), NOT absolute.
+		// When the browser is at https://.../scm/docs/, a relative URL resolves
+		// to https://.../scm/docs/openapi.json → nginx proxies to SCM correctly.
+		// An absolute path "/docs/openapi.json" would resolve to
+		// https://.../docs/openapi.json → nginx catch-all → "Success!" ❌
+		//
+		// The /docs (no-slash) case is handled by nginx:
+		//   location = /scm/docs { return 301 /scm/docs/; }
+		// We do NOT add a Go-side redirect because it would emit Location: /docs/
+		// (without /scm/), causing the browser to escape the proxy prefix.
 		public.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
 			Title:   "Zeus SCM API",
-			// Absolute path: avoids browser resolving "./openapi.json" relative
-			// to whatever page URL the user happens to be on, which would
-			// produce a duplicated or wrong path.
-			SpecURL: "/docs/openapi.json",
+			SpecURL: "./openapi.json",
 			SpecProvider: func() ([]byte, error) {
 				if spec == nil {
 					return buildOpenAPISpec(cfg.ServerPort)()
