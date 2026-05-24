@@ -110,7 +110,18 @@ func loadOpenAPISpec(specPath, serverURL string) ([]byte, error) {
 }
 
 func runtimeServerURL(port string) string {
-	return "/api/v1/system"
+	// PUBLIC_BASE_URL must be set to the host only (no path) in stack.env:
+	//   PUBLIC_BASE_URL=https://zeus.ryanandexen.qzz.io
+	// Swagger UI calls: PUBLIC_BASE_URL + /api/v1/system + <path-from-spec>
+	// Locally (unset), falls back to http://localhost:<port>.
+	base := os.Getenv("PUBLIC_BASE_URL")
+	if base == "" {
+		if port == "" {
+			port = "8084"
+		}
+		base = "http://localhost:" + port
+	}
+	return base + "/api/v1/system"
 }
 
 func main() {
@@ -179,6 +190,9 @@ func main() {
 	auditH := handler.NewAuditHandler(auditSvc)
 
 	r := gin.New()
+	// Disable Gin's trailing-slash redirect: prevents a 301 /docs → /docs/
+	// from escaping the nginx /system/docs/ proxy prefix in production.
+	r.RedirectTrailingSlash = false
 	r.Use(gin.Logger(), middleware.Recovery())
 
 	specPath := findOpenAPISpec()
