@@ -194,15 +194,21 @@ func main() {
 
 	r.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
 		Title:   "Zeus System API",
-		SpecURL: "./openapi.json",
-		SpecProvider: func() ([]byte, error) {
-			if spec == nil {
-				return buildOpenAPISpec(cfg.ServerPort)()
-			}
-			return spec, nil
-		},
-		Theme: "dark",
+		SpecURL: "/docs/openapi.json",
+		Theme:   "dark",
 	}))
+	r.GET("/docs/openapi.json", func(c *gin.Context) {
+		if spec != nil {
+			c.Data(200, "application/json", spec)
+			return
+		}
+		jsonBytes, err := buildOpenAPISpec(cfg.ServerPort)()
+		if err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		c.Data(200, "application/json", jsonBytes)
+	})
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
