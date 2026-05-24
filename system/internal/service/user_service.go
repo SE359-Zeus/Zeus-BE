@@ -45,12 +45,7 @@ func (s *userService) Create(ctx context.Context, req models.CreateUserRequest) 
 	if !strings.Contains(req.Email, "@") {
 		return nil, ErrInvalidEmail
 	}
-	if req.Password == "" {
-		return nil, ErrEmptyPassword
-	}
-	if len(req.Password) < 8 {
-		return nil, ErrShortPassword
-	}
+
 	if req.FullName == "" {
 		return nil, ErrEmptyName
 	}
@@ -63,12 +58,16 @@ func (s *userService) Create(ctx context.Context, req models.CreateUserRequest) 
 		return nil, ErrDuplicateEmail
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	userID := uuid.New()
+	password := userID.String()[:10]
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
 	}
 
 	user := &models.User{
+		ID:           userID,
 		Email:        req.Email,
 		PasswordHash: string(hash),
 		FullName:     req.FullName,
@@ -85,7 +84,7 @@ func (s *userService) Create(ctx context.Context, req models.CreateUserRequest) 
 	}
 
 	if s.emailSender != nil {
-		go func(to, fullName, password, role string, createdAt time.Time) {
+		go func(to, fullName, pwd, role string, createdAt time.Time) {
 			bgCtx := context.Background()
 			if err := s.emailSender.SendTemplate(bgCtx, EmailTemplateRequest{
 				To:       to,
@@ -95,14 +94,14 @@ func (s *userService) Create(ctx context.Context, req models.CreateUserRequest) 
 					To:        to,
 					FullName:  fullName,
 					Username:  to,
-					Password:  password,
+					Password:  pwd,
 					Role:      role,
 					CreatedAt: createdAt,
 				},
 			}); err != nil {
 				log.Printf("Warning: failed to send create-account email to %s: %v", to, err)
 			}
-		}(user.Email, user.FullName, req.Password, user.Role, user.CreatedAt)
+		}(user.Email, user.FullName, password, user.Role, user.CreatedAt)
 	}
 
 	return user, nil

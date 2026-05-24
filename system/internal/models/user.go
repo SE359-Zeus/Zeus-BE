@@ -36,7 +36,7 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 
 type CreateUserRequest struct {
 	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Password string `json:"password"`
 	FullName string `json:"full_name" binding:"required"`
 	Role     string `json:"role" binding:"required"`
 }

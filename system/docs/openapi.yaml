@@ -84,14 +84,11 @@ components:
           format: date-time
     CreateUserRequest:
       type: object
-      required: [email, password, full_name, role]
+      required: [email, full_name, role]
       properties:
         email:
           type: string
           format: email
-        password:
-          type: string
-          minLength: 8
         full_name:
           type: string
         role:

@@ -56,7 +56,10 @@ func TestUserService_Create_Success(t *testing.T) {
 	assert.Equal(t, req.Role, user.Role)
 	assert.Equal(t, models.AccountStatusActive, user.Status)
 	assert.NotEmpty(t, user.PasswordHash)
-	assert.NotEqual(t, req.Password, user.PasswordHash)
+
+	// Verify the hash is of the first 10 chars of UUID
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(user.ID.String()[:10]))
+	assert.NoError(t, err)
 
 	repo.AssertExpectations(t)
 	rbacSvc.AssertExpectations(t)
@@ -66,12 +69,19 @@ func TestUserService_Create_SendsAccountEmail(t *testing.T) {
 	svc, repo, rbacSvc, emailSender := setupUserSvcWithEmail()
 	req := validCreateReq()
 
+	var createdUser *models.User
 	rbacSvc.On("ValidateRole", anyCtx, "admin").Return(nil)
 	repo.On("GetByEmail", anyCtx, req.Email).Return(nil, nil)
-	repo.On("Create", anyCtx, mock.AnythingOfType("*models.User")).Return(nil)
+	repo.On("Create", anyCtx, mock.AnythingOfType("*models.User")).Run(func(args mock.Arguments) {
+		createdUser = args.Get(1).(*models.User)
+	}).Return(nil)
 	emailSender.On("SendTemplate", anyCtx, mock.MatchedBy(func(data service.EmailTemplateRequest) bool {
 		payload, ok := data.Data.(service.CreateAccountEmailData)
-		return ok && data.To == req.Email && data.Template == "create_account.html" && data.Subject == "Your Zeus System account is ready" && payload.To == req.Email && payload.Username == req.Email && payload.Password == req.Password && payload.FullName == req.FullName && payload.Role == req.Role
+		if !ok || createdUser == nil {
+			return false
+		}
+		expectedPwd := createdUser.ID.String()[:10]
+		return data.To == req.Email && data.Template == "create_account.html" && data.Subject == "Your Zeus System account is ready" && payload.To == req.Email && payload.Username == req.Email && payload.Password == expectedPwd && payload.FullName == req.FullName && payload.Role == req.Role
 	})).Return(nil)
 
 	user, err := svc.Create(context.Background(), req)
@@ -100,26 +110,6 @@ func TestUserService_Create_RejectsInvalidEmail(t *testing.T) {
 
 	user, err := svc.Create(context.Background(), req)
 	assert.ErrorIs(t, err, service.ErrInvalidEmail)
-	assert.Nil(t, user)
-}
-
-func TestUserService_Create_RejectsEmptyPassword(t *testing.T) {
-	svc, _, _ := setupUserSvc()
-	req := validCreateReq()
-	req.Password = ""
-
-	user, err := svc.Create(context.Background(), req)
-	assert.ErrorIs(t, err, service.ErrEmptyPassword)
-	assert.Nil(t, user)
-}
-
-func TestUserService_Create_RejectsShortPassword(t *testing.T) {
-	svc, _, _ := setupUserSvc()
-	req := validCreateReq()
-	req.Password = "short"
-
-	user, err := svc.Create(context.Background(), req)
-	assert.ErrorIs(t, err, service.ErrShortPassword)
 	assert.Nil(t, user)
 }
 
