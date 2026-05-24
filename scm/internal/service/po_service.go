@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -20,12 +21,12 @@ type IPOService interface {
 }
 
 type poService struct {
-	db *gorm.DB
-	mq *messaging.RabbitMQ
+	db    *gorm.DB
+	mqURL string
 }
 
-func NewPOService(db *gorm.DB, mq *messaging.RabbitMQ) IPOService {
-	return &poService{db: db, mq: mq}
+func NewPOService(db *gorm.DB, mqURL string) IPOService {
+	return &poService{db: db, mqURL: mqURL}
 }
 
 func (s *poService) CreateDraft(ctx context.Context, vendorID uuid.UUID, targetBuild string) (*models.PurchaseOrder, error) {
@@ -64,33 +65,57 @@ func (s *poService) AddLineItemWithLock(ctx context.Context, poID string, sku st
 		return ErrInvalidTransition
 	}
 
-	msgs, err := s.mq.ConsumeFromPool()
+	conn, err := messaging.Dial(s.mqURL)
 	if err != nil {
 		return err
 	}
-	select {
-	case msg, ok := <-msgs:
+	defer conn.Close()
+
+	done := make(chan struct{}, 1)
+	var consumeErr error
+
+	go func() {
+		defer func() { close(done) }()
+		msg, ok, err := conn.GetFromPool(false)
+		if err != nil {
+			consumeErr = err
+			return
+		}
 		if !ok {
-			return ErrInsufficientDeficit
+			consumeErr = ErrInsufficientDeficit
+			return
 		}
-		var deficit messaging.DeficitMessage
-		if err := deficit.FromDelivery(msg); err != nil {
-			s.mq.Nack(msg.DeliveryTag, true)
-			return err
+		var d messaging.DeficitMessage
+		if err := json.Unmarshal(msg.Body, &d); err != nil {
+			_ = conn.Nack(msg.DeliveryTag, true)
+			consumeErr = err
+			return
 		}
-		if deficit.SKU != sku || deficit.Qty < qty {
-			s.mq.Nack(msg.DeliveryTag, true)
-			return ErrInsufficientDeficit
+		if d.SKU != sku || d.Qty < qty {
+			_ = conn.Nack(msg.DeliveryTag, true)
+			consumeErr = ErrInsufficientDeficit
+			return
 		}
 		reservedMsg := messaging.DeficitMessage{
 			SKU: sku,
 			Qty: qty,
 		}
-		if err := s.mq.PublishToReserved(reservedMsg); err != nil {
-			s.mq.Nack(msg.DeliveryTag, true)
-			return err
+		if err := conn.PublishToReserved(ctx, reservedMsg); err != nil {
+			_ = conn.Nack(msg.DeliveryTag, true)
+			consumeErr = err
+			return
 		}
-		_ = s.mq.Ack(msg.DeliveryTag)
+		if err := conn.Ack(msg.DeliveryTag); err != nil {
+			consumeErr = err
+			return
+		}
+	}()
+
+	select {
+	case <-done:
+		if consumeErr != nil {
+			return consumeErr
+		}
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-time.After(5 * time.Second):

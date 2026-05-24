@@ -4,6 +4,8 @@ import (
 	"strings"
 	"time"
 
+	"zeus-scm-service/internal/models"
+
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"

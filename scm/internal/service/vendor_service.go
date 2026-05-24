@@ -4,7 +4,6 @@ import (
 	"context"
 	"math"
 
-	"zeus-scm-service/internal/messaging"
 	"zeus-scm-service/internal/models"
 
 	"github.com/google/uuid"
@@ -18,11 +17,10 @@ type IVendorService interface {
 
 type vendorService struct {
 	db *gorm.DB
-	mq *messaging.RabbitMQ
 }
 
-func NewVendorService(db *gorm.DB, mq *messaging.RabbitMQ) IVendorService {
-	return &vendorService{db: db, mq: mq}
+func NewVendorService(db *gorm.DB) IVendorService {
+	return &vendorService{db: db}
 }
 
 func (s *vendorService) GetOptimalSupplier(ctx context.Context, sku string) (*models.Supplier, *models.SkuMapping, error) {

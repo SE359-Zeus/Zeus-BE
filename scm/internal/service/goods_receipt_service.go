@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"zeus-scm-service/internal/messaging"
 	"zeus-scm-service/internal/models"
 
 	"gorm.io/gorm"
@@ -21,14 +20,12 @@ type IGoodsReceiptService interface {
 
 type goodsReceiptService struct {
 	db             *gorm.DB
-	mq             *messaging.RabbitMQ
 	agingThreshold time.Duration
 }
 
-func NewGoodsReceiptService(db *gorm.DB, mq *messaging.RabbitMQ, agingThresholdYears int) IGoodsReceiptService {
+func NewGoodsReceiptService(db *gorm.DB, agingThresholdYears int) IGoodsReceiptService {
 	return &goodsReceiptService{
 		db:             db,
-		mq:             mq,
 		agingThreshold: time.Duration(agingThresholdYears) * 365 * 24 * time.Hour,
 	}
 }

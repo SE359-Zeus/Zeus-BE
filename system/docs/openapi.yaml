@@ -1,0 +1,547 @@
+openapi: "3.0.3"
+info:
+  title: Zeus System API
+  description: Root of Trust module of the Zeus ERP system. Manages authentication lifecycle, user directory, and immutable audit trail.
+  version: "1.0.0"
+servers:
+  - url: /api/v1/system
+    description: API base path
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+    PaginationMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total_rows:
+          type: integer
+        total_pages:
+          type: integer
+    TokenPair:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+        expires_in:
+          type: integer
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        full_name:
+          type: string
+        role:
+          type: string
+          enum: [Admin, Editor, Viewer]
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE]
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CreateUserRequest:
+      type: object
+      required: [email, password, full_name, role]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        full_name:
+          type: string
+        role:
+          type: string
+          enum: [Admin, Editor, Viewer]
+    UpdateUserRequest:
+      type: object
+      properties:
+        full_name:
+          type: string
+        role:
+          type: string
+          enum: [Admin, Editor, Viewer]
+    SetStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE]
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        user_id:
+          type: string
+          format: uuid
+        user_email:
+          type: string
+        action_type:
+          type: string
+          enum: [LOGIN, CREATE, UPDATE, DELETE, SECURITY]
+        target_resource:
+          type: string
+        details:
+          type: string
+        ip_address:
+          type: string
+        is_security_event:
+          type: boolean
+    IngestAuditRequest:
+      type: object
+      required: [user_id, user_email, action_type, target_resource]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        user_email:
+          type: string
+        action_type:
+          type: string
+          enum: [LOGIN, CREATE, UPDATE, DELETE, SECURITY]
+        target_resource:
+          type: string
+        details:
+          type: string
+        ip_address:
+          type: string
+        is_security_event:
+          type: boolean
+    AuditFilter:
+      type: object
+      properties:
+        action_type:
+          type: string
+          enum: [LOGIN, CREATE, UPDATE, DELETE, SECURITY]
+        user_id:
+          type: string
+          format: uuid
+        start_date:
+          type: string
+          format: date-time
+        end_date:
+          type: string
+          format: date-time
+        limit:
+          type: integer
+        offset:
+          type: integer
+    Envelope:
+      type: object
+      required:
+        - message
+        - statusCode
+        - metadata
+        - data
+      properties:
+        statusCode:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: success
+        metadata:
+          type: object
+          additionalProperties: true
+        data:
+          nullable: true
+    ErrorEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/Envelope'
+    AuditMetrics:
+      type: object
+      properties:
+        logins_today:
+          type: integer
+        security_events:
+          type: integer
+        modification_velocity:
+          type: integer
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      tags: [System]
+      security: []
+      responses:
+        '200':
+          description: OK
+
+  /auth/login:
+    post:
+      summary: Login
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          access_token:
+                            type: string
+                          refresh_token:
+                            type: string
+        '400':
+          description: Invalid request body
+        '401':
+          description: Invalid credentials or inactive account
+
+  /auth/refresh:
+    post:
+      summary: Refresh
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Tokens refreshed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/TokenPair'
+        '400':
+          description: Invalid request body
+        '401':
+          description: Invalid or expired refresh token
+
+  /auth/logout:
+    post:
+      summary: Logout
+      tags: [Authentication]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+                schema:
+                  $ref: '#/components/schemas/Envelope'
+        '401':
+          description: Missing, invalid, or expired access token
+
+  /users:
+    post:
+      summary: Create a new user
+      tags: [Users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/UserResponse'
+                      statusCode:
+                        example: 201
+        '400':
+          description: Invalid input
+        '409':
+          description: Email already exists
+    get:
+      summary: List all users with pagination and search
+      tags: [Users]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 15
+          description: Items per page (max 100)
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Search keyword (matches email, full_name)
+      responses:
+        '200':
+          description: Paginated list of users
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/UserResponse'
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
+
+  /users/{id}:
+    get:
+      summary: Get user by ID
+      tags: [Users]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Invalid user ID
+        '404':
+          description: User not found
+    put:
+      summary: Update user fields
+      tags: [Users]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Invalid input
+        '404':
+          description: User not found
+
+  /users/{id}/status:
+    patch:
+      summary: Activate or deactivate a user
+      tags: [Users]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetStatusRequest'
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+                schema:
+                  $ref: '#/components/schemas/Envelope'
+        '400':
+          description: Invalid status
+        '404':
+          description: User not found
+
+  /logs/ingest:
+    post:
+      summary: Ingest an audit log entry (internal)
+      tags: [Audit]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestAuditRequest'
+      responses:
+        '201':
+          description: Log entry created
+          content:
+            application/json:
+                schema:
+                  $ref: '#/components/schemas/Envelope'
+        '400':
+          description: Invalid request body
+
+  /logs:
+    get:
+      summary: Query audit logs with pagination and filters
+      tags: [Audit]
+      parameters:
+        - name: action_type
+          in: query
+          schema:
+            type: string
+            enum: [LOGIN, CREATE, UPDATE, DELETE, SECURITY]
+          description: Filter by action type
+        - name: user_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by user ID
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter by start date (RFC3339)
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter by end date (RFC3339)
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 15
+          description: Items per page (max 100)
+      responses:
+        '200':
+          description: Paginated audit log entries
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/AuditLog'
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
+
+  /logs/metrics:
+    get:
+      summary: Get aggregate audit metrics
+      tags: [Audit]
+      responses:
+        '200':
+          description: Audit metrics
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/AuditMetrics'

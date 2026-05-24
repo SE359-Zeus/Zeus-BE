@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
@@ -116,7 +117,7 @@ func (m *MockMRPRepository) GetInventoryMetrics(ctx context.Context) (*models.In
 
 func setupMockRepo() *MockMRPRepository {
 	m := new(MockMRPRepository)
-	
+
 	// Seed default happy-path data
 	m.On("GetProductionOrder", mock.Anything, mock.Anything).Return(&models.ProductionOrder{ProductModelCode: "MODEL-A", TargetQuantity: 10}, nil)
 	m.On("GetOpenProductionOrders", mock.Anything).Return([]models.ProductionOrder{}, nil)
@@ -131,8 +132,8 @@ func setupMockRepo() *MockMRPRepository {
 	m.On("GetShortagesByOrderID", mock.Anything, mock.Anything).Return([]models.ShortageLog{}, nil)
 	m.On("GetAggregatedShortages", mock.Anything).Return([]models.BOMExplosionResult{}, nil)
 	m.On("GetPartInventory", mock.Anything, mock.Anything).Return(100, nil)
-	m.On("GetInventoryTransactions", mock.Anything).Return([]models.InventoryTransactionDTO{{ID: "TXN-1", SKU: "PART-1", QtyChange: 10, RunningBalance: 10}}, nil)
+	m.On("GetInventoryTransactions", mock.Anything).Return([]models.InventoryTransactionDTO{{ID: "TXN-1", SKU: "PART-1", QtyChange: 10, RunningBalance: 10, Timestamp: time.Now()}}, nil)
 	m.On("GetInventoryMetrics", mock.Anything).Return(&models.InventoryMetrics{ActiveSKUs: 154}, nil)
-	
+
 	return m
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"zeus-scm-service/internal/messaging"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
 
@@ -36,11 +35,10 @@ type IInventoryService interface {
 
 type inventoryService struct {
 	db *gorm.DB
-	mq *messaging.RabbitMQ
 }
 
-func NewInventoryService(db *gorm.DB, mq *messaging.RabbitMQ) IInventoryService {
-	return &inventoryService{db: db, mq: mq}
+func NewInventoryService(db *gorm.DB) IInventoryService {
+	return &inventoryService{db: db}
 }
 
 func (s *inventoryService) GetProduct(ctx context.Context, id uuid.UUID) (*models.Product, error) {

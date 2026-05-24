@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Your Zeus System Account</title>
+		<style>
+			body {
+				margin: 0;
+				padding: 0;
+				background: #f5f7fb;
+				font-family: Arial, Helvetica, sans-serif;
+				color: #1f2937;
+			}
+			.wrap {
+				width: 100%;
+				padding: 32px 16px;
+			}
+			.card {
+				max-width: 640px;
+				margin: 0 auto;
+				background: #ffffff;
+				border-radius: 16px;
+				overflow: hidden;
+				box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+				border: 1px solid #e5e7eb;
+			}
+			.header {
+				background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%);
+				color: #ffffff;
+				padding: 28px 32px;
+			}
+			.header h1 {
+				margin: 0;
+				font-size: 24px;
+			}
+			.header p {
+				margin: 8px 0 0;
+				opacity: 0.9;
+				line-height: 1.5;
+			}
+			.content {
+				padding: 32px;
+			}
+			.content p {
+				line-height: 1.65;
+				margin: 0 0 16px;
+			}
+			.info {
+				width: 100%;
+				border-collapse: collapse;
+				margin: 24px 0;
+			}
+			.info td {
+				padding: 12px 0;
+				border-bottom: 1px solid #e5e7eb;
+				vertical-align: top;
+			}
+			.label {
+				width: 180px;
+				color: #6b7280;
+				font-weight: 700;
+			}
+			.value {
+				color: #111827;
+				font-weight: 600;
+				word-break: break-word;
+			}
+			.password {
+				font-family: Consolas, Menlo, Monaco, monospace;
+				background: #f8fafc;
+				border: 1px solid #dbe4f0;
+				border-radius: 10px;
+				padding: 10px 12px;
+				display: inline-block;
+				margin-top: 6px;
+			}
+			.note {
+				background: #eff6ff;
+				border-left: 4px solid #2563eb;
+				padding: 14px 16px;
+				border-radius: 10px;
+				color: #1e3a8a;
+			}
+			.footer {
+				padding: 0 32px 32px;
+				color: #6b7280;
+				font-size: 13px;
+				line-height: 1.6;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="wrap">
+			<div class="card">
+				<div class="header">
+					<h1>Your Zeus System account is ready</h1>
+					<p>Welcome to the Zeus platform. Your account has been created successfully.</p>
+				</div>
+				<div class="content">
+					<p>Dear {{.FullName}},</p>
+					<p>
+						An account has been created for you in the Zeus System. Please find your login
+						information below.
+					</p>
+
+					<table class="info" role="presentation">
+						<tr>
+							<td class="label">Full name</td>
+							<td class="value">{{.FullName}}</td>
+						</tr>
+						<tr>
+							<td class="label">Username / Email</td>
+							<td class="value">{{.Username}}</td>
+						</tr>
+						<tr>
+							<td class="label">Role</td>
+							<td class="value">{{.Role}}</td>
+						</tr>
+						<tr>
+							<td class="label">Temporary password</td>
+							<td class="value">
+								<span class="password">{{.Password}}</span>
+							</td>
+						</tr>
+					</table>
+
+					<div class="note">
+						Please sign in with your email address and the temporary password above. For your
+						security, change the password as soon as you log in for the first time.
+					</div>
+
+					<p style="margin-top: 20px;">
+						If you did not expect this message, please contact your system administrator.
+					</p>
+				</div>
+				<div class="footer">
+					This email was sent automatically by the Zeus System service.
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

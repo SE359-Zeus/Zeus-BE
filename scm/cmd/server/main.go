@@ -38,11 +38,11 @@ func main() {
 		mq.StartExpiryReconciler(5*time.Minute, stop)
 	}
 
-	vendorSvc := service.NewVendorService(db, mq)
-	poSvc := service.NewPOService(db, mq)
-	grSvc := service.NewGoodsReceiptService(db, mq, cfg.AgingThresholdYears)
-	shipmentSvc := service.NewShipmentService(db, mq)
-	inventorySvc := service.NewInventoryService(db, mq)
+	vendorSvc := service.NewVendorService(db)
+	poSvc := service.NewPOService(db, cfg.RabbitMQURL)
+	grSvc := service.NewGoodsReceiptService(db, cfg.AgingThresholdYears)
+	shipmentSvc := service.NewShipmentService(db)
+	inventorySvc := service.NewInventoryService(db)
 
 	vendorH := handler.NewVendorHandler(vendorSvc)
 	poH := handler.NewPOHandler(poSvc)
@@ -118,7 +118,15 @@ func main() {
 		public.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
 			Title: "Zeus SCM API",
 			SpecProvider: func() ([]byte, error) {
-				return os.ReadFile("docs/openapi.yaml")
+				data, err := os.ReadFile("docs/openapi.yaml")
+				if err != nil {
+					return nil, err
+				}
+				var parsed any
+				if err := yaml.Unmarshal(data, &parsed); err != nil {
+					return nil, err
+				}
+				return json.Marshal(parsed)
 			},
 			Theme: "dark",
 		}))
