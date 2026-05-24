@@ -70,7 +70,7 @@ func buildOpenAPISpec(serverPort string) func() ([]byte, error) {
 		}
 
 		parsed["servers"] = []map[string]string{{
-			"url":         "http://localhost:" + serverPort + "/api/v1/system",
+			"url":         runtimeServerURL(serverPort),
 			"description": "Local development",
 		}}
 
@@ -110,10 +110,7 @@ func loadOpenAPISpec(specPath, serverURL string) ([]byte, error) {
 }
 
 func runtimeServerURL(port string) string {
-	if port == "" {
-		port = "8083"
-	}
-	return "http://localhost:" + port + "/api/v1/system"
+	return "/api/v1/system"
 }
 
 func main() {
