@@ -202,7 +202,7 @@ func main() {
 	// Disable Gin's trailing-slash redirect: prevents a 301 /docs → /docs/
 	// from escaping the nginx /system/docs/ proxy prefix in production.
 	r.RedirectTrailingSlash = false
-	r.Use(gin.Logger(), middleware.Recovery())
+	r.Use(middleware.CORS(), gin.Logger(), middleware.Recovery())
 
 	specPath := findOpenAPISpec()
 	specURL := runtimeServerURL(cfg.ServerPort)
