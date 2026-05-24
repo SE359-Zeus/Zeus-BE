@@ -18,6 +18,9 @@ import (
 	valkeyRepo "zeus-system-service/internal/repository/valkey"
 	"zeus-system-service/internal/service"
 
+	"fmt"
+	"path/filepath"
+
 	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
 	"github.com/gin-gonic/gin"
 	"gopkg.in/yaml.v3"
@@ -75,6 +78,43 @@ func buildOpenAPISpec(serverPort string) func() ([]byte, error) {
 
 		return json.Marshal(parsed)
 	}
+}
+
+func findOpenAPISpec() string {
+	paths := []string{
+		"docs/openapi.yaml",
+		"./docs/openapi.yaml",
+		filepath.Join(".", "docs", "openapi.yaml"),
+	}
+
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return "docs/openapi.yaml"
+}
+
+func loadOpenAPISpec(specPath, serverURL string) ([]byte, error) {
+	data, err := os.ReadFile(specPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsed map[string]any
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		return nil, err
+	}
+	parsed["servers"] = []any{map[string]any{"url": serverURL}}
+
+	return json.Marshal(parsed)
+}
+
+func runtimeServerURL(port string) string {
+	if port == "" {
+		port = "8083"
+	}
+	return fmt.Sprintf("http://localhost:%s/api/v1/system", port)
 }
 
 func main() {
@@ -145,10 +185,23 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Logger(), middleware.Recovery())
 
+	specPath := findOpenAPISpec()
+	specURL := runtimeServerURL(cfg.ServerPort)
+	spec, err := loadOpenAPISpec(specPath, specURL)
+	if err != nil {
+		log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
+	}
+
 	r.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
-		Title:        "Zeus System API",
-		SpecProvider: buildOpenAPISpec(cfg.ServerPort),
-		Theme:        "dark",
+		Title:   "Zeus System API",
+		SpecURL: "./openapi.json",
+		SpecProvider: func() ([]byte, error) {
+			if spec == nil {
+				return buildOpenAPISpec(cfg.ServerPort)()
+			}
+			return spec, nil
+		},
+		Theme: "dark",
 	}))
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
