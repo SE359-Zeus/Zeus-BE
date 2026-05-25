@@ -34,7 +34,11 @@ func main() {
 	valkeyRepo := valkey.New(redisClient)
 
 	services := service.NewServices(sqliteRepo, valkeyRepo)
-	mux := controllers.NewMux(services)
+	authVerifier, err := middlewares.NewJWTVerifierFromFile(cfg.JwtPublicKeyPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	mux := controllers.NewMux(services, authVerifier)
 
 	// Create main gin engine
 	r := gin.Default()

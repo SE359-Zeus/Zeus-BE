@@ -8,8 +8,9 @@ import (
 // Config holds all application configuration loaded from environment variables
 type Config struct {
 	// Server
-	Port    string
-	BaseURL string
+	Port             string
+	BaseURL          string
+	JwtPublicKeyPath string
 
 	// Database
 	SQLiteDBPath string
@@ -28,13 +29,14 @@ type Config struct {
 // Load loads configuration from environment variables with sensible defaults
 func Load() *Config {
 	return &Config{
-		Port:          getenv("SALES_PORT", "8082"),
-		BaseURL:       getenv("SALES_BASE_URL", "http://localhost:8082"),
-		SQLiteDBPath:  getenv("SALES_SQLITE_DB", "./sales.db"),
-		ValkeyAddr:    getenv("SALES_VALKEY_ADDR", "localhost:6379"),
-		MRPServiceURL: getenv("MRP_URL", "http://localhost:8082"),
-		SCMServiceURL: getenv("SCM_URL", "http://localhost:8083"),
-		LogLevel:      getenv("LOG_LEVEL", "info"),
+		Port:             getenv("SALES_PORT", "8082"),
+		BaseURL:          getenv("SALES_BASE_URL", "http://localhost:8082"),
+		JwtPublicKeyPath: getenv("JWT_PUBLIC_KEY_PATH", ""),
+		SQLiteDBPath:     getenv("SALES_SQLITE_DB", "./sales.db"),
+		ValkeyAddr:       getenv("SALES_VALKEY_ADDR", "localhost:6379"),
+		MRPServiceURL:    getenv("MRP_URL", "http://localhost:8082"),
+		SCMServiceURL:    getenv("SCM_URL", "http://localhost:8083"),
+		LogLevel:         getenv("LOG_LEVEL", "info"),
 	}
 }
 
