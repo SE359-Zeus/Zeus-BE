@@ -19,3 +19,4 @@ count_parts.py
 .serena
 .vscode
 *.db*
+scm-manifest.json
