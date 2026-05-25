@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"zeus-mrp-service/configs"
 	"zeus-mrp-service/internal/controllers"
@@ -25,10 +27,9 @@ import (
 func main() {
 	cfg := configs.Load()
 	valkeyConn := cache.DialValkey(cfg.ValkeyAddr)
+	logStartupValkey(valkeyConn, cfg.ValkeyAddr)
 	rabbitmq := messaginginfra.NewRabbitMQ(cfg.RabbitMQURL)
-	if err := rabbitmq.DeclareQueue(messaginginfra.AuditQueue, true); err != nil {
-		log.Printf("warning: failed to declare audit queue: %v", err)
-	}
+	logStartupRabbitMQ(cfg.RabbitMQURL, rabbitmq)
 
 	dbPath := os.Getenv("MRP_DB_PATH")
 	if dbPath == "" {
@@ -40,6 +41,7 @@ func main() {
 	}
 
 	scmClient := scminfra.NewClient()
+	logStartupSCM(scmBaseURL())
 	repo := reposqlite.NewSqliteMRPRepository(db)
 	cacheRepo := repoValkey.NewWithClient(valkeyConn)
 	svc := service.NewProductionService(repo, scmClient, cacheRepo, rabbitmq)
@@ -127,4 +129,69 @@ func loadOpenAPISpec(specPath, serverURL string) ([]byte, error) {
 
 func runtimeServerURL(port string) string {
 	return "/api/v1/mrp"
+}
+
+func scmBaseURL() string {
+	baseURL := os.Getenv("SCM_BASE_URL")
+	if baseURL == "" {
+		return "http://localhost:8083"
+	}
+	return baseURL
+}
+
+func logStartupSCM(baseURL string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/health", nil)
+	if err != nil {
+		log.Printf("SCM connection failed: %v", err)
+		return
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Printf("SCM connection failed at %s: %v", baseURL, err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("SCM connection failed at %s: status %d", baseURL, resp.StatusCode)
+		return
+	}
+	log.Printf("SCM connection successful at %s", baseURL)
+}
+
+func logStartupRabbitMQ(url string, rabbitmq *messaginginfra.RabbitMQ) {
+	if url == "" {
+		log.Println("RabbitMQ disabled: no URL configured")
+		return
+	}
+	if rabbitmq == nil {
+		log.Printf("RabbitMQ connection failed at %s: client is nil", url)
+		return
+	}
+	if err := rabbitmq.DeclareQueue(messaginginfra.AuditQueue, true); err != nil {
+		log.Printf("RabbitMQ connection failed at %s: %v", url, err)
+		return
+	}
+	log.Printf("RabbitMQ connection successful at %s", url)
+}
+
+func logStartupValkey(conn cache.ValkeyConn, addr string) {
+	if addr == "" {
+		log.Println("Valkey cache disabled: no address configured")
+		return
+	}
+	if conn == nil {
+		log.Printf("Valkey connection failed at %s: client is nil", addr)
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := conn.Exists(ctx, "mrp:startup:probe"); err != nil {
+		log.Printf("Valkey connection failed at %s: %v", addr, err)
+		return
+	}
+	log.Printf("Valkey connection successful at %s", addr)
 }
