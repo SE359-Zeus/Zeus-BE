@@ -9,6 +9,7 @@ import (
 type ProductionOrderStatus string
 
 const (
+	StatusPlanned      ProductionOrderStatus = "PLANNED"
 	StatusClearToBuild ProductionOrderStatus = "CLEAR_TO_BUILD"
 	StatusPartial      ProductionOrderStatus = "PARTIAL"
 	StatusShortage     ProductionOrderStatus = "SHORTAGE"

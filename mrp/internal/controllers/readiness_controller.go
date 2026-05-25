@@ -82,13 +82,25 @@ func (c *ProductionController) GetReadinessMatrix(w http.ResponseWriter, r *http
 		return
 	}
 
-	rows, err := c.svc.GetReadinessMatrix(r.Context(), filter, page)
+	rows, total, err := c.svc.GetReadinessMatrix(r.Context(), filter, page)
 	if err != nil {
 		writeErrorJSON(w, readinessHTTPStatus(err), err.Error(), nil)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, rows)
+	totalPages := 0
+	if page.PerPage > 0 {
+		totalPages = (total + page.PerPage - 1) / page.PerPage
+	}
+
+	meta := map[string]any{
+		"page":        page.Page,
+		"per_page":    page.PerPage,
+		"total":       total,
+		"total_pages": totalPages,
+	}
+
+	writeEnvelope(w, http.StatusOK, http.StatusText(http.StatusOK), meta, rows)
 }
 
 // GET /api/v1/mrp/readiness/metrics

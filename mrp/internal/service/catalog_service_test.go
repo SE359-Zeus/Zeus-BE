@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 // ------------------------------------------------------------
@@ -186,4 +187,59 @@ func TestGetCatalog_ReturnsSliceNotNil(t *testing.T) {
 	res, err := svc.GetCatalog(context.Background())
 	assert.NoError(t, err)
 	assert.NotNil(t, res, "GetCatalog must return an empty slice, not nil")
+}
+
+func TestProductionService_CreateCatalogPart(t *testing.T) {
+	mockRepo := setupMockRepo()
+	mockSCM := setupMockSCMClient()
+	svc := NewProductionService(mockRepo, mockSCM)
+
+	expectedPart := &models.Part{
+		ID:          uuid.Nil,
+		SKU:         "NEW-SKU",
+		Description: "New Description",
+		Price:       12.34,
+	}
+
+	mockSCM.On("GetPartCatalogBySKU", mock.Anything, "NEW-SKU").Return((*models.Part)(nil), nil)
+	mockSCM.On("CreateCatalogPart", mock.Anything, "NEW-SKU", "New Description", 12.34).Return(expectedPart, nil)
+
+	res, err := svc.CreateCatalogPart(context.Background(), "NEW-SKU", "New Description", 12.34)
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
+	assert.Equal(t, "NEW-SKU", res.SKU)
+	assert.Equal(t, "New Description", res.Description)
+	assert.Equal(t, 12.34, res.Price)
+}
+
+func TestProductionService_UpdateCatalogPart(t *testing.T) {
+	mockRepo := setupMockRepo()
+	mockSCM := setupMockSCMClient()
+	svc := NewProductionService(mockRepo, mockSCM)
+
+	expectedPart := &models.Part{
+		ID:          uuid.Nil,
+		SKU:         "EXISTING-SKU",
+		Description: "New Description",
+		Price:       15.5,
+	}
+
+	mockSCM.On("UpdateCatalogPart", mock.Anything, "EXISTING-SKU", "New Description", 15.5).Return(expectedPart, nil)
+
+	res, err := svc.UpdateCatalogPart(context.Background(), "EXISTING-SKU", "New Description", 15.5)
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
+	assert.Equal(t, "New Description", res.Description)
+	assert.Equal(t, 15.5, res.Price)
+}
+
+func TestProductionService_DeleteCatalogPart(t *testing.T) {
+	mockRepo := setupMockRepo()
+	mockSCM := setupMockSCMClient()
+	svc := NewProductionService(mockRepo, mockSCM)
+
+	mockSCM.On("DeleteCatalogPart", mock.Anything, "EXISTING-SKU").Return(nil)
+
+	err := svc.DeleteCatalogPart(context.Background(), "EXISTING-SKU")
+	assert.NoError(t, err)
 }

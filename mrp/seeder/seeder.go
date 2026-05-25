@@ -46,6 +46,8 @@ func SeedAll(ctx context.Context, repo repository.DbRepository) error {
 	gammaPartPSU := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:part:psu_v2"))
 	sharedPartCPU := alphaPartCPU // reuse CPU across models to demonstrate where-used
 
+	// We no longer seed parts in MRP locally as parts catalog is owned by SCM.
+
 	bomEntries := []models.BomEntry{
 		{ParentModelCode: alphaModel, ComponentPartID: alphaPartCPU, RequiredQuantityPerUnit: 1},
 		{ParentModelCode: alphaModel, ComponentPartID: alphaPartPSU, RequiredQuantityPerUnit: 1},

@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS production_orders (
     id TEXT PRIMARY KEY,
     product_model_code TEXT NOT NULL,
     target_quantity INTEGER NOT NULL CHECK (target_quantity > 0),
-    status TEXT NOT NULL CHECK (status IN ('CLEAR_TO_BUILD', 'PARTIAL', 'SHORTAGE')),
+    status TEXT NOT NULL CHECK (status IN ('CLEAR_TO_BUILD', 'PARTIAL', 'SHORTAGE', 'PLANNED')),
     scheduled_at DATETIME,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (product_model_code) REFERENCES product_models(model_code)

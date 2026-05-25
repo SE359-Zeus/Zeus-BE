@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
@@ -209,6 +210,48 @@ func (s *ProductionService) GetWhereUsed(ctx context.Context, sku string) ([]any
 		return nil, err
 	}
 	return whereUsedFromBOMs(entries), nil
+}
+
+func (s *ProductionService) CreateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	sku = strings.TrimSpace(sku)
+	if sku == "" {
+		return nil, fmt.Errorf("sku cannot be empty")
+	}
+
+	// Check if already exists
+	existing, err := s.scmClient.GetPartCatalogBySKU(ctx, sku)
+	if err == nil && existing != nil {
+		return nil, fmt.Errorf("component with SKU %s already exists", sku)
+	}
+
+	return s.scmClient.CreateCatalogPart(ctx, sku, description, price)
+}
+
+func (s *ProductionService) UpdateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	sku = strings.TrimSpace(sku)
+	if sku == "" {
+		return nil, fmt.Errorf("sku cannot be empty")
+	}
+
+	return s.scmClient.UpdateCatalogPart(ctx, sku, description, price)
+}
+
+func (s *ProductionService) DeleteCatalogPart(ctx context.Context, sku string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	sku = strings.TrimSpace(sku)
+	if sku == "" {
+		return fmt.Errorf("sku cannot be empty")
+	}
+
+	return s.scmClient.DeleteCatalogPart(ctx, sku)
 }
 
 func groupAssemblies(boms []models.BomEntry) []models.AssemblyResponse {

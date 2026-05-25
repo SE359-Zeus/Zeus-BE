@@ -163,7 +163,7 @@ func TestProductionService_GetReadinessMatrix(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	filter := models.ReadinessFilter{}
 	page := models.PaginationParams{Page: 1, PerPage: 20}
-	res, err := svc.GetReadinessMatrix(context.Background(), filter, page)
+	res, _, err := svc.GetReadinessMatrix(context.Background(), filter, page)
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
 }
@@ -283,7 +283,7 @@ func TestGetReadinessMatrix_ReturnsSliceNotNilOnEmptyData(t *testing.T) {
 	filter := models.ReadinessFilter{}
 	page := models.PaginationParams{Page: 1, PerPage: 20}
 
-	res, err := svc.GetReadinessMatrix(context.Background(), filter, page)
+	res, _, err := svc.GetReadinessMatrix(context.Background(), filter, page)
 	require.NoError(t, err)
 	assert.NotNil(t, res, "GetReadinessMatrix must return an empty slice, not nil")
 }
@@ -291,7 +291,7 @@ func TestGetReadinessMatrix_ReturnsSliceNotNilOnEmptyData(t *testing.T) {
 // Hard: page numbers are 1-indexed; page=0 is nonsensical
 func TestGetReadinessMatrix_PaginationZeroPageIsRejected(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
-	_, err := svc.GetReadinessMatrix(
+	_, _, err := svc.GetReadinessMatrix(
 		context.Background(),
 		models.ReadinessFilter{},
 		models.PaginationParams{Page: 0, PerPage: 20},
@@ -302,7 +302,7 @@ func TestGetReadinessMatrix_PaginationZeroPageIsRejected(t *testing.T) {
 // Hard: negative per_page is nonsensical
 func TestGetReadinessMatrix_NegativePerPageIsRejected(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
-	_, err := svc.GetReadinessMatrix(
+	_, _, err := svc.GetReadinessMatrix(
 		context.Background(),
 		models.ReadinessFilter{},
 		models.PaginationParams{Page: 1, PerPage: -1},
@@ -313,7 +313,7 @@ func TestGetReadinessMatrix_NegativePerPageIsRejected(t *testing.T) {
 // Hard: unknown status filter value must be rejected rather than silently ignored
 func TestGetReadinessMatrix_UnknownStatusFilterIsRejected(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
-	_, err := svc.GetReadinessMatrix(
+	_, _, err := svc.GetReadinessMatrix(
 		context.Background(),
 		models.ReadinessFilter{Status: "INVALID_STATUS_XYZ"},
 		models.PaginationParams{Page: 1, PerPage: 10},
@@ -324,7 +324,7 @@ func TestGetReadinessMatrix_UnknownStatusFilterIsRejected(t *testing.T) {
 // Hard: each returned row must have a valid OrderID, non-empty TargetBuild, and Quantity > 0
 func TestGetReadinessMatrix_EachRowHasNonNilOrderID(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
-	rows, err := svc.GetReadinessMatrix(
+	rows, _, err := svc.GetReadinessMatrix(
 		context.Background(),
 		models.ReadinessFilter{},
 		models.PaginationParams{Page: 1, PerPage: 100},

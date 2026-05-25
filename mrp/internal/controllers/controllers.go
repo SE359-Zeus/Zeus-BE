@@ -71,8 +71,31 @@ func NewMux(svc *service.ProductionService, authVerifier middlewares.TokenVerifi
 		http.MethodPut:    {"mrp_operator", "admin"},
 		http.MethodDelete: {"mrp_operator", "admin"},
 	}))
-	mux.Handle("/api/v1/mrp/catalog", protect(http.HandlerFunc(controller.GetCatalog), map[string][]string{
-		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},
+	mux.Handle("/api/v1/mrp/catalog", protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			controller.GetCatalog(w, r)
+		case http.MethodPost:
+			controller.CreateCatalogPart(w, r)
+		default:
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
+	}), map[string][]string{
+		http.MethodGet:  {"mrp_operator", "mrp_worker", "admin"},
+		http.MethodPost: {"mrp_operator", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/catalog/{sku}", protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPut:
+			controller.UpdateCatalogPart(w, r)
+		case http.MethodDelete:
+			controller.DeleteCatalogPart(w, r)
+		default:
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
+	}), map[string][]string{
+		http.MethodPut:    {"mrp_operator", "admin"},
+		http.MethodDelete: {"mrp_operator", "admin"},
 	}))
 	mux.Handle("/api/v1/mrp/catalog/{sku}/where-used", protect(http.HandlerFunc(controller.GetWhereUsed), map[string][]string{
 		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},

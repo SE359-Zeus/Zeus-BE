@@ -1,19 +1,33 @@
 package service
 
 import (
+	"context"
+	"zeus-mrp-service/internal/models"
 	"zeus-mrp-service/internal/repository"
 )
 
-type ProductionService struct {
-	repo  repository.MRPRepository
-	cache repository.CacheRepository
+type SCMClient interface {
+	GetPartCatalogBySKU(ctx context.Context, sku string) (*models.Part, error)
+	CreateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error)
+	UpdateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error)
+	DeleteCatalogPart(ctx context.Context, sku string) error
 }
 
-func NewProductionService(repo repository.MRPRepository, cache ...repository.CacheRepository) *ProductionService {
-	var cacheRepo repository.CacheRepository
-	if len(cache) > 0 {
-		cacheRepo = cache[0]
-	}
+type ProductionService struct {
+	repo      repository.MRPRepository
+	cache     repository.CacheRepository
+	scmClient SCMClient
+}
 
-	return &ProductionService{repo: repo, cache: cacheRepo}
+func NewProductionService(repo repository.MRPRepository, deps ...any) *ProductionService {
+	svc := &ProductionService{repo: repo}
+	for _, dep := range deps {
+		switch d := dep.(type) {
+		case SCMClient:
+			svc.scmClient = d
+		case repository.CacheRepository:
+			svc.cache = d
+		}
+	}
+	return svc
 }

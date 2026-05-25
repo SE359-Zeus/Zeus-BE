@@ -1,7 +1,5 @@
 PRAGMA foreign_keys = OFF;
 
-BEGIN TRANSACTION;
-
 ALTER TABLE shortage_logs RENAME TO shortage_logs_new;
 
 CREATE TABLE shortage_logs (
@@ -9,7 +7,6 @@ CREATE TABLE shortage_logs (
     production_order_id TEXT NOT NULL,
     part_id TEXT NOT NULL,
     shortage_qty INTEGER NOT NULL CHECK (shortage_qty > 0),
-    resolution_status TEXT NOT NULL DEFAULT 'planned',
     FOREIGN KEY (production_order_id) REFERENCES production_orders(id)
         ON UPDATE CASCADE
         ON DELETE CASCADE,
@@ -22,15 +19,13 @@ INSERT INTO shortage_logs (
     id,
     production_order_id,
     part_id,
-    shortage_qty,
-    resolution_status
+    shortage_qty
 )
 SELECT
     id,
     production_order_id,
     part_id,
-    shortage_qty,
-    COALESCE(resolution_status, 'planned')
+    shortage_qty
 FROM shortage_logs_new;
 
 DROP TABLE shortage_logs_new;
@@ -41,7 +36,5 @@ CREATE INDEX IF NOT EXISTS idx_shortage_logs_production_order_id
 
 CREATE INDEX IF NOT EXISTS idx_shortage_logs_part_id
     ON shortage_logs(part_id);
-
-COMMIT;
 
 PRAGMA foreign_keys = ON;

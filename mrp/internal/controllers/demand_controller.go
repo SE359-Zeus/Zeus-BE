@@ -3,8 +3,10 @@ package controllers
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
+	"zeus-mrp-service/internal/models"
 )
 
 type demandPOGenerateResponse struct {
@@ -42,13 +44,40 @@ func (c *ProductionController) GetDemandSummary(w http.ResponseWriter, r *http.R
 		writeErrorJSON(w, http.StatusBadRequest, "invalid pagination params", nil)
 		return
 	}
+
+	search := strings.TrimSpace(r.URL.Query().Get("search"))
+	status := strings.TrimSpace(r.URL.Query().Get("status"))
+
 	summary, err := c.svc.GetDemandSummary(r.Context())
 	if err != nil {
 		writeErrorJSON(w, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
-	items := make([]any, 0, len(summary))
-	for _, s := range summary {
+
+	// Filter by search and status
+	var filtered []models.DemandPOSummary
+	for _, item := range summary {
+		match := true
+		if search != "" {
+			sLower := strings.ToLower(search)
+			matchID := strings.Contains(strings.ToLower(item.OrderID), sLower)
+			matchBuild := strings.Contains(strings.ToLower(item.TargetBuild), sLower)
+			if !matchID && !matchBuild {
+				match = false
+			}
+		}
+		if status != "" {
+			if !strings.EqualFold(item.Status, status) {
+				match = false
+			}
+		}
+		if match {
+			filtered = append(filtered, item)
+		}
+	}
+
+	items := make([]any, 0, len(filtered))
+	for _, s := range filtered {
 		items = append(items, s)
 	}
 	pageItems, meta := paginateAny(items, page, per)

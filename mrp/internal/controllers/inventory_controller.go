@@ -1,6 +1,10 @@
 package controllers
 
-import "net/http"
+import (
+	"net/http"
+	"strings"
+	"zeus-mrp-service/internal/models"
+)
 
 // GET /api/v1/mrp/inventory/ledger
 func (c *ProductionController) GetInventoryLedger(w http.ResponseWriter, r *http.Request) {
@@ -9,13 +13,41 @@ func (c *ProductionController) GetInventoryLedger(w http.ResponseWriter, r *http
 		writeErrorJSON(w, http.StatusBadRequest, "invalid pagination params", nil)
 		return
 	}
+
+	filterType := strings.TrimSpace(r.URL.Query().Get("type"))
+
 	rows, err := c.svc.GetInventoryLedger(r.Context())
 	if err != nil {
 		writeErrorJSON(w, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
-	items := make([]any, 0, len(rows))
-	for _, v := range rows {
+
+	// Filter rows by type
+	var filtered []models.InventoryTransactionDTO
+	if filterType == "" || strings.EqualFold(filterType, "All") {
+		filtered = rows
+	} else {
+		for _, row := range rows {
+			match := false
+			t := strings.ToLower(row.Type)
+			ft := strings.ToLower(filterType)
+			if ft == "stock in" || ft == "stock_in" {
+				match = (t == "stock_in" || t == "stock in")
+			} else if ft == "stock out" || ft == "stock_out" {
+				match = (t == "stock_out" || t == "stock out")
+			} else if ft == "adjustments" || ft == "adjustment" {
+				match = (t == "adjustment" || t == "adjustments" || t == "adj")
+			} else {
+				match = strings.Contains(t, ft)
+			}
+			if match {
+				filtered = append(filtered, row)
+			}
+		}
+	}
+
+	items := make([]any, 0, len(filtered))
+	for _, v := range filtered {
 		items = append(items, v)
 	}
 	pageItems, meta := paginateAny(items, page, per)

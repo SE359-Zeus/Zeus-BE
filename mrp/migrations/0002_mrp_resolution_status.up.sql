@@ -1,7 +1,5 @@
 PRAGMA foreign_keys = OFF;
 
-BEGIN TRANSACTION;
-
 CREATE TABLE IF NOT EXISTS resolution_statuses (
     id INTEGER PRIMARY KEY,
     code TEXT NOT NULL UNIQUE,
@@ -48,18 +46,8 @@ SELECT
     production_order_id,
     part_id,
     shortage_qty,
-    CASE lower(COALESCE(resolution_status, 'planned'))
-        WHEN 'partial' THEN 2
-        WHEN 'shortage' THEN 3
-        WHEN 'ready_to_build' THEN 4
-        ELSE 1
-    END,
-    CASE lower(COALESCE(resolution_status, 'planned'))
-        WHEN 'partial' THEN 'partial'
-        WHEN 'shortage' THEN 'shortage'
-        WHEN 'ready_to_build' THEN 'ready_to_build'
-        ELSE 'planned'
-    END
+    1,
+    'planned'
 FROM shortage_logs_old;
 
 DROP TABLE shortage_logs_old;
@@ -72,7 +60,5 @@ CREATE INDEX IF NOT EXISTS idx_shortage_logs_production_order_id
 
 CREATE INDEX IF NOT EXISTS idx_shortage_logs_part_id
     ON shortage_logs(part_id);
-
-COMMIT;
 
 PRAGMA foreign_keys = ON;

@@ -9,8 +9,9 @@ import (
 
 	"zeus-mrp-service/configs"
 	"zeus-mrp-service/internal/controllers"
-	cacheinfra "zeus-mrp-service/internal/infrastructure/cache"
+	"zeus-mrp-service/internal/infrastructure/cache"
 	messaginginfra "zeus-mrp-service/internal/infrastructure/messaging"
+	scminfra "zeus-mrp-service/internal/infrastructure/scm"
 	"zeus-mrp-service/internal/middlewares"
 	reposqlite "zeus-mrp-service/internal/repository/sqlite"
 	repoValkey "zeus-mrp-service/internal/repository/valkey"
@@ -23,7 +24,7 @@ import (
 
 func main() {
 	cfg := configs.Load()
-	valkeyConn := cacheinfra.DialValkey(cfg.ValkeyAddr)
+	valkeyConn := cache.DialValkey(cfg.ValkeyAddr)
 	messaginginfra.NewRabbitMQ(cfg.RabbitMQURL)
 
 	dbPath := os.Getenv("MRP_DB_PATH")
@@ -35,9 +36,10 @@ func main() {
 		log.Fatalf("failed to open sqlite db: %v", err)
 	}
 
+	scmClient := scminfra.NewClient()
 	repo := reposqlite.NewSqliteMRPRepository(db)
 	cacheRepo := repoValkey.NewWithClient(valkeyConn)
-	svc := service.NewProductionService(repo, cacheRepo)
+	svc := service.NewProductionService(repo, scmClient, cacheRepo)
 	authVerifier, err := middlewares.NewJWTVerifierFromFile(cfg.JwtPublicKeyPath)
 	if err != nil {
 		log.Fatalf("failed to initialize access-token verifier: %v", err)

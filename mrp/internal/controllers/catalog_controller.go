@@ -145,3 +145,71 @@ func (c *ProductionController) GetWhereUsed(w http.ResponseWriter, r *http.Reque
 	}
 	writeJSON(w, http.StatusOK, res)
 }
+
+type CreatePartRequest struct {
+	SKU         string  `json:"sku"`
+	Description string  `json:"description"`
+	Price       float64 `json:"price"`
+}
+
+type UpdatePartRequest struct {
+	Description string  `json:"description"`
+	Price       float64 `json:"price"`
+}
+
+// POST /api/v1/mrp/catalog
+func (c *ProductionController) CreateCatalogPart(w http.ResponseWriter, r *http.Request) {
+	var req CreatePartRequest
+	if err := readJSON(r, &req); err != nil {
+		writeErrorJSON(w, http.StatusBadRequest, "invalid json payload", nil)
+		return
+	}
+
+	part, err := c.svc.CreateCatalogPart(r.Context(), req.SKU, req.Description, req.Price)
+	if err != nil {
+		writeErrorJSON(w, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	writeEnvelope(w, http.StatusCreated, http.StatusText(http.StatusCreated), nil, part)
+}
+
+// PUT /api/v1/mrp/catalog/{sku}
+func (c *ProductionController) UpdateCatalogPart(w http.ResponseWriter, r *http.Request) {
+	sku := r.PathValue("sku")
+	if sku == "" {
+		writeErrorJSON(w, http.StatusBadRequest, "sku path parameter is required", nil)
+		return
+	}
+
+	var req UpdatePartRequest
+	if err := readJSON(r, &req); err != nil {
+		writeErrorJSON(w, http.StatusBadRequest, "invalid json payload", nil)
+		return
+	}
+
+	part, err := c.svc.UpdateCatalogPart(r.Context(), sku, req.Description, req.Price)
+	if err != nil {
+		writeErrorJSON(w, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	writeEnvelope(w, http.StatusOK, http.StatusText(http.StatusOK), nil, part)
+}
+
+// DELETE /api/v1/mrp/catalog/{sku}
+func (c *ProductionController) DeleteCatalogPart(w http.ResponseWriter, r *http.Request) {
+	sku := r.PathValue("sku")
+	if sku == "" {
+		writeErrorJSON(w, http.StatusBadRequest, "sku path parameter is required", nil)
+		return
+	}
+
+	if err := c.svc.DeleteCatalogPart(r.Context(), sku); err != nil {
+		writeErrorJSON(w, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	writeJSON(w, http.StatusNoContent, nil)
+}
+

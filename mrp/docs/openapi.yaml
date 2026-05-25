@@ -3,124 +3,240 @@ info:
   title: Zeus MRP API
   version: 1.0.0
   description: >-
-    OpenAPI specification for the MRP module. Responses use a unified
-    envelope: {message, statusCode, metadata, data}.
+    OpenAPI specification for the Zeus Material Requirements Planning (mrp) module.
+    Responses use a unified envelope: {message, statusCode, metadata, data}.
+    All endpoints require a valid Bearer JWT.
 servers:
   - url: /api/v1/mrp
+    description: Local development server proxy path
 security:
   - BearerAuth: []
+
+tags:
+  - name: Readiness
+    description: >-
+      Production readiness matrix and component shortages. Helps operators check
+      if they have enough inventory components to build queued production orders.
+  - name: Catalog
+    description: >-
+      Bill of Materials (BOM) catalog and product assemblies. Encompasses CRUD
+      operations on assemblies and finding where parts are used.
+  - name: Demand
+    description: >-
+      Material demand summaries, metrics, PO drafting for shortages,
+      and stock picking lists generation for order fulfillment.
+  - name: Inventory
+    description: >-
+      Read-only proxy to the SCM module inventory. Encompasses ledger transactions,
+      metrics, CSV export, and stock level balance verification.
+  - name: Production Orders
+    description: >-
+      Triggering of new production order builds for assembly product models.
+
 paths:
+  # ──────────────────────────────────────────────
+  # Readiness
+  # ──────────────────────────────────────────────
   /readiness:
     get:
-      summary: GET /readiness
-      description: List production readiness rows with optional filtering and pagination.
+      tags: [Readiness]
+      summary: List production readiness matrix
+      description: >-
+        Return a paginated list of production readiness rows with status filters
+        and keyword searching capability.
+      operationId: getReadinessMatrix
       parameters:
         - in: query
           name: status
           schema:
             type: string
-          description: Filter by production order status (CLEAR_TO_BUILD, PARTIAL, SHORTAGE)
+            enum: [CLEAR_TO_BUILD, PARTIAL, SHORTAGE, PLANNED]
+          description: Filter readiness matrix by build status
+          example: CLEAR_TO_BUILD
         - in: query
           name: search
           schema:
             type: string
-          description: Search by order ID or SKU
+          description: Search pattern matching order ID or SKU
+          example: "DRONE-V1"
         - in: query
           name: page
           schema:
             type: integer
+            minimum: 1
             default: 1
+          description: Page number (1-based)
         - in: query
           name: per_page
           schema:
             type: integer
+            minimum: 1
             default: 20
+          description: Number of items per page
       responses:
         '200':
-          description: Readiness matrix list
+          description: List of readiness matrix rows returned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                $ref: '#/components/schemas/ReadinessMatrixListEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /readiness/metrics:
     get:
-      summary: GET /readiness/metrics
+      tags: [Readiness]
+      summary: Get readiness metrics
+      description: Retrieve overall readiness metrics including open orders and blocked shortage status.
+      operationId: getReadinessMetrics
       responses:
         '200':
-          description: Readiness metrics
+          description: Readiness metrics returned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                $ref: '#/components/schemas/ReadinessMetricsEnvelope'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /readiness/export:
     get:
-      summary: GET /readiness/export
+      tags: [Readiness]
+      summary: Export readiness report
+      description: Retrieve the full readiness report as a raw JSON payload with metrics and rows.
+      operationId: exportReadinessReport
       responses:
         '200':
-          description: Exported readiness report (JSON)
+          description: Exported readiness report JSON
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/ReadinessExportEnvelope'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /readiness/{orderId}:
     parameters:
-      - in: path
-        name: orderId
-        required: true
-        schema:
-          type: string
+      - $ref: '#/components/parameters/OrderID'
     get:
-      summary: GET /readiness/{orderId}
+      tags: [Readiness]
+      summary: Get order readiness detail
+      description: Retrieve readiness row information for a specific production order ID.
+      operationId: getReadinessByOrderID
       responses:
         '200':
-          description: Readiness row
+          description: Readiness matrix row returned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                $ref: '#/components/schemas/ReadinessMatrixRowEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /readiness/{orderId}/generate-po:
+    parameters:
+      - $ref: '#/components/parameters/OrderID'
     post:
-      summary: POST /readiness/{orderId}/generate-po
+      tags: [Readiness]
+      summary: Generate PO for order deficits
+      description: >-
+        Trigger a draft Purchase Order draft creation in SCM for all component shortages in this order.
+        Restricted to `mrp_operator` and `admin` roles.
+      operationId: generatePOForDeficits
+      responses:
+        '201':
+          description: Draft PO successfully generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessPOResponseEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /shortages:
     get:
-      summary: GET /shortages
+      tags: [Readiness]
+      summary: List component shortages
+      description: Retrieve a paginated overview of all currently active component shortages.
+      operationId: getShortages
       parameters:
         - in: query
           name: page
           schema:
             type: integer
+            minimum: 1
+            default: 1
+          description: Page number (1-based)
         - in: query
           name: per_page
           schema:
             type: integer
+            minimum: 1
+            default: 20
+          description: Number of items per page
       responses:
         '200':
-          description: Aggregated shortages
+          description: List of shortages returned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                $ref: '#/components/schemas/ShortagesListEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
+  # ──────────────────────────────────────────────
+  # Catalog
+  # ──────────────────────────────────────────────
   /assemblies:
     get:
-      summary: GET /assemblies
+      tags: [Catalog]
+      summary: List assemblies
+      description: Retrieve a paginated list of assembly product designs.
+      operationId: getAssemblies
       parameters:
         - in: query
           name: page
           schema:
             type: integer
+            minimum: 1
+            default: 1
+          description: Page number (1-based)
         - in: query
           name: per_page
           schema:
             type: integer
+            minimum: 1
+            default: 20
+          description: Number of items per page
       responses:
         '200':
-          description: List of assemblies
+          description: List of assembly designs returned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                $ref: '#/components/schemas/AssembliesListEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
     post:
-      summary: POST /assemblies
+      tags: [Catalog]
+      summary: Create assembly design
+      description: Define a new BOM assembly map using existing component SKUs.
+      operationId: createAssembly
       requestBody:
         required: true
         content:
@@ -129,21 +245,41 @@ paths:
               $ref: '#/components/schemas/CreateAssemblyRequest'
       responses:
         '201':
-          description: Assembly created
+          description: Assembly design successfully created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                $ref: '#/components/schemas/AssemblyResponseEnvelope'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /assemblies/{id}:
     parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: string
+      - $ref: '#/components/parameters/AssemblyID'
+    get:
+      tags: [Catalog]
+      summary: Get assembly design detail
+      description: Retrieve full assembly details including component SKU requirements.
+      operationId: getAssemblyDetail
+      responses:
+        '200':
+          description: Assembly details returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssemblyResponseEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
     put:
-      summary: PUT /assemblies/{id}
+      tags: [Catalog]
+      summary: Update assembly design
+      description: Modify name, description, or component list for an assembly model code.
+      operationId: updateAssembly
       requestBody:
         required: true
         content:
@@ -156,32 +292,146 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                $ref: '#/components/schemas/AssemblyResponseEnvelope'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
     delete:
-      summary: DELETE /assemblies/{id}
+      tags: [Catalog]
+      summary: Delete assembly design
+      description: Permanently remove the assembly BOM definition.
+      operationId: deleteAssembly
       responses:
         '204':
-          description: Assembly deleted
+          description: Assembly deleted successfully (No Content)
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /catalog:
     get:
-      summary: GET /catalog
+      tags: [Catalog]
+      summary: List catalog models
+      description: Retrieve a paginated list of catalog product model codes defined in the database.
+      operationId: getCatalog
       parameters:
         - in: query
           name: page
           schema:
             type: integer
+            minimum: 1
+            default: 1
+          description: Page number (1-based)
         - in: query
           name: per_page
           schema:
             type: integer
+            minimum: 1
+            default: 20
+          description: Number of items per page
       responses:
         '200':
-          description: Catalog list
+          description: Catalog list returned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                $ref: '#/components/schemas/CatalogListEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Catalog]
+      summary: Create catalog component
+      description: Add a new component part to the catalog.
+      operationId: createCatalogPart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sku, description]
+              properties:
+                sku:
+                  type: string
+                  example: "SKU-MOTOR-01"
+                description:
+                  type: string
+                  example: "High-torque brushless DC motor"
+                price:
+                  type: number
+                  format: double
+                  example: 45.50
+      responses:
+        '201':
+          description: Component successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /catalog/{sku}:
+    parameters:
+      - in: path
+        name: sku
+        required: true
+        schema:
+          type: string
+        description: Unique SKU of the component
+    put:
+      tags: [Catalog]
+      summary: Update catalog component
+      description: Edit description and/or price of an existing component by its SKU.
+      operationId: updateCatalogPart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description:
+                  type: string
+                  example: "Updated motor description"
+                price:
+                  type: number
+                  format: double
+                  example: 49.99
+      responses:
+        '200':
+          description: Component successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [Catalog]
+      summary: Delete catalog component
+      description: Permanently remove a component from the catalog by its SKU.
+      operationId: deleteCatalogPart
+      responses:
+        '204':
+          description: Component deleted successfully (No Content)
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /catalog/{sku}/where-used:
     parameters:
@@ -190,100 +440,221 @@ paths:
         required: true
         schema:
           type: string
+        description: Part ID UUID to query for usage
+      
     get:
-      summary: GET /catalog/{sku}/where-used
+      tags: [Catalog]
+      summary: Find component usages (Where-Used)
+      description: Returns a list of parent assemblies that reference the specified component part.
+      operationId: getWhereUsed
       responses:
         '200':
-          description: Where-used list
+          description: Where-used mapping list returned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                $ref: '#/components/schemas/WhereUsedListEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ──────────────────────────────────────────────
+  # Demand
+  # ──────────────────────────────────────────────
+  /demand/metrics:
+    get:
+      tags: [Demand]
+      summary: Get demand metrics
+      description: Retrieve demand-centric KPI values such as total required units and status breakdowns.
+      operationId: getDemandMetrics
+      responses:
+        '200':
+          description: Demand KPI metrics returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DemandMetricsEnvelope'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /demand:
     get:
-      summary: GET /demand
+      tags: [Demand]
+      summary: List material demand summary
+      description: Retrieve a paginated summary of shortages and raised PO count status grouped by order.
+      operationId: getDemandSummary
       parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by Order ID or Target Build product code
+          example: "PO-1002"
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [CLEAR_TO_BUILD, PARTIAL, SHORTAGE, PLANNED]
+          description: Filter by status
+          example: "SHORTAGE"
         - in: query
           name: page
           schema:
             type: integer
+            minimum: 1
+            default: 1
+          description: Page number (1-based)
         - in: query
           name: per_page
           schema:
             type: integer
+            minimum: 1
+            default: 20
+          description: Number of items per page
       responses:
         '200':
-          description: Demand summary
+          description: Demand summary list returned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                $ref: '#/components/schemas/DemandSummaryListEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /demand/generate-pos:
     post:
-      summary: POST /demand/generate-pos
+      tags: [Demand]
+      summary: Trigger shortage PO draft generation
+      description: Start background task to generate draft purchase orders in SCM for all currently active shortages.
+      operationId: generatePOs
       responses:
         '200':
-          description: PO generation started
+          description: PO generation task started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DemandPOGenerateEnvelope'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /demand/{orderId}/pick-list:
     parameters:
-      - in: path
-        name: orderId
-        required: true
-        schema:
-          type: string
+      - $ref: '#/components/parameters/OrderID'
     get:
-      summary: GET pick list for order
+      tags: [Demand]
+      summary: Get picking list
+      description: Retrieve warehouse picking bin locations list details for this order.
+      operationId: getPickList
       responses:
         '200':
-          description: Pick list
+          description: Pick list returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PickListEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags: [Demand]
+      summary: Generate picking list
+      description: Create/regenerate picking list bin layout allocations for an order.
+      operationId: generatePickList
+      responses:
+        '201':
+          description: Pick list created successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Envelope'
-    post:
-      summary: POST generate pick list
-      responses:
-        '201':
-          description: Pick list created
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
+  # ──────────────────────────────────────────────
+  # Inventory
+  # ──────────────────────────────────────────────
   /inventory/ledger:
     get:
-      summary: GET inventory ledger
+      tags: [Inventory]
+      summary: List inventory ledger transactions
+      description: Proxy request to retrieve paginated SCM inventory transaction ledger logs.
+      operationId: getInventoryLedger
       parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [All, Stock In, Stock Out, Adjustments]
+          description: Filter transactions by movement type
+          example: Stock In
         - in: query
           name: page
           schema:
             type: integer
+            minimum: 1
+            default: 1
+          description: Page number (1-based)
         - in: query
           name: per_page
           schema:
             type: integer
+            minimum: 1
+            default: 20
+          description: Number of items per page
       responses:
         '200':
-          description: Inventory ledger
+          description: Ledger list returned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                $ref: '#/components/schemas/InventoryLedgerListEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /inventory/metrics:
     get:
-      summary: GET inventory metrics
+      tags: [Inventory]
+      summary: Get inventory metrics
+      description: Proxy request to retrieve active SKUs, turnover rates, and accuracy indices.
+      operationId: getInventoryMetrics
       responses:
         '200':
-          description: Inventory metrics
+          description: Inventory metrics returned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                $ref: '#/components/schemas/InventoryMetricsEnvelope'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /inventory/ledger/export:
     get:
-      summary: GET export inventory CSV
+      tags: [Inventory]
+      summary: Export inventory ledger (CSV)
+      description: Retrieve the inventory ledger history as a raw download CSV stream.
+      operationId: exportInventoryCSV
       responses:
         '200':
-          description: CSV export
+          description: CSV file generated successfully
+          content:
+            text/csv:
+              schema:
+                type: string
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /inventory/transactions/{txnId}:
     parameters:
@@ -292,15 +663,25 @@ paths:
         required: true
         schema:
           type: string
+        description: Unique transaction reference identifier
     get:
-      summary: GET inventory transaction by id
+      tags: [Inventory]
+      summary: Get inventory transaction
+      description: Retrieve a single inventory ledger change transaction detail by ID.
+      operationId: getInventoryTransactionByID
       responses:
         '200':
-          description: Transaction
+          description: Transaction detail returned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                $ref: '#/components/schemas/InventoryTransactionEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /inventory/balance/{sku}:
     parameters:
@@ -309,19 +690,35 @@ paths:
         required: true
         schema:
           type: string
+        description: Component SKU string identifier
     get:
-      summary: GET inventory balance for sku
+      tags: [Inventory]
+      summary: Get inventory balance for SKU
+      description: Retrieve current stock levels and allocated reserves for a given SKU.
+      operationId: getInventoryBalanceBySKU
       responses:
         '200':
-          description: Balance
+          description: Balance returned
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Envelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
+  # ──────────────────────────────────────────────
+  # Production Orders
+  # ──────────────────────────────────────────────
   /production/orders:
     post:
-      summary: Create a production order
+      tags: [Production Orders]
+      summary: Create production order
+      description: Draft a new build order using assembly instructions for a target quantity.
+      operationId: createOrder
       requestBody:
         required: true
         content:
@@ -330,11 +727,15 @@ paths:
               $ref: '#/components/schemas/CreateProductionOrderRequest'
       responses:
         '201':
-          description: Production order created
+          description: Order created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Envelope'
+                $ref: '#/components/schemas/ProductionOrderResponseEnvelope'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
 components:
   securitySchemes:
@@ -343,148 +744,813 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: Provide the access token in the Authorization header as `Bearer <access-token>`.
+
+  parameters:
+    OrderID:
+      in: path
+      name: orderId
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Unique UUID identifier of the production order
+
+    AssemblyID:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+      description: Model code name representing the assembly
+
+  responses:
+    BadRequest:
+      description: Bad request — invalid query parameters or body
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            error:
+              value:
+                message: "bad request: invalid filter parameters"
+                statusCode: 400
+                metadata: {}
+                data: {}
+
+    ValidationError:
+      description: Validation error — missing or invalid fields in request payload
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            error:
+              value:
+                message: "validation error: target_quantity is required"
+                statusCode: 400
+                metadata: {}
+                data: {}
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            error:
+              value:
+                message: "resource not found"
+                statusCode: 404
+                metadata: {}
+                data: {}
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            error:
+              value:
+                message: "internal database connection error"
+                statusCode: 500
+                metadata: {}
+                data: {}
+
   schemas:
     Envelope:
       type: object
       properties:
         message:
           type: string
+          example: "Success"
         statusCode:
           type: integer
+          example: 200
         metadata:
           type: object
+          nullable: true
         data:
           type: object
+          nullable: true
 
     ErrorEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/Envelope'
+      description: Error payload wrapper envelope
+
+    PaginationMetadata:
+      type: object
+      required: [page, per_page, total, total_pages]
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        per_page:
+          type: integer
+          description: Size limit per page
+          example: 20
+        total:
+          type: integer
+          description: Total rows matching filters
+          example: 100
+        total_pages:
+          type: integer
+          description: Total pages count
+          example: 5
+
+    # --- Readiness matrix & shortages ---
+    ReadinessMatrixRow:
       type: object
       properties:
-        message:
+        order_id:
           type: string
-        statusCode:
+          format: uuid
+          example: "a687bc12-9c3f-4e09-ba22-87ff819c991a"
+        target_build:
+          type: string
+          example: "Drone-V1"
+        quantity:
           type: integer
-        metadata:
-          type: object
-        data:
-          type: object
+          example: 20
+        status:
+          type: string
+          enum: [CLEAR_TO_BUILD, PARTIAL, SHORTAGE]
+          example: "CLEAR_TO_BUILD"
+        deficit_breakdown:
+          type: array
+          items:
+            $ref: '#/components/schemas/BOMExplosionResult'
 
     BOMExplosionResult:
       type: object
       properties:
         part_id:
           type: string
+          format: uuid
+          example: "bc38ad82-019a-4122-bd55-9011abcc2290"
+        component_sku:
+          type: string
+          example: "SKU-BATTERY-01"
         total_required_qty:
           type: integer
+          example: 20
         available_qty:
           type: integer
+          example: 5
         is_shortage:
           type: boolean
+          example: true
 
-    ReadinessMatrixRow:
+    ShortageLog:
       type: object
       properties:
-        order_id:
+        id:
           type: string
-        target_build:
+          format: uuid
+          example: "ea3b2f8a-9a99-4c12-8bb1-90fa7e2b19cf"
+        production_order_id:
           type: string
-        quantity:
+          format: uuid
+          example: "a687bc12-9c3f-4e09-ba22-87ff819c991a"
+        part_id:
+          type: string
+          format: uuid
+          example: "bc38ad82-019a-4122-bd55-9011abcc2290"
+        shortage_qty:
           type: integer
-        status:
+          example: 15
+        resolution_status_id:
+          type: integer
+          example: 2
+        resolution_status:
           type: string
-        deficit_breakdown:
-          type: array
-          items:
-            $ref: '#/components/schemas/BOMExplosionResult'
+          enum: [planned, partial, shortage, ready_to_build]
+          example: "shortage"
 
     ReadinessMetrics:
       type: object
       properties:
         total_open_orders:
           type: integer
+          example: 10
         components_in_shortage:
           type: integer
+          example: 4
         blocked_orders:
           type: integer
+          example: 3
         supply_readiness_rate:
           type: number
+          format: double
+          example: 70.0
 
-    CreateAssemblyRequest:
+    # --- Assemblies & Catalog ---
+    ComponentReference:
+      type: object
+      required: [sku, qty]
+      properties:
+        sku:
+          type: string
+          description: Unique SKU representing the sub-part component ID
+          example: "bc38ad82-019a-4122-bd55-9011abcc2290"
+        qty:
+          type: integer
+          minimum: 1
+          description: Stock quantity required per single assembly unit
+          example: 4
+
+    AssemblyResponse:
       type: object
       properties:
+        model_code:
+          type: string
+          example: "Drone-V1"
         name:
           type: string
+          example: "Standard Quadcopter Build"
+        description:
+          type: string
+          example: "Drone assembly including standard chassis and battery pack."
+        total_parts:
+          type: integer
+          example: 2
         components:
           type: array
           items:
-            type: object
-            properties:
-              sku:
-                type: string
-              qty:
-                type: integer
+            $ref: '#/components/schemas/ComponentReference'
+
+    CreateAssemblyRequest:
+      type: object
+      required: [name, components]
+      properties:
+        name:
+          type: string
+          example: "Drone-V1"
+        description:
+          type: string
+          example: "Quadcopter Assembly"
+        components:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ComponentReference'
 
     UpdateAssemblyRequest:
       type: object
       properties:
         name:
           type: string
+          example: "Drone-V1"
+        description:
+          type: string
+          example: "New Quadcopter configuration"
         components:
           type: array
           items:
-            type: object
-            properties:
-              sku:
-                type: string
-              qty:
-                type: integer
+            $ref: '#/components/schemas/ComponentReference'
 
-    CreateProductionOrderRequest:
+    # --- Demand & Pick list ---
+    DemandMetrics:
       type: object
       properties:
-        product_model_code:
-          type: string
-        target_quantity:
+        total_demand_orders:
           type: integer
+          example: 15
+        ready_to_build:
+          type: integer
+          example: 10
+        shortage_or_partial:
+          type: integer
+          example: 5
+        total_units_required:
+          type: integer
+          example: 450
 
-    ProductionOrderResponse:
+    DemandPOSummary:
       type: object
       properties:
-        id:
+        order_id:
           type: string
-        product_model_code:
+          example: "a687bc12-9c3f-4e09-ba22-87ff819c991a"
+        target_build:
           type: string
-        target_quantity:
+          example: "Drone-V1"
+        quantity:
           type: integer
+          example: 20
+        qty_ready:
+          type: integer
+          example: 5
         status:
           type: string
+          example: "SHORTAGE"
+        priority:
+          type: string
+          enum: [HIGH, NORMAL, LOW]
+          example: "NORMAL"
+        missing_count:
+          type: integer
+          example: 1
+        po_count:
+          type: integer
+          example: 2
+        target_date:
+          type: string
+          format: date-time
+          example: "2026-06-01T00:00:00Z"
 
+    PickListDTO:
+      type: object
+      properties:
+        order_id:
+          type: string
+          format: uuid
+          example: "a687bc12-9c3f-4e09-ba22-87ff819c991a"
+        components:
+          type: array
+          items:
+            $ref: '#/components/schemas/PickListItem'
+
+    PickListItem:
+      type: object
+      properties:
+        part_id:
+          type: string
+          format: uuid
+          example: "bc38ad82-019a-4122-bd55-9011abcc2290"
+        sku:
+          type: string
+          example: "SKU-MOTOR-01"
+        quantity:
+          type: integer
+          example: 80
+        bin_location:
+          type: string
+          example: "BIN-A-12"
+
+    # --- Inventory proxy logs ---
     InventoryTransactionDTO:
       type: object
       properties:
         id:
           type: string
+          example: "txn_01j"
         sku:
           type: string
+          example: "bc38ad82-019a-4122-bd55-9011abcc2290"
         type:
           type: string
+          example: "DISBURSEMENT"
         qty_change:
           type: integer
+          example: -4
         running_balance:
           type: integer
+          example: 96
         location:
           type: string
+          example: "BIN-A-12"
         timestamp:
           type: string
           format: date-time
+          example: "2026-05-25T12:00:00Z"
+        operator:
+          type: string
+          example: "mrp_operator"
+        reference:
+          type: string
+          example: "order_a687bc12"
 
     InventoryMetrics:
       type: object
       properties:
         active_skus:
           type: integer
+          example: 145
         stock_accuracy:
           type: number
+          format: double
+          example: 99.4
         inventory_turnover:
           type: number
+          format: double
+          example: 4.2
         cycle_count_gaps:
           type: integer
+          example: 0
+
+    # --- Production build order ---
+    CreateProductionOrderRequest:
+      type: object
+      required: [product_model_code, target_quantity]
+      properties:
+        product_model_code:
+          type: string
+          example: "Drone-V1"
+        target_quantity:
+          type: integer
+          minimum: 1
+          example: 10
+        scheduled_at:
+          type: string
+          format: date-time
+          example: "2026-05-26T08:00:00Z"
+
+    ProductionOrderResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "a687bc12-9c3f-4e09-ba22-87ff819c991a"
+        product_model_code:
+          type: string
+          example: "Drone-V1"
+        target_quantity:
+          type: integer
+          example: 10
+        status:
+          type: string
+          example: "PENDING"
+        shortages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShortageLog'
+
+    # ──────────────────────────────────────────────
+    # Specialized Response Envelopes
+    # ──────────────────────────────────────────────
+    ReadinessMatrixListEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReadinessMatrixRow'
+
+    ReadinessMatrixRowEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          type: object
+          nullable: true
+        data:
+          $ref: '#/components/schemas/ReadinessMatrixRow'
+
+    ReadinessMetricsEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          type: object
+          nullable: true
+        data:
+          $ref: '#/components/schemas/ReadinessMetrics'
+
+    ReadinessExportEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          type: object
+          nullable: true
+        data:
+          type: object
+          properties:
+            metrics:
+              $ref: '#/components/schemas/ReadinessMetrics'
+            rows:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReadinessMatrixRow'
+
+    ReadinessPOResponseEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "Created"
+        statusCode:
+          type: integer
+          example: 201
+        metadata:
+          type: object
+          nullable: true
+        data:
+          type: object
+          properties:
+            order_id:
+              type: string
+              format: uuid
+              example: "a687bc12-9c3f-4e09-ba22-87ff819c991a"
+            deficits:
+              type: array
+              items:
+                $ref: '#/components/schemas/BOMExplosionResult'
+            message:
+              type: string
+              example: "purchase order draft generated"
+
+    ShortagesListEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShortageLog'
+
+    AssembliesListEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssemblyResponse'
+
+    AssemblyResponseEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          type: object
+          nullable: true
+        data:
+          $ref: '#/components/schemas/AssemblyResponse'
+
+    CatalogListEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              model_code:
+                type: string
+                example: "Drone-V1"
+
+    PartEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          type: object
+          nullable: true
+        data:
+          $ref: '#/components/schemas/Part'
+
+    Part:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "4cf9a3e2-63fe-4311-bf22-f94d3753229b"
+        sku:
+          type: string
+          example: "SKU-MOTOR-01"
+        description:
+          type: string
+          example: "High-torque brushless DC motor"
+        price:
+          type: number
+          format: double
+          example: 45.50
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    WhereUsedListEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          type: object
+          nullable: true
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              parent_model:
+                type: string
+                example: "Drone-V1"
+              required_qty:
+                type: integer
+                example: 4
+
+    DemandMetricsEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          type: object
+          nullable: true
+        data:
+          $ref: '#/components/schemas/DemandMetrics'
+
+    DemandSummaryListEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DemandPOSummary'
+
+    DemandPOGenerateEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          type: object
+          nullable: true
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "PO generation started"
+
+    PickListEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          type: object
+          nullable: true
+        data:
+          $ref: '#/components/schemas/PickListDTO'
+
+    InventoryLedgerListEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          $ref: '#/components/schemas/PaginationMetadata'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/InventoryTransactionDTO'
+
+    InventoryMetricsEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          type: object
+          nullable: true
+        data:
+          $ref: '#/components/schemas/InventoryMetrics'
+
+    InventoryTransactionEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "OK"
+        statusCode:
+          type: integer
+          example: 200
+        metadata:
+          type: object
+          nullable: true
+        data:
+          $ref: '#/components/schemas/InventoryTransactionDTO'
+
+    ProductionOrderResponseEnvelope:
+      type: object
+      required: [message, statusCode, data]
+      properties:
+        message:
+          type: string
+          example: "Created"
+        statusCode:
+          type: integer
+          example: 201
+        metadata:
+          type: object
+          nullable: true
+        data:
+          $ref: '#/components/schemas/ProductionOrderResponse'

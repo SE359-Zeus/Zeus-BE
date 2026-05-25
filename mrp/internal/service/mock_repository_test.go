@@ -137,3 +137,41 @@ func setupMockRepo() *MockMRPRepository {
 
 	return m
 }
+
+type MockSCMClient struct {
+	mock.Mock
+}
+
+func (m *MockSCMClient) GetPartCatalogBySKU(ctx context.Context, sku string) (*models.Part, error) {
+	args := m.Called(ctx, sku)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Part), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockSCMClient) CreateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error) {
+	args := m.Called(ctx, sku, description, price)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Part), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockSCMClient) UpdateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error) {
+	args := m.Called(ctx, sku, description, price)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Part), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockSCMClient) DeleteCatalogPart(ctx context.Context, sku string) error {
+	args := m.Called(ctx, sku)
+	return args.Error(0)
+}
+
+func setupMockSCMClient() *MockSCMClient {
+	m := new(MockSCMClient)
+	return m
+}

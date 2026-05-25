@@ -18,6 +18,7 @@ const (
 )
 
 var readinessStatusSet = map[models.ProductionOrderStatus]struct{}{
+	models.StatusPlanned:      {},
 	models.StatusClearToBuild: {},
 	models.StatusPartial:      {},
 	models.StatusShortage:     {},
@@ -88,33 +89,33 @@ func (s *ProductionService) RunBOMExplosion(ctx context.Context, orderID uuid.UU
 	return results, nil
 }
 
-func (s *ProductionService) GetReadinessMatrix(ctx context.Context, filter models.ReadinessFilter, page models.PaginationParams) ([]models.ReadinessMatrixRow, error) {
+func (s *ProductionService) GetReadinessMatrix(ctx context.Context, filter models.ReadinessFilter, page models.PaginationParams) ([]models.ReadinessMatrixRow, int, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	if page.Page <= 0 {
-		return nil, fmt.Errorf("page must be greater than zero")
+		return nil, 0, fmt.Errorf("page must be greater than zero")
 	}
 	if page.PerPage <= 0 {
-		return nil, fmt.Errorf("per_page must be greater than zero")
+		return nil, 0, fmt.Errorf("per_page must be greater than zero")
 	}
 
 	filter.Status = strings.ToUpper(strings.TrimSpace(filter.Status))
 	filter.Search = strings.ToLower(strings.TrimSpace(filter.Search))
 	if filter.Status != "" {
 		if _, ok := readinessStatusSet[models.ProductionOrderStatus(filter.Status)]; !ok {
-			return nil, fmt.Errorf("status must be one of CLEAR_TO_BUILD, PARTIAL, SHORTAGE")
+			return nil, 0, fmt.Errorf("status must be one of CLEAR_TO_BUILD, PARTIAL, SHORTAGE, PLANNED")
 		}
 	}
 
 	rows, err := s.loadReadinessRows(ctx)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	filtered := s.filterReadinessRows(rows, filter)
-	return paginateReadinessRows(filtered, page), nil
+	return paginateReadinessRows(filtered, page), len(filtered), nil
 }
 
 func (s *ProductionService) GetReadinessMetrics(ctx context.Context) (*models.ReadinessMetrics, error) {
