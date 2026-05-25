@@ -65,18 +65,18 @@ type MockAuthService struct {
 	mock.Mock
 }
 
-func (m *MockAuthService) Login(ctx context.Context, req models.LoginRequest) (*models.TokenPair, error) {
+func (m *MockAuthService) Login(ctx context.Context, req models.LoginRequest) (*models.AuthLoginResult, error) {
 	args := m.Called(ctx, req)
 	if args.Get(0) != nil {
-		return args.Get(0).(*models.TokenPair), args.Error(1)
+		return args.Get(0).(*models.AuthLoginResult), args.Error(1)
 	}
 	return nil, args.Error(1)
 }
 
-func (m *MockAuthService) Refresh(ctx context.Context, req models.RefreshRequest) (*models.TokenPair, error) {
+func (m *MockAuthService) Refresh(ctx context.Context, req models.RefreshRequest) (*models.AuthLoginResult, error) {
 	args := m.Called(ctx, req)
 	if args.Get(0) != nil {
-		return args.Get(0).(*models.TokenPair), args.Error(1)
+		return args.Get(0).(*models.AuthLoginResult), args.Error(1)
 	}
 	return nil, args.Error(1)
 }

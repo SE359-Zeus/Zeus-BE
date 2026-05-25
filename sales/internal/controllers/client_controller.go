@@ -90,6 +90,11 @@ func (controller *ClientController) HandleClientByID(w http.ResponseWriter, r *h
 			panic(err)
 		}
 		writeJSON(w, http.StatusOK, client)
+	case http.MethodDelete:
+		if err := controller.svc.DeleteClient(r.Context(), clientID); err != nil {
+			panic(err)
+		}
+		writeEnvelope(w, http.StatusOK, "Client deleted", nil, nil)
 	default:
 		writeErrorJSON(w, http.StatusMethodNotAllowed, http.StatusText(http.StatusMethodNotAllowed), nil)
 	}

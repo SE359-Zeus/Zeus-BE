@@ -107,3 +107,14 @@ func (repo *Repository) UpdateClient(ctx context.Context, client *models.Client)
 	}
 	return nil
 }
+
+func (repo *Repository) DeleteClient(ctx context.Context, id uuid.UUID) error {
+	result := repo.db.WithContext(ctx).Delete(&clientRecord{}, "id = ?", id.String())
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return rootrepo.ErrNotFound
+	}
+	return nil
+}

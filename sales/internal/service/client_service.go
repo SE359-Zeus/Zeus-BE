@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	infraMessaging "zeus-sales-service/internal/infrastructure/messaging"
 	"zeus-sales-service/internal/middlewares"
 	"zeus-sales-service/internal/models"
 	"zeus-sales-service/internal/repository"
@@ -92,6 +93,7 @@ func (svc *ClientService) CreateClient(ctx context.Context, req models.CreateCli
 	svc.cacheClient(ctx, client)
 	if svc.infra != nil && svc.infra.Publisher != nil {
 		_ = svc.infra.Publisher.Publish(ctx, "sales.client.created", client)
+		svc.publishAudit(ctx, "CREATE", "sales/clients/"+client.ID.String(), "Created client "+client.Name)
 	}
 	return client, nil
 }
@@ -165,8 +167,29 @@ func (svc *ClientService) UpdateClient(ctx context.Context, id uuid.UUID, req mo
 	}
 	if svc.infra != nil && svc.infra.Publisher != nil {
 		_ = svc.infra.Publisher.Publish(ctx, "sales.client.updated", client)
+		svc.publishAudit(ctx, "UPDATE", "sales/clients/"+client.ID.String(), "Updated client "+client.Name)
 	}
 	return client, nil
+}
+
+func (svc *ClientService) DeleteClient(ctx context.Context, id uuid.UUID) error {
+	if id == uuid.Nil {
+		return fmt.Errorf("%w: client id is required", middlewares.ErrValidation)
+	}
+	client, err := svc.repo.GetClient(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := svc.repo.DeleteClient(ctx, id); err != nil {
+		return err
+	}
+	if svc.infra != nil && svc.infra.Cache != nil && client != nil {
+		_ = svc.infra.Cache.DeleteClient(ctx, client.ID, client.Name)
+	}
+	if svc.infra != nil && svc.infra.Publisher != nil && client != nil {
+		svc.publishAudit(ctx, "DELETE", "sales/clients/"+client.ID.String(), "Deleted client "+client.Name)
+	}
+	return nil
 }
 
 func (svc *ClientService) cacheClient(ctx context.Context, client *models.Client) {
@@ -214,4 +237,22 @@ func (svc *ClientService) getCachedClients(ctx context.Context) []models.Client 
 		return nil
 	}
 	return clients
+}
+
+func (svc *ClientService) publishAudit(ctx context.Context, actionType string, targetResource string, details string) {
+	if svc == nil || svc.infra == nil || svc.infra.Publisher == nil {
+		return
+	}
+	userID, _ := ctx.Value(middlewares.ContextKeyUserID).(string)
+	email, _ := ctx.Value(middlewares.ContextKeyEmail).(string)
+	if strings.TrimSpace(userID) == "" || strings.TrimSpace(email) == "" {
+		return
+	}
+	_ = svc.infra.Publisher.Publish(ctx, infraMessaging.AuditQueue, map[string]any{
+		"user_id":         userID,
+		"user_email":      email,
+		"action_type":     strings.ToUpper(strings.TrimSpace(actionType)),
+		"target_resource": targetResource,
+		"details":         details,
+	})
 }

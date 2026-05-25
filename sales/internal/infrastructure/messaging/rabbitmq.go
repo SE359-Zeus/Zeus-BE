@@ -15,6 +15,7 @@ const (
 	OrderAllocatedQueue  = "sales.order.allocated"
 	OrderCancelledQueue  = "sales.order.cancelled"
 	ClientUpdatedQueue   = "sales.client.updated"
+	AuditQueue           = "system.audit.log"
 	FulfillmentQueued    = "sales.fulfillment.queued"
 	FulfillmentProcessed = "sales.fulfillment.processed"
 )
@@ -76,6 +77,7 @@ func declareQueues(channel *amqp.Channel) error {
 		OrderAllocatedQueue,
 		OrderCancelledQueue,
 		ClientUpdatedQueue,
+		AuditQueue,
 		FulfillmentQueued,
 		FulfillmentProcessed,
 	} {

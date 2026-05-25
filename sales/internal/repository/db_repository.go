@@ -14,6 +14,7 @@ type DbRepository interface {
 	GetClientByName(ctx context.Context, name string) (*models.Client, error)
 	ListClients(ctx context.Context) ([]models.Client, error)
 	UpdateClient(ctx context.Context, client *models.Client) error
+	DeleteClient(ctx context.Context, id uuid.UUID) error
 
 	ListOrderStatuses(ctx context.Context) ([]models.SalesOrderStatusLUT, error)
 	GetOrderStatusByID(ctx context.Context, id uuid.UUID) (*models.SalesOrderStatusLUT, error)

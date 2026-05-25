@@ -37,12 +37,14 @@ func NewMux(services *service.Services, authVerifier middlewares.TokenVerifier) 
 		http.MethodPost: {"sales_operator", "admin"},
 	}))
 	mux.Handle("/api/v1/sales/clients/", protect(http.HandlerFunc(clientController.HandleClientByID), map[string][]string{
-		http.MethodGet:   {"sales_operator", "sales_worker", "admin"},
-		http.MethodPatch: {"sales_operator", "admin"},
+		http.MethodGet:    {"sales_operator", "sales_worker", "admin"},
+		http.MethodPatch:  {"sales_operator", "admin"},
+		http.MethodDelete: {"sales_operator", "admin"},
 	}))
 	mux.Handle("/api/v1/sales/clients/:id", protect(http.HandlerFunc(clientController.HandleClientByID), map[string][]string{
-		http.MethodGet:   {"sales_operator", "sales_worker", "admin"},
-		http.MethodPatch: {"sales_operator", "admin"},
+		http.MethodGet:    {"sales_operator", "sales_worker", "admin"},
+		http.MethodPatch:  {"sales_operator", "admin"},
+		http.MethodDelete: {"sales_operator", "admin"},
 	}))
 	mux.Handle("/api/v1/sales/fulfillment/process", protect(http.HandlerFunc(fulfillmentController.HandleProcessQueue), map[string][]string{
 		http.MethodPost: {"sales_worker", "admin"},

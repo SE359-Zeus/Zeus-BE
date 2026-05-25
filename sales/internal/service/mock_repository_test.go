@@ -50,6 +50,10 @@ func (m *MockDbRepository) UpdateClient(ctx context.Context, client *models.Clie
 	return m.Called(ctx, client).Error(0)
 }
 
+func (m *MockDbRepository) DeleteClient(ctx context.Context, id uuid.UUID) error {
+	return m.Called(ctx, id).Error(0)
+}
+
 func (m *MockDbRepository) ListOrderStatuses(ctx context.Context) ([]models.SalesOrderStatusLUT, error) {
 	args := m.Called(ctx)
 	if args.Get(0) != nil {

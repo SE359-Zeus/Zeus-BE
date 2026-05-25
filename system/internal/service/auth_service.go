@@ -50,7 +50,7 @@ func NewAuthService(
 	}
 }
 
-func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*models.TokenPair, error) {
+func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*models.AuthLoginResult, error) {
 	user, err := s.userService.Authenticate(ctx, req.Email, req.Password)
 	if err != nil {
 		return nil, err
@@ -79,15 +79,18 @@ func (s *authService) Login(ctx context.Context, req models.LoginRequest) (*mode
 		return nil, err
 	}
 
-	return &models.TokenPair{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    int64(models.AccessTokenDuration.Seconds()),
+	return &models.AuthLoginResult{
+		Tokens: &models.TokenPair{
+			AccessToken:  accessToken,
+			RefreshToken: refreshToken,
+			TokenType:    "Bearer",
+			ExpiresIn:    int64(models.AccessTokenDuration.Seconds()),
+		},
+		User: user,
 	}, nil
 }
 
-func (s *authService) Refresh(ctx context.Context, req models.RefreshRequest) (*models.TokenPair, error) {
+func (s *authService) Refresh(ctx context.Context, req models.RefreshRequest) (*models.AuthLoginResult, error) {
 	refreshClaims := &jwtRefreshClaims{}
 	token, err := jwt.ParseWithClaims(req.RefreshToken, refreshClaims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
@@ -140,11 +143,14 @@ func (s *authService) Refresh(ctx context.Context, req models.RefreshRequest) (*
 		return nil, err
 	}
 
-	return &models.TokenPair{
-		AccessToken:  accessToken,
-		RefreshToken: newRefreshToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    int64(models.AccessTokenDuration.Seconds()),
+	return &models.AuthLoginResult{
+		Tokens: &models.TokenPair{
+			AccessToken:  accessToken,
+			RefreshToken: newRefreshToken,
+			TokenType:    "Bearer",
+			ExpiresIn:    int64(models.AccessTokenDuration.Seconds()),
+		},
+		User: user,
 	}, nil
 }
 
