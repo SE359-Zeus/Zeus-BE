@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
 
+	"zeus-scm-service/internal/infrastructure/cache"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/repository"
@@ -32,10 +35,15 @@ type IInventoryService interface {
 
 	GetPartCatalog(ctx context.Context, id uuid.UUID) (*models.PartCatalog, error)
 	ListPartCatalog(ctx context.Context, typeID *int32, params pagination.Params, q string) ([]models.PartCatalog, *pagination.Meta, error)
+	CreatePartCatalog(ctx context.Context, pc *models.PartCatalog, price float64) error
+	UpdatePartCatalogBySKU(ctx context.Context, sku string, fields map[string]any) (*models.PartCatalog, error)
+	DeletePartCatalogBySKU(ctx context.Context, sku string) error
+	GetPartCatalogBySKU(ctx context.Context, sku string) (*models.PartCatalog, float64, int, error)
 }
 
 type inventoryService struct {
-	db *gorm.DB
+	db    *gorm.DB
+	cache cache.Cache
 }
 
 type inventoryServiceRepo struct {
@@ -53,10 +61,35 @@ func NewInventoryService(arg interface{}) IInventoryService {
 	}
 }
 
+// NewInventoryServiceWithCache constructs an inventory service backed by a DB and a cache.
+func NewInventoryServiceWithCache(db *gorm.DB, c cache.Cache) IInventoryService {
+	return &inventoryService{db: db, cache: c}
+}
+
 func (s *inventoryService) GetProduct(ctx context.Context, id uuid.UUID) (*models.Product, error) {
+	// cache-aside: try cache first
+	if s.cache != nil {
+		key := fmt.Sprintf("product:%s", id.String())
+		if data, err := s.cache.Get(ctx, key); err == nil && data != nil {
+			var p models.Product
+			if err := json.Unmarshal(data, &p); err == nil {
+				return &p, nil
+			}
+			// fallthrough to DB on unmarshal error
+		}
+	}
+
 	var p models.Product
 	if err := s.db.WithContext(ctx).First(&p, "id = ?", id).Error; err != nil {
 		return nil, ErrNotFound
+	}
+
+	// populate cache
+	if s.cache != nil {
+		key := fmt.Sprintf("product:%s", id.String())
+		if b, err := json.Marshal(&p); err == nil {
+			_ = s.cache.Set(ctx, key, b)
+		}
 	}
 	return &p, nil
 }
@@ -201,6 +234,86 @@ func (s *inventoryServiceRepo) ListPartCatalog(ctx context.Context, typeID *int3
 	return s.repo.ListPartCatalog(ctx, typeID, params, q)
 }
 
+func (s *inventoryServiceRepo) CreatePartCatalog(ctx context.Context, pc *models.PartCatalog, price float64) error {
+	if err := s.repo.CreatePartCatalog(ctx, pc); err != nil {
+		return err
+	}
+	desc := ""
+	if pc.Description != nil {
+		desc = *pc.Description
+	}
+	return s.repo.CreateComponentStock(ctx, &models.ComponentStock{
+		SKU:          pc.PartNumber,
+		Name:         desc,
+		Category:     "Components",
+		StockQty:     0,
+		ReorderPoint: 0,
+		UnitCost:     price,
+		Status:       models.ComponentStatusInStock,
+		LeadTimeDays: 0,
+	})
+}
+
+func (s *inventoryServiceRepo) UpdatePartCatalogBySKU(ctx context.Context, sku string, fields map[string]any) (*models.PartCatalog, error) {
+	pc, err := s.repo.GetPartCatalogBySKU(ctx, sku)
+	if err != nil || pc == nil {
+		return nil, ErrNotFound
+	}
+	updates := make(map[string]interface{})
+	if desc, ok := fields["description"]; ok {
+		updates["description"] = desc
+		if rows, err := s.repo.UpdateComponentStockFieldsBySKU(ctx, sku, map[string]interface{}{"name": desc}); err != nil {
+			return nil, err
+		} else if rows == 0 {
+			return nil, ErrNotFound
+		}
+	}
+	if status, ok := fields["part_mfg_status"]; ok {
+		updates["part_mfg_status"] = status
+	}
+	if len(updates) > 0 {
+		if rows, err := s.repo.UpdatePartCatalogFieldsBySKU(ctx, sku, updates); err != nil {
+			return nil, err
+		} else if rows == 0 {
+			return nil, ErrNotFound
+		}
+	}
+	if price, ok := fields["price"].(float64); ok {
+		if rows, err := s.repo.UpdateComponentStockFieldsBySKU(ctx, sku, map[string]interface{}{"unit_cost": price}); err != nil {
+			return nil, err
+		} else if rows == 0 {
+			return nil, ErrNotFound
+		}
+	}
+	return pc, nil
+}
+
+func (s *inventoryServiceRepo) DeletePartCatalogBySKU(ctx context.Context, sku string) error {
+	if rows, err := s.repo.DeleteComponentStockBySKU(ctx, sku); err != nil {
+		return err
+	} else if rows == 0 {
+		return ErrNotFound
+	}
+	if rows, err := s.repo.DeletePartCatalogBySKU(ctx, sku); err != nil {
+		return err
+	} else if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *inventoryServiceRepo) GetPartCatalogBySKU(ctx context.Context, sku string) (*models.PartCatalog, float64, int, error) {
+	pc, err := s.repo.GetPartCatalogBySKU(ctx, sku)
+	if err != nil || pc == nil {
+		return nil, 0, 0, ErrNotFound
+	}
+	stock, err := s.repo.GetComponentStockBySKU(ctx, sku)
+	if err != nil || stock == nil {
+		return pc, 0, 0, ErrNotFound
+	}
+	return pc, stock.UnitCost, stock.StockQty, nil
+}
+
 func (s *inventoryService) UpdateProduct(ctx context.Context, id uuid.UUID, fields map[string]any) (*models.Product, error) {
 	result := s.db.WithContext(ctx).Model(&models.Product{}).Where("id = ?", id).Updates(fields)
 	if result.Error != nil {
@@ -213,29 +326,88 @@ func (s *inventoryService) UpdateProduct(ctx context.Context, id uuid.UUID, fiel
 	if err := s.db.WithContext(ctx).First(&p, "id = ?", id).Error; err != nil {
 		return nil, ErrNotFound
 	}
+
+	// write-through: update cache with new value
+	if s.cache != nil {
+		key := fmt.Sprintf("product:%s", id.String())
+		if b, err := json.Marshal(&p); err == nil {
+			_ = s.cache.Set(ctx, key, b)
+		}
+	}
 	return &p, nil
 }
 
 func (s *inventoryService) CreateProduct(ctx context.Context, p *models.Product) error {
-	return s.db.WithContext(ctx).Create(p).Error
+	if err := s.db.WithContext(ctx).Create(p).Error; err != nil {
+		return err
+	}
+	if s.cache != nil {
+		key := fmt.Sprintf("product:%s", p.ID.String())
+		if b, err := json.Marshal(p); err == nil {
+			_ = s.cache.Set(ctx, key, b)
+		}
+	}
+	return nil
 }
 
 func (s *inventoryService) GetProductModel(ctx context.Context, code string) (*models.ProductModel, error) {
+	// cache-aside
+	if s.cache != nil {
+		key := fmt.Sprintf("product_model:%s", code)
+		if data, err := s.cache.Get(ctx, key); err == nil && data != nil {
+			var m models.ProductModel
+			if err := json.Unmarshal(data, &m); err == nil {
+				return &m, nil
+			}
+		}
+	}
+
 	var m models.ProductModel
 	if err := s.db.WithContext(ctx).First(&m, "model_code = ?", code).Error; err != nil {
 		return nil, ErrNotFound
+	}
+	if s.cache != nil {
+		key := fmt.Sprintf("product_model:%s", code)
+		if b, err := json.Marshal(&m); err == nil {
+			_ = s.cache.Set(ctx, key, b)
+		}
 	}
 	return &m, nil
 }
 
 func (s *inventoryService) CreateProductModel(ctx context.Context, m *models.ProductModel) error {
-	return s.db.WithContext(ctx).Create(m).Error
+	if err := s.db.WithContext(ctx).Create(m).Error; err != nil {
+		return err
+	}
+	if s.cache != nil {
+		key := fmt.Sprintf("product_model:%s", m.ModelCode)
+		if b, err := json.Marshal(m); err == nil {
+			_ = s.cache.Set(ctx, key, b)
+		}
+	}
+	return nil
 }
 
 func (s *inventoryService) GetPart(ctx context.Context, id uuid.UUID) (*models.Part, error) {
+	if s.cache != nil {
+		key := fmt.Sprintf("part:%s", id.String())
+		if data, err := s.cache.Get(ctx, key); err == nil && data != nil {
+			var p models.Part
+			if err := json.Unmarshal(data, &p); err == nil {
+				return &p, nil
+			}
+		}
+	}
+
 	var p models.Part
 	if err := s.db.WithContext(ctx).First(&p, "id = ?", id).Error; err != nil {
 		return nil, ErrNotFound
+	}
+	if s.cache != nil {
+		key := fmt.Sprintf("part:%s", id.String())
+		if b, err := json.Marshal(&p); err == nil {
+			_ = s.cache.Set(ctx, key, b)
+		}
 	}
 	return &p, nil
 }
@@ -264,7 +436,16 @@ func (s *inventoryService) ListParts(ctx context.Context, catalogID *uuid.UUID, 
 }
 
 func (s *inventoryService) CreatePart(ctx context.Context, p *models.Part) error {
-	return s.db.WithContext(ctx).Create(p).Error
+	if err := s.db.WithContext(ctx).Create(p).Error; err != nil {
+		return err
+	}
+	if s.cache != nil {
+		key := fmt.Sprintf("part:%s", p.ID.String())
+		if b, err := json.Marshal(p); err == nil {
+			_ = s.cache.Set(ctx, key, b)
+		}
+	}
+	return nil
 }
 
 func (s *inventoryService) UpdatePart(ctx context.Context, id uuid.UUID, fields map[string]any) (*models.Part, error) {
@@ -279,6 +460,13 @@ func (s *inventoryService) UpdatePart(ctx context.Context, id uuid.UUID, fields 
 	if err := s.db.WithContext(ctx).First(&p, "id = ?", id).Error; err != nil {
 		return nil, ErrNotFound
 	}
+
+	if s.cache != nil {
+		key := fmt.Sprintf("part:%s", id.String())
+		if b, err := json.Marshal(&p); err == nil {
+			_ = s.cache.Set(ctx, key, b)
+		}
+	}
 	return &p, nil
 }
 
@@ -288,6 +476,16 @@ func (s *inventoryService) UpdatePartCondition(ctx context.Context, partID uuid.
 		Update("part_condition_id", conditionID)
 	if result.RowsAffected == 0 {
 		return ErrNotFound
+	}
+	if s.cache != nil {
+		// refresh cached part
+		var p models.Part
+		if err := s.db.WithContext(ctx).First(&p, "id = ?", partID).Error; err == nil {
+			key := fmt.Sprintf("part:%s", partID.String())
+			if b, err := json.Marshal(&p); err == nil {
+				_ = s.cache.Set(ctx, key, b)
+			}
+		}
 	}
 	return result.Error
 }
@@ -299,6 +497,15 @@ func (s *inventoryService) MarkPartScrapped(ctx context.Context, partID uuid.UUI
 		Update("scrapped_date", now)
 	if result.RowsAffected == 0 {
 		return ErrNotFound
+	}
+	if s.cache != nil {
+		var p models.Part
+		if err := s.db.WithContext(ctx).First(&p, "id = ?", partID).Error; err == nil {
+			key := fmt.Sprintf("part:%s", partID.String())
+			if b, err := json.Marshal(&p); err == nil {
+				_ = s.cache.Set(ctx, key, b)
+			}
+		}
 	}
 	return result.Error
 }
@@ -314,6 +521,15 @@ func (s *inventoryService) InstallPart(ctx context.Context, partID uuid.UUID, pr
 	if result.RowsAffected == 0 {
 		return ErrNotFound
 	}
+	if s.cache != nil {
+		var p models.Part
+		if err := s.db.WithContext(ctx).First(&p, "id = ?", partID).Error; err == nil {
+			key := fmt.Sprintf("part:%s", partID.String())
+			if b, err := json.Marshal(&p); err == nil {
+				_ = s.cache.Set(ctx, key, b)
+			}
+		}
+	}
 	return result.Error
 }
 
@@ -328,15 +544,134 @@ func (s *inventoryService) RemovePart(ctx context.Context, partID uuid.UUID) err
 	if result.RowsAffected == 0 {
 		return ErrNotFound
 	}
+	if s.cache != nil {
+		var p models.Part
+		if err := s.db.WithContext(ctx).First(&p, "id = ?", partID).Error; err == nil {
+			key := fmt.Sprintf("part:%s", partID.String())
+			if b, err := json.Marshal(&p); err == nil {
+				_ = s.cache.Set(ctx, key, b)
+			}
+		}
+	}
 	return result.Error
 }
 
+func (s *inventoryService) CreatePartCatalog(ctx context.Context, pc *models.PartCatalog, price float64) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(pc).Error; err != nil {
+			return err
+		}
+		desc := ""
+		if pc.Description != nil {
+			desc = *pc.Description
+		}
+		stk := models.ComponentStock{
+			SKU:          pc.PartNumber,
+			Name:         desc,
+			Category:     "Components",
+			StockQty:     0,
+			ReorderPoint: 0,
+			UnitCost:     price,
+			Status:       models.ComponentStatusInStock,
+			LeadTimeDays: 0,
+		}
+		return tx.Create(&stk).Error
+	})
+}
+
+func (s *inventoryService) DeletePartCatalogBySKU(ctx context.Context, sku string) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("sku = ?", sku).Delete(&models.ComponentStock{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("part_number = ?", sku).Delete(&models.PartCatalog{}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (s *inventoryService) GetPartCatalogBySKU(ctx context.Context, sku string) (*models.PartCatalog, float64, int, error) {
+	var pc models.PartCatalog
+	if err := s.db.WithContext(ctx).First(&pc, "part_number = ?", sku).Error; err != nil {
+		return nil, 0, 0, ErrNotFound
+	}
+	var stock models.ComponentStock
+	if err := s.db.WithContext(ctx).First(&stock, "sku = ?", sku).Error; err != nil {
+		return &pc, 0, 0, ErrNotFound
+	}
+	return &pc, stock.UnitCost, stock.StockQty, nil
+}
+
+func (s *inventoryService) UpdatePartCatalogBySKU(ctx context.Context, sku string, fields map[string]any) (*models.PartCatalog, error) {
+	var pc models.PartCatalog
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&pc, "part_number = ?", sku).Error; err != nil {
+			return err
+		}
+		updates := make(map[string]any)
+		if desc, ok := fields["description"]; ok {
+			updates["description"] = desc
+			if err := tx.Model(&models.ComponentStock{}).Where("sku = ?", sku).Update("name", desc).Error; err != nil {
+				return err
+			}
+		}
+		if status, ok := fields["part_mfg_status"]; ok {
+			updates["part_mfg_status"] = status
+		}
+		if len(updates) > 0 {
+			if err := tx.Model(&pc).Updates(updates).Error; err != nil {
+				return err
+			}
+		}
+		if price, ok := fields["price"].(float64); ok {
+			if err := tx.Model(&models.ComponentStock{}).Where("sku = ?", sku).Update("unit_cost", price).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	// update cache for part catalog if present
+	if s.cache != nil {
+		key := fmt.Sprintf("part_catalog:sku:%s", sku)
+		if b, err := json.Marshal(&pc); err == nil {
+			_ = s.cache.Set(ctx, key, b)
+		}
+	}
+
+	return &pc, nil
+}
+
 func (s *inventoryService) GetPartCatalog(ctx context.Context, id uuid.UUID) (*models.PartCatalog, error) {
-	var c models.PartCatalog
-	if err := s.db.WithContext(ctx).First(&c, "id = ?", id).Error; err != nil {
+	// cache-aside
+	if s.cache != nil {
+		key := fmt.Sprintf("part_catalog:%s", id.String())
+		if data, err := s.cache.Get(ctx, key); err == nil && data != nil {
+			var pc models.PartCatalog
+			if err := json.Unmarshal(data, &pc); err == nil {
+				return &pc, nil
+			}
+		}
+	}
+
+	var pc models.PartCatalog
+	if err := s.db.WithContext(ctx).First(&pc, "id = ?", id).Error; err != nil {
 		return nil, ErrNotFound
 	}
-	return &c, nil
+	if s.cache != nil {
+		key := fmt.Sprintf("part_catalog:%s", id.String())
+		if b, err := json.Marshal(&pc); err == nil {
+			_ = s.cache.Set(ctx, key, b)
+		}
+	}
+	return &pc, nil
 }
 
 func (s *inventoryService) ListPartCatalog(ctx context.Context, typeID *int32, params pagination.Params, q string) ([]models.PartCatalog, *pagination.Meta, error) {

@@ -137,3 +137,47 @@ func (r *inventoryRepository) ListPartCatalog(ctx context.Context, typeID *int32
 	}
 	return catalogs, meta, nil
 }
+
+func (r *inventoryRepository) CreatePartCatalog(ctx context.Context, pc *models.PartCatalog) error {
+	return r.db.WithContext(ctx).Create(pc).Error
+}
+
+func (r *inventoryRepository) UpdatePartCatalogFieldsBySKU(ctx context.Context, sku string, updates map[string]interface{}) (int64, error) {
+	res := r.db.WithContext(ctx).Model(&models.PartCatalog{}).Where("part_number = ?", sku).Updates(updates)
+	return res.RowsAffected, res.Error
+}
+
+func (r *inventoryRepository) DeletePartCatalogBySKU(ctx context.Context, sku string) (int64, error) {
+	res := r.db.WithContext(ctx).Where("part_number = ?", sku).Delete(&models.PartCatalog{})
+	return res.RowsAffected, res.Error
+}
+
+func (r *inventoryRepository) GetPartCatalogBySKU(ctx context.Context, sku string) (*models.PartCatalog, error) {
+	var c models.PartCatalog
+	if err := r.db.WithContext(ctx).First(&c, "part_number = ?", sku).Error; err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+func (r *inventoryRepository) GetComponentStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
+	var s models.ComponentStock
+	if err := r.db.WithContext(ctx).First(&s, "sku = ?", sku).Error; err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func (r *inventoryRepository) CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error {
+	return r.db.WithContext(ctx).Create(stock).Error
+}
+
+func (r *inventoryRepository) UpdateComponentStockFieldsBySKU(ctx context.Context, sku string, updates map[string]interface{}) (int64, error) {
+	res := r.db.WithContext(ctx).Model(&models.ComponentStock{}).Where("sku = ?", sku).Updates(updates)
+	return res.RowsAffected, res.Error
+}
+
+func (r *inventoryRepository) DeleteComponentStockBySKU(ctx context.Context, sku string) (int64, error) {
+	res := r.db.WithContext(ctx).Where("sku = ?", sku).Delete(&models.ComponentStock{})
+	return res.RowsAffected, res.Error
+}

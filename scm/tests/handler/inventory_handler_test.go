@@ -312,6 +312,7 @@ func TestInventoryHandler_GetPartCatalog_200(t *testing.T) {
 	catalog := &models.PartCatalog{ID: id, PartNumber: "PN-001"}
 
 	mockSvc.On("GetPartCatalog", mock.Anything, id).Return(catalog, nil)
+	mockSvc.On("GetPartCatalogBySKU", mock.Anything, "PN-001").Return(catalog, 150.0, 100, nil)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/inventory/part-catalog/"+id.String(), nil)

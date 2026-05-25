@@ -165,6 +165,32 @@ func (m *MockInventoryService) ListPartCatalog(ctx context.Context, typeID *int3
 	return nil, args.Get(1).(*pagination.Meta), args.Error(2)
 }
 
+func (m *MockInventoryService) CreatePartCatalog(ctx context.Context, pc *models.PartCatalog, price float64) error {
+	args := m.Called(ctx, pc, price)
+	return args.Error(0)
+}
+
+func (m *MockInventoryService) UpdatePartCatalogBySKU(ctx context.Context, sku string, fields map[string]any) (*models.PartCatalog, error) {
+	args := m.Called(ctx, sku, fields)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.PartCatalog), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockInventoryService) DeletePartCatalogBySKU(ctx context.Context, sku string) error {
+	args := m.Called(ctx, sku)
+	return args.Error(0)
+}
+
+func (m *MockInventoryService) GetPartCatalogBySKU(ctx context.Context, sku string) (*models.PartCatalog, float64, int, error) {
+	args := m.Called(ctx, sku)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.PartCatalog), args.Get(1).(float64), args.Get(2).(int), args.Error(3)
+	}
+	return nil, 0, 0, args.Error(3)
+}
+
 type MockShipmentService struct {
 	mock.Mock
 }

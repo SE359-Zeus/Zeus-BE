@@ -14,6 +14,7 @@ import (
 	"zeus-scm-service/internal/infrastructure/cache"
 	"zeus-scm-service/internal/infrastructure/messaging"
 	sqliteRepo "zeus-scm-service/internal/repository/sqlite"
+	valkeyRepo "zeus-scm-service/internal/repository/valkey"
 	"zeus-scm-service/internal/service"
 
 	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
@@ -66,20 +67,22 @@ func main() {
 		log.Fatalf("JWT service init failed: %v", err)
 	}
 
-	rolesWorker := []string{"admin", "scm_operator", "scm_worker"}
-	rolesOperator := []string{"admin", "scm_operator"}
+	rolesWorker := []string{"admin", "scm_operator", "scm_worker", "api_key"}
+	rolesOperator := []string{"admin", "scm_operator", "api_key"}
 
 	var cacheBackend cache.Cache = cache.NewNoop()
+	productCache := valkeyRepo.NewProductCache(cacheBackend)
 	if cfg.ValkeyAddr != "" {
 		if valkeyCache, err := cache.NewValkey(cfg.ValkeyAddr); err != nil {
 			log.Printf("running in degraded mode: Valkey unavailable [ValkeyAddr: %s], cache disabled: %v", cfg.ValkeyAddr, err)
 		} else {
 			cacheBackend = valkeyCache
+			productCache = valkeyRepo.NewProductCache(cacheBackend)
 			log.Printf("Valkey connected: %s", cfg.ValkeyAddr)
-			service.WarmupCache(context.Background(), db, cacheBackend)
+			service.WarmupCache(context.Background(), db, productCache)
 		}
 	}
-	inventorySvc = service.NewCachedInventoryService(inventorySvc, cacheBackend)
+	inventorySvc = service.NewCachedInventoryService(inventorySvc, productCache)
 	inventoryH := handler.NewInventoryHandler(inventorySvc)
 
 	r := gin.New()
@@ -159,6 +162,10 @@ func main() {
 		api.POST("/inventory/parts/:id/remove", middleware.RequireRoles(rolesWorker...), inventoryH.RemovePart)
 		api.GET("/inventory/part-catalog", middleware.RequireRoles(rolesWorker...), inventoryH.ListPartCatalog)
 		api.GET("/inventory/part-catalog/:id", middleware.RequireRoles(rolesWorker...), inventoryH.GetPartCatalog)
+		api.POST("/inventory/part-catalog", middleware.RequireRoles(rolesOperator...), inventoryH.CreatePartCatalog)
+		api.PUT("/inventory/part-catalog/:sku", middleware.RequireRoles(rolesOperator...), inventoryH.UpdatePartCatalog)
+		api.DELETE("/inventory/part-catalog/:sku", middleware.RequireRoles(rolesOperator...), inventoryH.DeletePartCatalog)
+		api.GET("/inventory/part-catalog/sku/:sku", middleware.RequireRoles(rolesWorker...), inventoryH.GetPartCatalogBySKU)
 	}
 
 	log.Printf("Zeus SCM service starting on :%s", cfg.ServerPort)
