@@ -16,10 +16,15 @@ import (
 type ClientService struct {
 	repo  repository.DbRepository
 	cache repository.CacheRepository
+	infra *Infrastructure
 }
 
-func NewClientService(repo repository.DbRepository, cache repository.CacheRepository) *ClientService {
-	return &ClientService{repo: repo, cache: cache}
+func NewClientService(repo repository.DbRepository, cache repository.CacheRepository, infra ...*Infrastructure) *ClientService {
+	var sharedInfra *Infrastructure
+	if len(infra) > 0 {
+		sharedInfra = infra[0]
+	}
+	return &ClientService{repo: repo, cache: cache, infra: sharedInfra}
 }
 
 func (svc *ClientService) ResolveOrCreateClient(ctx context.Context, name string, destination string, tier models.ClientTier) (*models.Client, error) {
@@ -27,11 +32,15 @@ func (svc *ClientService) ResolveOrCreateClient(ctx context.Context, name string
 	if name == "" {
 		return nil, fmt.Errorf("%w: client name is required", middlewares.ErrValidation)
 	}
+	if cached := svc.getCachedClientByName(ctx, name); cached != nil {
+		return cached, nil
+	}
 	if tier == "" {
 		tier = models.ClientTierB2C
 	}
 	client, err := svc.repo.GetClientByName(ctx, name)
 	if err == nil {
+		svc.cacheClient(ctx, client)
 		return client, nil
 	}
 	if err != repository.ErrNotFound {
@@ -47,6 +56,7 @@ func (svc *ClientService) ResolveOrCreateClient(ctx context.Context, name string
 	if err := svc.repo.CreateClient(ctx, client); err != nil {
 		return nil, err
 	}
+	svc.cacheClient(ctx, client)
 	return client, nil
 }
 
@@ -54,10 +64,21 @@ func (svc *ClientService) GetClient(ctx context.Context, id uuid.UUID) (*models.
 	if id == uuid.Nil {
 		return nil, fmt.Errorf("%w: client id is required", middlewares.ErrValidation)
 	}
-	return svc.repo.GetClient(ctx, id)
+	if cached := svc.getCachedClientByID(ctx, id); cached != nil {
+		return cached, nil
+	}
+	client, err := svc.repo.GetClient(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	svc.cacheClient(ctx, client)
+	return client, nil
 }
 
 func (svc *ClientService) ListClients(ctx context.Context) ([]models.Client, error) {
+	if cached := svc.getCachedClients(ctx); cached != nil {
+		return cached, nil
+	}
 	clients, err := svc.repo.ListClients(ctx)
 	if err != nil {
 		return nil, err
@@ -65,6 +86,7 @@ func (svc *ClientService) ListClients(ctx context.Context) ([]models.Client, err
 	if clients == nil {
 		return []models.Client{}, nil
 	}
+	svc.cacheClients(ctx, clients)
 	return clients, nil
 }
 
@@ -76,6 +98,7 @@ func (svc *ClientService) UpdateClient(ctx context.Context, id uuid.UUID, req mo
 	if err != nil {
 		return nil, err
 	}
+	originalName := client.Name
 	if req.Name == nil && req.Tier == nil && req.DefaultDestinationAddress == nil {
 		return nil, fmt.Errorf("%w: update request is empty", middlewares.ErrValidation)
 	}
@@ -95,10 +118,64 @@ func (svc *ClientService) UpdateClient(ctx context.Context, id uuid.UUID, req mo
 	if err := svc.repo.UpdateClient(ctx, client); err != nil {
 		return nil, err
 	}
+	if originalName != client.Name && svc.infra != nil && svc.infra.Cache != nil {
+		_ = svc.infra.Cache.DeleteClient(ctx, client.ID, originalName)
+	}
+	svc.cacheClient(ctx, client)
 	if svc.cache != nil {
 		if err := svc.cache.ClearQueue(ctx); err != nil {
-			// Client data is already saved; cache cleanup is optional.
+			// Client data is already saved; queue cache cleanup is optional.
 		}
 	}
+	if svc.infra != nil && svc.infra.Publisher != nil {
+		_ = svc.infra.Publisher.Publish(ctx, "sales.client.updated", client)
+	}
 	return client, nil
+}
+
+func (svc *ClientService) cacheClient(ctx context.Context, client *models.Client) {
+	if svc == nil || svc.infra == nil || svc.infra.Cache == nil || client == nil {
+		return
+	}
+	_ = svc.infra.Cache.SetClient(ctx, *client)
+}
+
+func (svc *ClientService) cacheClients(ctx context.Context, clients []models.Client) {
+	if svc == nil || svc.infra == nil || svc.infra.Cache == nil {
+		return
+	}
+	_ = svc.infra.Cache.SetClients(ctx, clients)
+}
+
+func (svc *ClientService) getCachedClientByID(ctx context.Context, id uuid.UUID) *models.Client {
+	if svc == nil || svc.infra == nil || svc.infra.Cache == nil {
+		return nil
+	}
+	client, ok, err := svc.infra.Cache.GetClientByID(ctx, id)
+	if err != nil || !ok {
+		return nil
+	}
+	return client
+}
+
+func (svc *ClientService) getCachedClientByName(ctx context.Context, name string) *models.Client {
+	if svc == nil || svc.infra == nil || svc.infra.Cache == nil {
+		return nil
+	}
+	client, ok, err := svc.infra.Cache.GetClientByName(ctx, name)
+	if err != nil || !ok {
+		return nil
+	}
+	return client
+}
+
+func (svc *ClientService) getCachedClients(ctx context.Context) []models.Client {
+	if svc == nil || svc.infra == nil || svc.infra.Cache == nil {
+		return nil
+	}
+	clients, ok, err := svc.infra.Cache.GetClients(ctx)
+	if err != nil || !ok {
+		return nil
+	}
+	return clients
 }

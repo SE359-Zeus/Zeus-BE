@@ -3,6 +3,8 @@ package integration
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,13 +13,14 @@ import (
 	"time"
 
 	"zeus-sales-service/internal/controllers"
+	"zeus-sales-service/internal/middlewares"
 	"zeus-sales-service/internal/models"
 	"zeus-sales-service/internal/repository/sqlite"
 	"zeus-sales-service/internal/repository/valkey"
 	"zeus-sales-service/internal/service"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/redis/go-redis/v9"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,7 +32,7 @@ type responseEnvelope struct {
 }
 
 func TestSalesAPI_OrderLifecycleAndLocking(t *testing.T) {
-	router, sqliteRepo, valkeyRepo := newIntegrationHarness(t)
+	router, adminToken, sqliteRepo, valkeyRepo := newIntegrationHarness(t)
 	require.NoError(t, valkeyRepo.SetATP(context.Background(), "SKU-LOCK", 5))
 
 	createBody := models.CreateOrderRequest{
@@ -38,7 +41,7 @@ func TestSalesAPI_OrderLifecycleAndLocking(t *testing.T) {
 		RequiredDate:       time.Now().Add(48 * time.Hour).UTC(),
 		Items:              []models.OrderItemRequest{{SKU: "SKU-LOCK", RequestedQty: 2, UnitPrice: 11}},
 	}
-	createResp := doJSONRequest(t, router, http.MethodPost, "/api/v1/sales/orders", createBody)
+	createResp := doJSONRequest(t, router, adminToken, http.MethodPost, "/api/v1/sales/orders", createBody)
 	require.Equal(t, http.StatusCreated, createResp.Code)
 
 	var createEnvelope responseEnvelope
@@ -47,17 +50,17 @@ func TestSalesAPI_OrderLifecycleAndLocking(t *testing.T) {
 	require.NoError(t, json.Unmarshal(createEnvelope.Data, &created))
 	require.NotEqual(t, created.Order.ID.String(), "")
 
-	getResp := doJSONRequest(t, router, http.MethodGet, "/api/v1/sales/orders/"+created.Order.ID.String(), nil)
+	getResp := doJSONRequest(t, router, adminToken, http.MethodGet, "/api/v1/sales/orders/"+created.Order.ID.String(), nil)
 	require.Equal(t, http.StatusOK, getResp.Code)
 
-	processResp := doJSONRequest(t, router, http.MethodPost, "/api/v1/sales/fulfillment/process", nil)
+	processResp := doJSONRequest(t, router, adminToken, http.MethodPost, "/api/v1/sales/fulfillment/process", nil)
 	require.Equal(t, http.StatusOK, processResp.Code)
 
-	patchResp := doJSONRequest(t, router, http.MethodPatch, "/api/v1/sales/orders/"+created.Order.ID.String(), models.UpdateOrderRequest{DestinationAddress: ptrString("New Dock")})
+	patchResp := doJSONRequest(t, router, adminToken, http.MethodPatch, "/api/v1/sales/orders/"+created.Order.ID.String(), models.UpdateOrderRequest{DestinationAddress: ptrString("New Dock")})
 	require.Equal(t, http.StatusConflict, patchResp.Code)
 
 	var after models.OrderResponse
-	assertStatus := doJSONRequest(t, router, http.MethodGet, "/api/v1/sales/orders/"+created.Order.ID.String(), nil)
+	assertStatus := doJSONRequest(t, router, adminToken, http.MethodGet, "/api/v1/sales/orders/"+created.Order.ID.String(), nil)
 	require.Equal(t, http.StatusOK, assertStatus.Code)
 	var afterEnvelope responseEnvelope
 	require.NoError(t, json.Unmarshal(assertStatus.Body.Bytes(), &afterEnvelope))
@@ -69,34 +72,34 @@ func TestSalesAPI_OrderLifecycleAndLocking(t *testing.T) {
 }
 
 func TestSalesAPI_ClientRegistryAndQueueStatus(t *testing.T) {
-	router, _, _ := newIntegrationHarness(t)
+	router, adminToken, _, _ := newIntegrationHarness(t)
 
-	createResp := doJSONRequest(t, router, http.MethodPost, "/api/v1/sales/orders", models.CreateOrderRequest{
+	createResp := doJSONRequest(t, router, adminToken, http.MethodPost, "/api/v1/sales/orders", models.CreateOrderRequest{
 		ClientName:   "Registry Client",
 		RequiredDate: time.Now().Add(24 * time.Hour).UTC(),
 		Items:        []models.OrderItemRequest{{SKU: "SKU-R", RequestedQty: 1, UnitPrice: 3}},
 	})
 	require.Equal(t, http.StatusCreated, createResp.Code)
 
-	queueResp := doJSONRequest(t, router, http.MethodGet, "/api/v1/sales/fulfillment/queue", nil)
+	queueResp := doJSONRequest(t, router, adminToken, http.MethodGet, "/api/v1/sales/fulfillment/queue", nil)
 	require.Equal(t, http.StatusOK, queueResp.Code)
 
-	clientsResp := doJSONRequest(t, router, http.MethodGet, "/api/v1/sales/clients", nil)
+	clientsResp := doJSONRequest(t, router, adminToken, http.MethodGet, "/api/v1/sales/clients", nil)
 	require.Equal(t, http.StatusOK, clientsResp.Code)
 
 	var clientEnvelope responseEnvelope
 	require.NoError(t, json.Unmarshal(createResp.Body.Bytes(), &clientEnvelope))
 	var created models.OrderResponse
 	require.NoError(t, json.Unmarshal(clientEnvelope.Data, &created))
-	clientResp := doJSONRequest(t, router, http.MethodGet, "/api/v1/sales/clients/"+created.Client.ID.String(), nil)
+	clientResp := doJSONRequest(t, router, adminToken, http.MethodGet, "/api/v1/sales/clients/"+created.Client.ID.String(), nil)
 	require.Equal(t, http.StatusOK, clientResp.Code)
 }
 
 func TestSalesAPI_CancelOrderEndpoint(t *testing.T) {
-	router, _, valkeyRepo := newIntegrationHarness(t)
+	router, adminToken, _, valkeyRepo := newIntegrationHarness(t)
 	require.NoError(t, valkeyRepo.SetATP(context.Background(), "SKU-CANCEL", 4))
 
-	createResp := doJSONRequest(t, router, http.MethodPost, "/api/v1/sales/orders", models.CreateOrderRequest{
+	createResp := doJSONRequest(t, router, adminToken, http.MethodPost, "/api/v1/sales/orders", models.CreateOrderRequest{
 		ClientName:         "Cancel Client",
 		DestinationAddress: "Dock Cancel",
 		RequiredDate:       time.Now().Add(72 * time.Hour).UTC(),
@@ -109,10 +112,10 @@ func TestSalesAPI_CancelOrderEndpoint(t *testing.T) {
 	var created models.OrderResponse
 	require.NoError(t, json.Unmarshal(createEnvelope.Data, &created))
 
-	cancelResp := doJSONRequest(t, router, http.MethodPost, "/api/v1/sales/orders/"+created.Order.ID.String()+"/cancel", nil)
+	cancelResp := doJSONRequest(t, router, adminToken, http.MethodPost, "/api/v1/sales/orders/"+created.Order.ID.String()+"/cancel", nil)
 	require.Equal(t, http.StatusOK, cancelResp.Code)
 
-	getResp := doJSONRequest(t, router, http.MethodGet, "/api/v1/sales/orders/"+created.Order.ID.String(), nil)
+	getResp := doJSONRequest(t, router, adminToken, http.MethodGet, "/api/v1/sales/orders/"+created.Order.ID.String(), nil)
 	require.Equal(t, http.StatusOK, getResp.Code)
 
 	var getEnvelope responseEnvelope
@@ -124,7 +127,7 @@ func TestSalesAPI_CancelOrderEndpoint(t *testing.T) {
 }
 
 func TestSalesAPI_CreateOrder_AcceptsCamelCaseRequestBody(t *testing.T) {
-	router, _, valkeyRepo := newIntegrationHarness(t)
+	router, adminToken, _, valkeyRepo := newIntegrationHarness(t)
 	require.NoError(t, valkeyRepo.SetATP(context.Background(), "sadfawefdf", 3))
 
 	body := []byte(`{
@@ -142,6 +145,7 @@ func TestSalesAPI_CreateOrder_AcceptsCamelCaseRequestBody(t *testing.T) {
 	}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/sales/orders", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusCreated, rec.Code)
@@ -157,10 +161,10 @@ func TestSalesAPI_CreateOrder_AcceptsCamelCaseRequestBody(t *testing.T) {
 }
 
 func TestSalesAPI_ListOrders_ReturnsSummaryRows(t *testing.T) {
-	router, _, valkeyRepo := newIntegrationHarness(t)
+	router, adminToken, _, valkeyRepo := newIntegrationHarness(t)
 	require.NoError(t, valkeyRepo.SetATP(context.Background(), "SKU-SUMMARY", 3))
 
-	createResp := doJSONRequest(t, router, http.MethodPost, "/api/v1/sales/orders", models.CreateOrderRequest{
+	createResp := doJSONRequest(t, router, adminToken, http.MethodPost, "/api/v1/sales/orders", models.CreateOrderRequest{
 		ClientName:         "Summary Client",
 		DestinationAddress: "Summary Dock",
 		ClientTier:         models.ClientTierB2B,
@@ -169,7 +173,7 @@ func TestSalesAPI_ListOrders_ReturnsSummaryRows(t *testing.T) {
 	})
 	require.Equal(t, http.StatusCreated, createResp.Code)
 
-	listResp := doJSONRequest(t, router, http.MethodGet, "/api/v1/sales/orders", nil)
+	listResp := doJSONRequest(t, router, adminToken, http.MethodGet, "/api/v1/sales/orders", nil)
 	require.Equal(t, http.StatusOK, listResp.Code)
 
 	var listEnvelope responseEnvelope
@@ -188,21 +192,22 @@ func TestSalesAPI_ListOrders_ReturnsSummaryRows(t *testing.T) {
 	require.NotZero(t, rows[0].OrderID)
 }
 
-func newIntegrationHarness(t *testing.T) (http.Handler, *sqlite.Repository, *valkey.Repository) {
+func newIntegrationHarness(t *testing.T) (http.Handler, string, *sqlite.Repository, *valkey.Repository) {
 	t.Helper()
 	sqliteRepo, err := sqlite.Open(filepath.Join(t.TempDir(), "sales.db"))
 	require.NoError(t, err)
 	server := miniredis.RunT(t)
-	redisClient := redis.NewClient(&redis.Options{Addr: server.Addr()})
-	valkeyRepo := valkey.New(redisClient)
+	valkeyRepo := valkey.New(server.Addr())
+	privateKey := generateTestKey(t)
+	authVerifier := middlewares.NewJWTVerifier(&privateKey.PublicKey)
+	adminToken := signTestToken(t, privateKey, "admin")
 	t.Cleanup(func() {
-		_ = redisClient.Close()
 		_ = sqliteRepo.Close()
 	})
-	return controllers.NewMux(service.NewServices(sqliteRepo, valkeyRepo)), sqliteRepo, valkeyRepo
+	return controllers.NewMux(service.NewServices(sqliteRepo, valkeyRepo), authVerifier), adminToken, sqliteRepo, valkeyRepo
 }
 
-func doJSONRequest(t *testing.T, handler http.Handler, method, path string, body any) *httptest.ResponseRecorder {
+func doJSONRequest(t *testing.T, handler http.Handler, token, method, path string, body any) *httptest.ResponseRecorder {
 	t.Helper()
 	var payload []byte
 	if body != nil {
@@ -212,9 +217,35 @@ func doJSONRequest(t *testing.T, handler http.Handler, method, path string, body
 	}
 	req := httptest.NewRequest(method, path, bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	return rec
+}
+
+func generateTestKey(t *testing.T) *rsa.PrivateKey {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	return key
+}
+
+func signTestToken(t *testing.T, privateKey *rsa.PrivateKey, role string) string {
+	t.Helper()
+	claims := jwt.MapClaims{
+		"user_id":   "11111111-1111-1111-1111-111111111111",
+		"role":      role,
+		"email":     "admin@zeus.com",
+		"full_name": "Admin User",
+		"status":    "ACTIVE",
+		"iss":       "zeus-system",
+		"iat":       time.Now().Unix(),
+		"exp":       time.Now().Add(15 * time.Minute).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	signed, err := token.SignedString(privateKey)
+	require.NoError(t, err)
+	return signed
 }
 
 func ptrString(value string) *string {

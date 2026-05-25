@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"log"
 	"math"
 	"strings"
+	"time"
 
 	"zeus-system-service/internal/models"
 	"zeus-system-service/internal/repository"
@@ -13,11 +15,24 @@ import (
 )
 
 type userService struct {
-	repo repository.UserRepository
+	repo        repository.UserRepository
+	rbacSvc     EndpointRBACService
+	emailSender EmailService
+	cacheRepo   repository.UserCacheRepository
 }
 
-func NewUserService(repo repository.UserRepository) UserService {
-	return &userService{repo: repo}
+func NewUserService(
+	repo repository.UserRepository,
+	rbacSvc EndpointRBACService,
+	emailSender EmailService,
+	cacheRepo repository.UserCacheRepository,
+) UserService {
+	return &userService{
+		repo:        repo,
+		rbacSvc:     rbacSvc,
+		emailSender: emailSender,
+		cacheRepo:   cacheRepo,
+	}
 }
 
 func (s *userService) Create(ctx context.Context, req models.CreateUserRequest) (*models.User, error) {
@@ -30,16 +45,11 @@ func (s *userService) Create(ctx context.Context, req models.CreateUserRequest) 
 	if !strings.Contains(req.Email, "@") {
 		return nil, ErrInvalidEmail
 	}
-	if req.Password == "" {
-		return nil, ErrEmptyPassword
-	}
-	if len(req.Password) < 8 {
-		return nil, ErrShortPassword
-	}
+
 	if req.FullName == "" {
 		return nil, ErrEmptyName
 	}
-	if !models.ValidRoles[req.Role] {
+	if err := s.rbacSvc.ValidateRole(ctx, req.Role); err != nil {
 		return nil, ErrInvalidRole
 	}
 
@@ -48,12 +58,16 @@ func (s *userService) Create(ctx context.Context, req models.CreateUserRequest) 
 		return nil, ErrDuplicateEmail
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	userID := uuid.New()
+	password := userID.String()[:10]
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
 	}
 
 	user := &models.User{
+		ID:           userID,
 		Email:        req.Email,
 		PasswordHash: string(hash),
 		FullName:     req.FullName,
@@ -65,6 +79,31 @@ func (s *userService) Create(ctx context.Context, req models.CreateUserRequest) 
 		return nil, err
 	}
 
+	if s.cacheRepo != nil {
+		_ = s.cacheRepo.Set(ctx, user)
+	}
+
+	if s.emailSender != nil {
+		go func(to, fullName, pwd, role string, createdAt time.Time) {
+			bgCtx := context.Background()
+			if err := s.emailSender.SendTemplate(bgCtx, EmailTemplateRequest{
+				To:       to,
+				Subject:  "Your Zeus System account is ready",
+				Template: "create_account.html",
+				Data: CreateAccountEmailData{
+					To:        to,
+					FullName:  fullName,
+					Username:  to,
+					Password:  pwd,
+					Role:      role,
+					CreatedAt: createdAt,
+				},
+			}); err != nil {
+				log.Printf("Warning: failed to send create-account email to %s: %v", to, err)
+			}
+		}(user.Email, user.FullName, password, user.Role, user.CreatedAt)
+	}
+
 	return user, nil
 }
 
@@ -73,12 +112,22 @@ func (s *userService) GetByID(ctx context.Context, id uuid.UUID) (*models.User, 
 		return nil, ErrNilID
 	}
 
+	if s.cacheRepo != nil {
+		if cached, err := s.cacheRepo.GetByID(ctx, id); err == nil && cached != nil {
+			return cached, nil
+		}
+	}
+
 	user, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	if user == nil {
 		return nil, ErrNotFound
+	}
+
+	if s.cacheRepo != nil {
+		_ = s.cacheRepo.Set(ctx, user)
 	}
 
 	return user, nil
@@ -129,7 +178,7 @@ func (s *userService) Update(ctx context.Context, id uuid.UUID, req models.Updat
 		user.FullName = name
 	}
 	if req.Role != nil {
-		if !models.ValidRoles[*req.Role] {
+		if err := s.rbacSvc.ValidateRole(ctx, *req.Role); err != nil {
 			return nil, ErrInvalidRole
 		}
 		user.Role = *req.Role
@@ -137,6 +186,10 @@ func (s *userService) Update(ctx context.Context, id uuid.UUID, req models.Updat
 
 	if err := s.repo.Update(ctx, user); err != nil {
 		return nil, err
+	}
+
+	if s.cacheRepo != nil {
+		_ = s.cacheRepo.Set(ctx, user)
 	}
 
 	return user, nil
@@ -155,7 +208,16 @@ func (s *userService) SetStatus(ctx context.Context, id uuid.UUID, status models
 		return ErrNotFound
 	}
 
-	return s.repo.SetStatus(ctx, id, status)
+	if err := s.repo.SetStatus(ctx, id, status); err != nil {
+		return err
+	}
+
+	updatedUser, err := s.repo.GetByID(ctx, id)
+	if err == nil && updatedUser != nil && s.cacheRepo != nil {
+		_ = s.cacheRepo.Set(ctx, updatedUser)
+	}
+
+	return nil
 }
 
 func (s *userService) Authenticate(ctx context.Context, email, password string) (*models.User, error) {
@@ -168,12 +230,25 @@ func (s *userService) Authenticate(ctx context.Context, email, password string) 
 		return nil, ErrEmptyPassword
 	}
 
-	user, err := s.repo.GetByEmail(ctx, email)
-	if err != nil {
-		return nil, err
+	var user *models.User
+	var err error
+	if s.cacheRepo != nil {
+		if cached, err := s.cacheRepo.GetByEmail(ctx, email); err == nil && cached != nil {
+			user = cached
+		}
 	}
+
 	if user == nil {
-		return nil, ErrNotFound
+		user, err = s.repo.GetByEmail(ctx, email)
+		if err != nil {
+			return nil, err
+		}
+		if user == nil {
+			return nil, ErrNotFound
+		}
+		if s.cacheRepo != nil {
+			_ = s.cacheRepo.Set(ctx, user)
+		}
 	}
 
 	if user.Status == models.AccountStatusInactive {

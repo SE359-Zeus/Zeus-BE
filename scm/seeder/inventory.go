@@ -1,9 +1,10 @@
 package seeder
 
 import (
+	"zeus-scm-service/internal/models"
+
 	"github.com/brianvoe/gofakeit/v6"
 	"gorm.io/gorm"
-	"zeus-scm-service/internal/models"
 )
 
 func seedInventory(db *gorm.DB, catMap map[string]models.PartCatalog, suppliers []models.Supplier) {
@@ -24,6 +25,6 @@ func seedInventory(db *gorm.DB, catMap map[string]models.PartCatalog, suppliers 
 			PrimarySupplierID: sup.ID,
 			LeadTimeDays:      sup.LeadTimeDays,
 		}
-		db.FirstOrCreate(&stk, models.ComponentStock{SKU: stk.SKU})
+		db.Where("sku = ?", stk.SKU).Assign(stk).FirstOrCreate(&stk)
 	}
 }

@@ -1,8 +1,7 @@
 package handler
 
 import (
-	"net/http"
-
+	"zeus-scm-service/internal/exception"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/service"
 
@@ -26,20 +25,24 @@ type createDraftRequest struct {
 func (h *POHandler) CreateDraft(c *gin.Context) {
 	var req createDraftRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 	vendorID, err := uuid.Parse(req.VendorID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid vendor_id"})
+		exception.WriteError(c, exception.ErrInvalidResourceID.WithMessage("invalid vendor_id"))
 		return
 	}
 	po, err := h.svc.CreateDraft(c.Request.Context(), vendorID, req.TargetBuild)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusCreated, po)
+	writeJSON(c, 201, po)
 }
 
 type addLineItemRequest struct {
@@ -51,23 +54,31 @@ func (h *POHandler) AddLineItemWithLock(c *gin.Context) {
 	poID := c.Param("poId")
 	var req addLineItemRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 	if err := h.svc.AddLineItemWithLock(c.Request.Context(), poID, req.SKU, req.Qty); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "line item added"})
+	writeJSON(c, 200, gin.H{"message": "line item added"})
 }
 
 func (h *POHandler) ApprovePO(c *gin.Context) {
 	poID := c.Param("poId")
 	if err := h.svc.ApprovePO(c.Request.Context(), poID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "PO approved"})
+	writeJSON(c, 200, gin.H{"message": "PO approved"})
 }
 
 type transitionStateRequest struct {
@@ -78,12 +89,16 @@ func (h *POHandler) TransitionState(c *gin.Context) {
 	poID := c.Param("poId")
 	var req transitionStateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 	if err := h.svc.TransitionState(c.Request.Context(), poID, models.POStatus(req.NewState)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "state transitioned"})
+	writeJSON(c, 200, gin.H{"message": "state transitioned"})
 }

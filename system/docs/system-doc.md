@@ -1,106 +1,107 @@
---------------------------------------------------------------------------------
-Zeus ERP: System Service Module Implementation Specification
-1. Module Overview
-The System Service is the "Root of Trust" for the Zeus ERP. It is strictly restricted to Administrators and manages the authentication lifecycle, user directory, and a system-wide immutable audit trail
-.
-Core Objectives:
-Centralized Identity: Single point for user authentication and session management
-.
-Decentralized Authorization: Use cryptographically signed tokens so downstream modules (Sales, MRP, SCM) can verify permissions without re-querying the database
-.
-Compliance Traceability: Provide a read-only ledger of every critical state change across the ecosystem
-.
+# Zeus ERP: Authentication Definition 
 
---------------------------------------------------------------------------------
-2. Core Subsystems & Technical Logic
-A. Authentication & Identity (The "Gatekeeper")
-Mechanism: Uses an Asymmetric Algorithm (RS256 or EdDSA) to sign tokens
-.
-Token Strategy:
-Access Token (Short-lived): A JWT containing User ID and Roles/Permissions
-.
-Refresh Token (Long-lived): Used to rotate access tokens without requiring manual login
-.
-Verification: The System Service holds the Private Key (to sign); all other modules (SCM, MRP, Sales) hold the Public Key to independently verify the signature
-.
-B. User Management (The Directory)
-User Roles: Implements three functional roles: Admin, Editor, and Viewer
-.
-Account Lifecycle: Administrators can provision accounts and instantly revoke access by toggling a status to INACTIVE, which kills the ability to generate new tokens
-.
-Data Structure: User Profile tracks Email, Role, Last Login, and Account Status
-.
-C. Audit Logging (The Ledger)
-Event Ingestion: Subsystems (Sales, MRP, SCM) emit asynchronous payloads to this module whenever a state change occurs
-.
-Asynchronicity: This ensures business transactions (like shipping an order) are not slowed down by the logging process
-.
-Event Record Structure: Must capture: Timestamp, User, Action Type, Target Resource, Details, and IP Address
-.
+This document defines the Role-Based Access Control (RBAC) matrix and Authentication protocols for the Zeus microservices application.
 
---------------------------------------------------------------------------------
-3. API & Integration Blueprint
-I. Identity Endpoints
-Endpoint
-Method
-Input
-Output
-Purpose
-/auth/login
-POST
-Credentials
-Access + Refresh Token
-Authenticate user and issue signed JWT
-.
-/auth/refresh
-POST
-Refresh Token
-New Access Token
-Rotate session tokens
-.
-/users
-POST/PUT
-Profile Data
-Success/Fail
-Create or modify operator accounts
-.
-II. Audit Stream (Internal)
-Payload: POST /logs/ingest (Internal API)
-Logic: Accepts event data from other modules. Must be optimized for high-volume writes
-.
+---
 
---------------------------------------------------------------------------------
-4. Implementation Roadmap for AI
-Phase 1: Security Foundation
-Key Pair Generation: Set up the asymmetric encryption (Private/Public keys)
-.
-JWT Middleware: Create the verification logic that the Sales, MRP, and SCM modules will use to validate tokens via the Public Key
-.
-Phase 2: User Registry
-Database Schema: Implement the User Profile and Role structures
-.
-Admin UI: Build the User Access dashboard with the "Add New User" and "ACTIVE/INACTIVE" toggle functionality
-.
-Phase 3: Logging Infrastructure
-Async Log Engine: Build the receiver for incoming event streams
-.
-Audit UI: Create the Audit Logs view with filters for Action Types (Login, Create, Update, Delete) and a "Live" stream toggle
-.
+## 1. Authentication Architecture (Kiến trúc xác thực)
 
---------------------------------------------------------------------------------
-5. Critical Business Rules & Constraints
-State Machine: Account Status is binary (ACTIVE vs. INACTIVE). An INACTIVE account must be blocked from all authentication attempts immediately
-.
-Read-Only Logs: The Audit Log must be immutable. No "Edit" or "Delete" functions should exist for event records
-.
-Restricted Access: Access to the System Service UI is limited exclusively to the Administrator role
-.
-Security Alerting: Any event tagged as a "Security Event" (e.g., failed logins, unauthorized resource access) must be highlighted in Red in the Audit Dashboard
-.
-6. Key Performance Indicators (KPIs)
-Logins Today: Monitoring daily system activity
-.
-Security Events: Real-time count of failed or flagged operations
-.
-Modification Velocity: Tracking the total number of UPDATE and DELETE actions across the ERP
-.
+The Zeus ecosystem employs a dual-method authentication strategy to secure both human interactions and system-to-system integrations.
+
+### A. Token-Based Auth (Asymmetric - Bất đối xứng)
+Used for user-facing applications (Web Dashboard).
+- **Access Token (Mã truy cập):** A short-lived JWT generated using an **Asymmetric Algorithm** (e.g., RS256/EdDSA).
+  - **Verification:** Each microservice validates the token locally using a **Public Key (Khóa công khai)**, eliminating the need for a synchronous call to the IAM service for every request.
+- **Refresh Token (Mã làm mới):** A long-lived token used to rotate Access Tokens. Also signed asymmetrically to ensure integrity.
+
+### B. API Key Authentication (Mã API)
+Used for Zent call API from Zeus.
+- **Exposure:** Currently, only the **SCM Service** is authorized to expose and manage API Keys.
+- **Storage:** All valid API Keys are persisted in the **SCM database**.
+- **Verification Logic:**
+  - When a request contains an API Key (typically in the `X-API-KEY` header), the receiving service queries the **SCM database** to verify the key's validity and retrieve its authorized scopes.
+
+---
+
+## 2. Role Hierarchy Overview (Tổng quan phân cấp vai trò)
+
+| Role Level | Description |
+| :--- | :--- |
+| **Administrator** | Global system control, user management, and employee oversight. |
+| **Operator** | Functional management (Approvals, Priority Overrides, Sourcing Logic). |
+| **Worker** | Execution of operational tasks (Data entry, Receiving, Order Ingestion). |
+
+*Note: The HR module's functional roles (Operator/Worker) have been consolidated into the Global Administrator to streamline personnel management.*
+
+---
+
+## 3. Module-Specific Roles (Vai trò theo mô-đun)
+
+### A. SCM (Supply Chain Management)
+*Governs acquisition (upstream) and distribution (downstream).*
+
+*   **SCM Operator:**
+    *   **Responsibilities:** Resolve vendor selection (sourcing intelligence), approve Purchase Orders (POs), and orchestrate outbound dispatch.
+    *   **Permissions:** 
+        - `scm:vendor:resolve` (Ghi đè nhà cung cấp tối ưu)
+        - `scm:po:approve` (Duyệt đơn mua hàng)
+        - `scm:po:bulk_approve` (Duyệt hàng loạt)
+        - `scm:supplier:manage` (Quản lý hồ sơ nhà cung cấp)
+        - `scm:dispatch:orchestrate` (Điều phối lộ trình giao hàng)
+*   **SCM Worker:**
+    *   **Responsibilities:** Physical validation of inbound shipments, inventory ledger updates, and shipment packaging.
+    *   **Permissions:** 
+        - `scm:receipt:receive` (Nhập kho - Blind receiving)
+        - `scm:receipt:inspect` (Kiểm tra chất lượng/Date code)
+        - `scm:inventory:adjust` (Điều chỉnh tồn kho thực tế)
+        - `scm:dispatch:pack` (Đóng gói và in nhãn)
+
+### B. MRP (Material Requirement Planning)
+*Governs production readiness and component hierarchies.*
+
+*   **MRP Operator:**
+    *   **Responsibilities:** Manage Component Catalog/BOM, trigger calculation runs, and execute SCM demand handoffs.
+    *   **Permissions:** 
+        - `mrp:catalog:manage` (Quản lý danh mục linh kiện & BOM)
+        - `mrp:demand:trigger` (Kích hoạt tổng hợp nhu cầu vật tư)
+        - `mrp:readiness:analyze` (Phân tích khả năng đáp ứng sản xuất)
+        - `mrp:handoff:procure` (Chuyển yêu cầu mua hàng sang SCM)
+*   **MRP Worker:**
+    *   **Responsibilities:** Monitor material readiness and generate warehouse pick lists for the production floor.
+    *   **Permissions:** 
+        - `mrp:readiness:view` (Xem bảng cân đối vật tư)
+        - `mrp:picklist:generate` (Tạo danh sách soạn hàng)
+        - `mrp:ledger:read` (Xem nhật ký kho - Read-only)
+
+### C. Sales (Order Management)
+*Governs client ingestion and fulfillment priority.*
+
+*   **Sales Operator:**
+    *   **Responsibilities:** Manage Client Registry (Tier assignments), resolve fulfillment bottlenecks via priority overrides.
+    *   **Permissions:** 
+        - `sales:client:manage` (Quản lý hồ sơ/Tier khách hàng)
+        - `sales:priority:override` (Ghi đè thứ tự ưu tiên phân bổ)
+        - `sales:fulfillment:monitor` (Giám sát hàng đợi phân bổ)
+*   **Sales Worker:**
+    *   **Responsibilities:** API order validation, sales order creation, and tracking client fulfillment status.
+    *   **Permissions:** 
+        - `sales:order:create` (Tạo/Nhập đơn hàng)
+        - `sales:order:track` (Theo dõi trạng thái đơn hàng)
+        - `sales:client:read` (Xem thông tin khách hàng)
+
+---
+
+## 4. Global Administrative Roles
+
+### **Administrator**
+*   **Responsibilities:** The "Root" system user. Manages Identity (IAM), Employee records (formerly HR), and Global Config.
+*   **Permissions:**
+    - `iam:user:manage` (Quản lý người dùng)
+    - `iam:role:assign` (Gán vai trò và quyền)
+    - `hr:employee:manage` (Quản lý hồ sơ nhân viên & Chấm công)
+    - `audit:log:read` (Truy xuất nhật ký hệ thống)
+    - `system:config:write` (Cấu hình tham số hệ thống)
+
+---
+
+

@@ -1,9 +1,9 @@
 package handler
 
 import (
-	"net/http"
 	"strconv"
 
+	"zeus-scm-service/internal/exception"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/service"
@@ -23,15 +23,19 @@ func NewInventoryHandler(svc service.IInventoryService) *InventoryHandler {
 func (h *InventoryHandler) GetProduct(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		exception.WriteError(c, exception.ErrInvalidResourceID)
 		return
 	}
 	p, err := h.svc.GetProduct(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusOK, p)
+	writeJSON(c, 200, p)
 }
 
 func parsePaginationParams(c *gin.Context) pagination.Params {
@@ -51,60 +55,76 @@ func (h *InventoryHandler) ListProducts(c *gin.Context) {
 
 	products, meta, err := h.svc.ListProducts(c.Request.Context(), params, q)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
 		return
 	}
-	c.JSON(http.StatusOK, pagination.Response{Data: products, Pagination: *meta})
+	writeJSON(c, 200, pagination.Response{Data: products, Pagination: *meta})
 }
 
 func (h *InventoryHandler) CreateProduct(c *gin.Context) {
 	var p models.Product
 	if err := c.ShouldBindJSON(&p); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 	if err := h.svc.CreateProduct(c.Request.Context(), &p); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusCreated, p)
+	writeJSON(c, 201, p)
 }
 
 func (h *InventoryHandler) GetProductModel(c *gin.Context) {
 	code := c.Param("code")
 	m, err := h.svc.GetProductModel(c.Request.Context(), code)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusOK, m)
+	writeJSON(c, 200, m)
 }
 
 func (h *InventoryHandler) CreateProductModel(c *gin.Context) {
 	var m models.ProductModel
 	if err := c.ShouldBindJSON(&m); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 	if err := h.svc.CreateProductModel(c.Request.Context(), &m); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusCreated, m)
+	writeJSON(c, 201, m)
 }
 
 func (h *InventoryHandler) GetPart(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		exception.WriteError(c, exception.ErrInvalidResourceID)
 		return
 	}
 	p, err := h.svc.GetPart(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusOK, p)
+	writeJSON(c, 200, p)
 }
 
 func (h *InventoryHandler) ListParts(c *gin.Context) {
@@ -133,108 +153,132 @@ func (h *InventoryHandler) ListParts(c *gin.Context) {
 
 	parts, meta, err := h.svc.ListParts(c.Request.Context(), catalogID, productID, conditionID, params, q)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
 		return
 	}
-	c.JSON(http.StatusOK, pagination.Response{Data: parts, Pagination: *meta})
+	writeJSON(c, 200, pagination.Response{Data: parts, Pagination: *meta})
 }
 
 func (h *InventoryHandler) CreatePart(c *gin.Context) {
 	var p models.Part
 	if err := c.ShouldBindJSON(&p); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 	if err := h.svc.CreatePart(c.Request.Context(), &p); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusCreated, p)
+	writeJSON(c, 201, p)
 }
 
 func (h *InventoryHandler) UpdatePartCondition(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		exception.WriteError(c, exception.ErrInvalidResourceID)
 		return
 	}
 	var req struct {
 		ConditionID int32 `json:"condition_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 	if err := h.svc.UpdatePartCondition(c.Request.Context(), id, req.ConditionID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "condition updated"})
+	writeJSON(c, 200, gin.H{"message": "condition updated"})
 }
 
 func (h *InventoryHandler) MarkPartScrapped(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		exception.WriteError(c, exception.ErrInvalidResourceID)
 		return
 	}
 	if err := h.svc.MarkPartScrapped(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "part scrapped"})
+	writeJSON(c, 200, gin.H{"message": "part scrapped"})
 }
 
 func (h *InventoryHandler) InstallPart(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		exception.WriteError(c, exception.ErrInvalidResourceID)
 		return
 	}
 	var req struct {
 		ProductID string `json:"product_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
 	productID, err := uuid.Parse(req.ProductID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid product_id"})
+		exception.WriteError(c, exception.ErrInvalidResourceID.WithMessage("invalid product_id"))
 		return
 	}
 	if err := h.svc.InstallPart(c.Request.Context(), id, productID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "part installed"})
+	writeJSON(c, 200, gin.H{"message": "part installed"})
 }
 
 func (h *InventoryHandler) RemovePart(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		exception.WriteError(c, exception.ErrInvalidResourceID)
 		return
 	}
 	if err := h.svc.RemovePart(c.Request.Context(), id); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "part removed"})
+	writeJSON(c, 200, gin.H{"message": "part removed"})
 }
 
 func (h *InventoryHandler) GetPartCatalog(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		exception.WriteError(c, exception.ErrInvalidResourceID)
 		return
 	}
 	cat, err := h.svc.GetPartCatalog(c.Request.Context(), id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusOK, cat)
+	writeJSON(c, 200, cat)
 }
 
 func (h *InventoryHandler) ListPartCatalog(c *gin.Context) {
@@ -250,24 +294,23 @@ func (h *InventoryHandler) ListPartCatalog(c *gin.Context) {
 
 	catalogs, meta, err := h.svc.ListPartCatalog(c.Request.Context(), typeID, params, q)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
 		return
 	}
-	c.JSON(http.StatusOK, pagination.Response{Data: catalogs, Pagination: *meta})
+	writeJSON(c, 200, pagination.Response{Data: catalogs, Pagination: *meta})
 }
 
 func (h *InventoryHandler) UpdateProduct(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		exception.WriteError(c, exception.ErrInvalidResourceID)
 		return
 	}
 	var fields map[string]any
 	if err := c.ShouldBindJSON(&fields); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
-	// strip internal fields
 	delete(fields, "id")
 	delete(fields, "ID")
 	delete(fields, "created_at")
@@ -279,28 +322,27 @@ func (h *InventoryHandler) UpdateProduct(c *gin.Context) {
 
 	p, err := h.svc.UpdateProduct(c.Request.Context(), id, fields)
 	if err != nil {
-		if err == service.ErrNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusOK, p)
+	writeJSON(c, 200, p)
 }
 
 func (h *InventoryHandler) UpdatePart(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		exception.WriteError(c, exception.ErrInvalidResourceID)
 		return
 	}
 	var fields map[string]any
 	if err := c.ShouldBindJSON(&fields); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
-	// strip internal fields
 	delete(fields, "id")
 	delete(fields, "ID")
 	delete(fields, "created_at")
@@ -312,12 +354,12 @@ func (h *InventoryHandler) UpdatePart(c *gin.Context) {
 
 	p, err := h.svc.UpdatePart(c.Request.Context(), id, fields)
 	if err != nil {
-		if err == service.ErrNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	c.JSON(http.StatusOK, p)
+	writeJSON(c, 200, p)
 }

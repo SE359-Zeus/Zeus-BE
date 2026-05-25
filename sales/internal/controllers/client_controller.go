@@ -21,6 +21,7 @@ func (controller *ClientController) HandleClients(w http.ResponseWriter, r *http
 	case http.MethodGet:
 		// support optional tiers filter: comma-separated
 		q := r.URL.Query()
+		page, pageSize := parsePagination(r)
 		var tiers []string
 		if t := q.Get("tiers"); t != "" {
 			for _, part := range strings.Split(t, ",") {
@@ -47,7 +48,8 @@ func (controller *ClientController) HandleClients(w http.ResponseWriter, r *http
 			}
 			clients = filtered
 		}
-		writeJSON(w, http.StatusOK, clients)
+		pageItems, pagination := paginateItems(clients, page, pageSize)
+		writeEnvelope(w, http.StatusOK, "Clients listed", pagination, pageItems)
 	default:
 		writeErrorJSON(w, http.StatusMethodNotAllowed, http.StatusText(http.StatusMethodNotAllowed), nil)
 	}

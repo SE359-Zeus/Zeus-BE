@@ -12,6 +12,9 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/sales
   IMAGE_VERSION: v${{ github.run_number }}
+  MANIFEST_REPO: manifest-repo
+  MANIFEST_BRANCH: main
+  MANIFEST_FILE: sales-docker-compose.yml
 
 defaults:
   run:
@@ -51,6 +54,7 @@ jobs:
   publish-image:
     runs-on: ubuntu-24.04-arm
     needs: tests
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     permissions:
       contents: write
@@ -109,3 +113,92 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:${{ env.IMAGE_VERSION }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:sha-${{ github.sha }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:latest
+
+  update-manifest-repo:
+    runs-on: ubuntu-24.04-arm
+    needs: publish-image
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Format image name to lowercase
+        run: echo "IMAGE_NAME_LOWER=${IMAGE_NAME,,}" >> ${GITHUB_ENV}
+
+      - name: Checkout manifest repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/${{ env.MANIFEST_REPO }}
+          ref: ${{ env.MANIFEST_BRANCH }}
+          token: ${{ secrets.MANIFEST_REPO_TOKEN }}
+          path: manifest-repo
+
+      - name: Update sales image tag in manifest repo
+        working-directory: manifest-repo
+        env:
+          NEW_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:${{ env.IMAGE_VERSION }}
+          FILE: ${{ env.MANIFEST_FILE }}
+        run: |
+          set -euo pipefail
+
+          export NEW_IMAGE FILE
+
+          if [ ! -f "$FILE" ]; then
+            echo "Manifest file not found: $FILE"
+            exit 1
+          fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          file_path = Path(os.environ["FILE"])
+          new_image = os.environ["NEW_IMAGE"]
+          new_tag = new_image.split(":", 1)[1]
+
+          content = file_path.read_text()
+          pattern = r"(image:\s*ghcr\.io/se359-zeus/zeus-be/sales:)[^\s]+"
+          updated, count = re.subn(pattern, rf"\1{new_tag}", content)
+
+          if count == 0:
+              raise SystemExit("sales image line not found in manifest file")
+
+          if count < 2:
+            raise SystemExit(f"expected to update both sales-be and sales-migrate, but only updated {count} line(s)")
+
+          file_path.write_text(updated)
+          print(f"Updated {file_path} to {new_image}")
+          PY
+
+      - name: Commit and push manifest change
+        working-directory: manifest-repo
+        env:
+          NEW_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:${{ env.IMAGE_VERSION }}
+          FILE: ${{ env.MANIFEST_FILE }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add "${FILE}"
+
+          if git diff --cached --quiet; then
+            echo "No manifest changes to commit"
+            exit 0
+          fi
+
+          git commit -m "chore(sales): deploy ${NEW_IMAGE}"
+
+          if ! git push origin "${MANIFEST_BRANCH}"; then
+            echo "Push failed with non-fast-forward, pulling latest changes and retrying"
+            git pull --rebase origin "${MANIFEST_BRANCH}"
+            git push origin "${MANIFEST_BRANCH}"
+          fi

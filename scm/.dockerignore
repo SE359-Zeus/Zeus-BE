@@ -1,0 +1,11 @@
+.git
+.github
+**/*_test.go
+**/tests
+scm.db
+*.log
+*.exe
+bin
+.env
+node_modules
+build

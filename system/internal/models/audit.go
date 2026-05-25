@@ -9,22 +9,6 @@ import (
 
 type ActionType string
 
-const (
-	ActionLogin    ActionType = "LOGIN"
-	ActionCreate   ActionType = "CREATE"
-	ActionUpdate   ActionType = "UPDATE"
-	ActionDelete   ActionType = "DELETE"
-	ActionSecurity ActionType = "SECURITY"
-)
-
-var ValidActionTypes = map[ActionType]bool{
-	ActionLogin:    true,
-	ActionCreate:   true,
-	ActionUpdate:   true,
-	ActionDelete:   true,
-	ActionSecurity: true,
-}
-
 type AuditLog struct {
 	ID              uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
 	Timestamp       time.Time      `gorm:"not null;index" json:"timestamp"`

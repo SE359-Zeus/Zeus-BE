@@ -4,9 +4,7 @@ info:
   description: Root of Trust module of the Zeus ERP system. Manages authentication lifecycle, user directory, and immutable audit trail.
   version: "1.0.0"
 servers:
-  - url: http://localhost:8083/api/v1
-    description: Local development
-  - url: /api/v1
+  - url: /api/v1/system
     description: API base path
 
 components:
@@ -86,14 +84,11 @@ components:
           format: date-time
     CreateUserRequest:
       type: object
-      required: [email, password, full_name, role]
+      required: [email, full_name, role]
       properties:
         email:
           type: string
           format: email
-        password:
-          type: string
-          minLength: 8
         full_name:
           type: string
         role:
@@ -178,6 +173,28 @@ components:
           type: integer
         offset:
           type: integer
+    Envelope:
+      type: object
+      required:
+        - message
+        - statusCode
+        - metadata
+        - data
+      properties:
+        statusCode:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: success
+        metadata:
+          type: object
+          additionalProperties: true
+        data:
+          nullable: true
+    ErrorEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/Envelope'
     AuditMetrics:
       type: object
       properties:
@@ -203,7 +220,7 @@ paths:
 
   /auth/login:
     post:
-      summary: Authenticate user and return tokens
+      summary: Login
       tags: [Authentication]
       security: []
       requestBody:
@@ -218,10 +235,16 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  access_token:
-                    type: string
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          access_token:
+                            type: string
+                          refresh_token:
+                            type: string
         '400':
           description: Invalid request body
         '401':
@@ -229,7 +252,7 @@ paths:
 
   /auth/refresh:
     post:
-      summary: Rotate tokens using a refresh token
+      summary: Refresh
       tags: [Authentication]
       security: []
       requestBody:
@@ -244,11 +267,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TokenPair'
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/TokenPair'
         '400':
           description: Invalid request body
         '401':
           description: Invalid or expired refresh token
+
+  /auth/logout:
+    post:
+      summary: Logout
+      tags: [Authentication]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+                schema:
+                  $ref: '#/components/schemas/Envelope'
+        '401':
+          description: Missing, invalid, or expired access token
 
   /users:
     post:
@@ -266,7 +309,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/UserResponse'
+                      statusCode:
+                        example: 201
         '400':
           description: Invalid input
         '409':
@@ -298,14 +347,18 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/UserResponse'
-                  pagination:
-                    $ref: '#/components/schemas/PaginationMeta'
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/UserResponse'
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
 
   /users/{id}:
     get:
@@ -324,7 +377,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/UserResponse'
         '400':
           description: Invalid user ID
         '404':
@@ -351,7 +408,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/UserResponse'
         '400':
           description: Invalid input
         '404':
@@ -377,6 +438,10 @@ paths:
       responses:
         '200':
           description: Status updated
+          content:
+            application/json:
+                schema:
+                  $ref: '#/components/schemas/Envelope'
         '400':
           description: Invalid status
         '404':
@@ -395,6 +460,10 @@ paths:
       responses:
         '201':
           description: Log entry created
+          content:
+            application/json:
+                schema:
+                  $ref: '#/components/schemas/Envelope'
         '400':
           description: Invalid request body
 
@@ -445,14 +514,18 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AuditLog'
-                  pagination:
-                    $ref: '#/components/schemas/PaginationMeta'
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/AuditLog'
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
 
   /logs/metrics:
     get:
@@ -464,4 +537,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuditMetrics'
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/AuditMetrics'

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"zeus-scm-service/internal/messaging"
 	"zeus-scm-service/internal/models"
+	"zeus-scm-service/internal/repository"
 
 	"gorm.io/gorm"
 )
@@ -21,15 +21,73 @@ type IGoodsReceiptService interface {
 
 type goodsReceiptService struct {
 	db             *gorm.DB
-	mq             *messaging.RabbitMQ
 	agingThreshold time.Duration
 }
 
-func NewGoodsReceiptService(db *gorm.DB, mq *messaging.RabbitMQ, agingThresholdYears int) IGoodsReceiptService {
-	return &goodsReceiptService{
-		db:             db,
-		mq:             mq,
-		agingThreshold: time.Duration(agingThresholdYears) * 365 * 24 * time.Hour,
+type goodsReceiptServiceRepo struct {
+	repo           repository.IGoodsReceiptRepository
+	stockRepo      repository.IStockRepository
+	poRepo         repository.IPORepository
+	agingThreshold time.Duration
+}
+
+func NewGoodsReceiptService(arg interface{}, args ...interface{}) IGoodsReceiptService {
+	switch v := arg.(type) {
+	case *gorm.DB:
+		// support both NewGoodsReceiptService(db, years) and NewGoodsReceiptService(db, grRepo, stockRepo, poRepo, years)
+		if len(args) > 0 {
+			// if second arg is a repo, build repo-backed adapter
+			if grRepo, ok := args[0].(repository.IGoodsReceiptRepository); ok {
+				var stock repository.IStockRepository
+				var po repository.IPORepository
+				var years int
+				if len(args) > 1 {
+					if r, ok := args[1].(repository.IStockRepository); ok {
+						stock = r
+					}
+				}
+				if len(args) > 2 {
+					if r, ok := args[2].(repository.IPORepository); ok {
+						po = r
+					}
+				}
+				if len(args) > 3 {
+					if y, ok := args[3].(int); ok {
+						years = y
+					}
+				}
+				return &goodsReceiptServiceRepo{repo: grRepo, stockRepo: stock, poRepo: po, agingThreshold: time.Duration(years) * 365 * 24 * time.Hour}
+			}
+		}
+		years := 0
+		if len(args) > 0 {
+			if y, ok := args[0].(int); ok {
+				years = y
+			}
+		}
+		return &goodsReceiptService{db: v, agingThreshold: time.Duration(years) * 365 * 24 * time.Hour}
+	case repository.IGoodsReceiptRepository:
+		var stock repository.IStockRepository
+		var po repository.IPORepository
+		var years int
+		if len(args) > 0 {
+			if r, ok := args[0].(repository.IStockRepository); ok {
+				stock = r
+			}
+		}
+		if len(args) > 1 {
+			if r, ok := args[1].(repository.IPORepository); ok {
+				po = r
+			}
+		}
+		if len(args) > 2 {
+			if y, ok := args[2].(int); ok {
+				years = y
+			}
+		}
+		return &goodsReceiptServiceRepo{repo: v, stockRepo: stock, poRepo: po, agingThreshold: time.Duration(years) * 365 * 24 * time.Hour}
+	default:
+		panic("invalid NewGoodsReceiptService usage")
 	}
 }
 
@@ -150,4 +208,107 @@ func (s *goodsReceiptService) ReleaseLock(ctx context.Context, grID string) erro
 		"locked_by":       nil,
 		"lock_expires_at": nil,
 	}).Error
+}
+
+// repo-backed implementation
+func (s *goodsReceiptServiceRepo) AcquireLock(ctx context.Context, grID string, operatorID string) error {
+	gr, err := s.repo.GetGRByID(ctx, grID)
+	if err != nil || gr == nil {
+		return ErrNotFound
+	}
+	if gr.LockedBy != nil && *gr.LockedBy != operatorID {
+		if gr.LockExpiresAt != nil && gr.LockExpiresAt.After(time.Now()) {
+			return ErrAlreadyLocked
+		}
+	}
+	now := time.Now()
+	expiresAt := now.Add(60 * time.Minute)
+	return s.repo.UpdateGRFields(ctx, grID, map[string]interface{}{"locked_by": operatorID, "lock_expires_at": expiresAt})
+}
+
+func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID string, operatorID string, counts map[string]struct {
+	Received  int
+	Defective int
+}) error {
+	gr, err := s.repo.GetGRByID(ctx, grID)
+	if err != nil || gr == nil {
+		return ErrNotFound
+	}
+	if gr.LockedBy == nil || *gr.LockedBy != operatorID {
+		return ErrAlreadyLocked
+	}
+	if gr.LockExpiresAt != nil && gr.LockExpiresAt.Before(time.Now()) {
+		return ErrLockExpired
+	}
+
+	items, err := s.repo.FindGRLineItemsByGRID(ctx, grID)
+	if err != nil {
+		return err
+	}
+
+	// emulate transaction semantics via sequence of operations; repo implementations/tests should simulate rollback behavior if needed
+	for _, item := range items {
+		count, ok := counts[item.SKU]
+		if !ok {
+			continue
+		}
+		received := count.Received
+		defective := count.Defective
+		item.ReceivedQty = &received
+		item.DefectiveQty = &defective
+
+		if item.AgingSensitive && item.ProductionDate != nil {
+			if time.Since(*item.ProductionDate) > s.agingThreshold {
+				item.AgingLabel = "Over-Age"
+			}
+		}
+		if err := s.repo.SaveGRLineItem(ctx, &item); err != nil {
+			return err
+		}
+
+		stock, err := s.stockRepo.GetStockBySKU(ctx, item.SKU)
+		if err != nil {
+			return err
+		}
+		stock.StockQty += received
+		if err := s.stockRepo.SaveStock(ctx, stock); err != nil {
+			return err
+		}
+	}
+
+	po, err := s.poRepo.GetPOByID(ctx, gr.PORef)
+	if err != nil || po == nil {
+		return err
+	}
+	poItems, _ := s.poRepo.GetPOLineItemsByPOID(ctx, po.ID)
+	allReceived := true
+	for _, li := range poItems {
+		if li.ReceivedQty < li.OrderedQty {
+			allReceived = false
+			break
+		}
+	}
+
+	gr.Status = models.GRStatusComplete
+	if err := s.repo.UpdateGR(ctx, gr); err != nil {
+		return err
+	}
+
+	if allReceived {
+		po.Status = models.POStatusReceived
+	} else {
+		po.Status = models.POStatusPartial
+	}
+	if err := s.poRepo.SavePO(ctx, po); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *goodsReceiptServiceRepo) ReleaseLock(ctx context.Context, grID string) error {
+	gr, err := s.repo.GetGRByID(ctx, grID)
+	if err != nil || gr == nil {
+		return ErrNotFound
+	}
+	return s.repo.UpdateGRFields(ctx, grID, map[string]interface{}{"locked_by": nil, "lock_expires_at": nil})
 }

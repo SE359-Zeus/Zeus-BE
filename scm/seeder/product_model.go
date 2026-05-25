@@ -2,12 +2,19 @@ package seeder
 
 import (
 	"fmt"
-	"gorm.io/gorm"
-	"time"
+	"log"
 	"zeus-scm-service/internal/models"
+
+	"time"
+
+	"gorm.io/gorm"
 )
 
 func seedProductModels(db *gorm.DB, installs map[string][]PartInstallationData, catMap map[string]models.PartCatalog) []models.ProductModel {
+	if err := ensurePartsByModelTable(db); err != nil {
+		log.Printf("warning: failed to ensure parts_by_model table: %v", err)
+	}
+
 	baseModels := []models.ProductModel{
 		{ModelCode: "82SN003JVN", ModelName: "IdeaPad 5 Pro 16ARH7"},
 		{ModelCode: "83LY00HQVN", ModelName: "Legion 5 15IRX10"},
@@ -26,7 +33,7 @@ func seedProductModels(db *gorm.DB, installs map[string][]PartInstallationData, 
 		m.Description = &desc
 		m.CreatedAt = time.Now()
 		m.UpdatedAt = time.Now()
-		db.Create(&m)
+		db.Where("model_code = ?", m.ModelCode).Assign(m).FirstOrCreate(&m)
 
 		bomList, exists := installs[m.ModelCode]
 		if !exists {
@@ -36,13 +43,23 @@ func seedProductModels(db *gorm.DB, installs map[string][]PartInstallationData, 
 		for _, item := range bomList {
 			key := fmt.Sprintf("%s|%s", item.PartNumber, item.MfgNumber)
 			if cat, ok := catMap[key]; ok {
-				db.FirstOrCreate(&models.PartsByModel{
+				bom := models.PartsByModel{
 					PartCatalogID:    cat.ID,
 					ProductModelCode: m.ModelCode,
 					Quantity:         int32(item.Quantity),
-				}, models.PartsByModel{PartCatalogID: cat.ID, ProductModelCode: m.ModelCode})
+				}
+				db.Where("part_catalog_id = ? AND product_model_code = ?", cat.ID, m.ModelCode).Assign(bom).FirstOrCreate(&bom)
 			}
 		}
 	}
 	return allModels
+}
+
+func ensurePartsByModelTable(db *gorm.DB) error {
+	return db.Exec(`CREATE TABLE IF NOT EXISTS parts_by_model (
+    part_catalog_id TEXT NOT NULL,
+    product_model_code TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    PRIMARY KEY (part_catalog_id, product_model_code)
+)`).Error
 }

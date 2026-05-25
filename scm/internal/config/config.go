@@ -1,23 +1,33 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strconv"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
 	ServerPort          string
 	DBPath              string
 	RabbitMQURL         string
+	ValkeyAddr          string
 	AgingThresholdYears int
+	JwtPublicKeyPath    string
 }
 
 func Load() *Config {
+	if err := godotenv.Load(); err != nil {
+		log.Printf(".env file not found, using OS env vars and defaults")
+	}
 	return &Config{
 		ServerPort:          getEnv("SERVER_PORT", "8080"),
 		DBPath:              getEnv("DB_PATH", "scm.db"),
 		RabbitMQURL:         getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
+		ValkeyAddr:          getEnv("VALKEY_ADDR", "redis://localhost:6379"),
 		AgingThresholdYears: getEnvInt("AGING_THRESHOLD_YEARS", 5),
+		JwtPublicKeyPath:    getEnv("JWT_PUBLIC_KEY_PATH", ""),
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"zeus-scm-service/internal/models"
+	"zeus-scm-service/internal/repository/sqlite"
 	"zeus-scm-service/internal/service"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,9 @@ import (
 func TestShipment_DispatchLockingProcedure(t *testing.T) {
 	db := setupTestDB()
 	db.AutoMigrate(&models.Shipment{}, &models.ShipmentItem{})
-	svc := service.NewShipmentService(db, nil)
+	shipmentRepo := sqlite.NewShipmentRepository(db)
+	stockRepo := sqlite.NewStockRepository(db)
+	svc := service.NewShipmentService(db, shipmentRepo, stockRepo)
 
 	err := svc.AcquireDispatchLock(context.Background(), "SHP-2024-201", "Operator-B")
 	assert.Error(t, err, "Should fail when shipment does not exist")
@@ -22,7 +25,9 @@ func TestShipment_DispatchLockingProcedure(t *testing.T) {
 func TestShipment_InventoryDeductionTrigger(t *testing.T) {
 	db := setupTestDB()
 	db.AutoMigrate(&models.Shipment{}, &models.ShipmentItem{}, &models.ComponentStock{})
-	svc := service.NewShipmentService(db, nil)
+	shipmentRepo := sqlite.NewShipmentRepository(db)
+	stockRepo := sqlite.NewStockRepository(db)
+	svc := service.NewShipmentService(db, shipmentRepo, stockRepo)
 
 	err := svc.DispatchShipment(context.Background(), "SHP-2024-201", "Operator-B")
 	assert.Error(t, err, "Should fail when shipment does not exist")

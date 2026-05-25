@@ -8,14 +8,16 @@ import (
 	"gorm.io/gorm"
 )
 
-func SeedAll(db *gorm.DB) error {
+func SeedAll(db *gorm.DB, partsDataPath string) error {
 	log.Println("Starting SCM Seeder...")
 	gofakeit.Seed(0)
 
 	seedLookupTables(db)
+	apiKey := seedAPIKeys(db)
+	log.Printf("Seeded SCM API key: %s", apiKey)
 	suppliers := seedSuppliers(db, 5)
 
-	data, err := loadPartsData("../reference/seeder/parts.json")
+	data, err := loadPartsData(partsDataPath)
 	if err != nil {
 		return fmt.Errorf("failed to load parts data: %w", err)
 	}

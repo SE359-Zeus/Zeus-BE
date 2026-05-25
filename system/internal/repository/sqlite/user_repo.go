@@ -25,16 +25,24 @@ func (r *userRepo) Create(ctx context.Context, user *models.User) error {
 
 func (r *userRepo) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	var user models.User
-	if err := r.db.WithContext(ctx).First(&user, "id = ?", id).Error; err != nil {
-		return nil, err
+	result := r.db.WithContext(ctx).Where("id = ?", id).Limit(1).Find(&user)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, nil
 	}
 	return &user, nil
 }
 
 func (r *userRepo) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
-	if err := r.db.WithContext(ctx).First(&user, "email = ?", email).Error; err != nil {
-		return nil, err
+	result := r.db.WithContext(ctx).Where("email = ?", email).Limit(1).Find(&user)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, nil
 	}
 	return &user, nil
 }
