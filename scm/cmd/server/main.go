@@ -57,11 +57,6 @@ func main() {
 	shipmentSvc := service.NewShipmentService(shipmentRepo, stockRepo)
 	inventorySvc := service.NewInventoryService(inventoryRepo)
 
-	vendorH := handler.NewVendorHandler(vendorSvc)
-	poH := handler.NewPOHandler(poSvc)
-	grH := handler.NewGoodsReceiptHandler(grSvc)
-	shipmentH := handler.NewShipmentHandler(shipmentSvc)
-
 	jwtSvc, err := service.NewJWTService(cfg.JwtPublicKeyPath)
 	if err != nil {
 		log.Fatalf("JWT service init failed: %v", err)
@@ -72,17 +67,25 @@ func main() {
 
 	var cacheBackend cache.Cache = cache.NewNoop()
 	productCache := valkeyRepo.NewProductCache(cacheBackend)
+	vendorCache := valkeyRepo.NewVendorCache(cacheBackend)
 	if cfg.ValkeyAddr != "" {
 		if valkeyCache, err := cache.NewValkey(cfg.ValkeyAddr); err != nil {
 			log.Printf("running in degraded mode: Valkey unavailable [ValkeyAddr: %s], cache disabled: %v", cfg.ValkeyAddr, err)
 		} else {
 			cacheBackend = valkeyCache
 			productCache = valkeyRepo.NewProductCache(cacheBackend)
+			vendorCache = valkeyRepo.NewVendorCache(cacheBackend)
 			log.Printf("Valkey connected: %s", cfg.ValkeyAddr)
 			service.WarmupCache(context.Background(), db, productCache)
 		}
 	}
 	inventorySvc = service.NewCachedInventoryService(inventorySvc, productCache)
+	vendorSvc = service.NewCachedVendorService(vendorSvc, vendorCache, vendorRepo)
+
+	vendorH := handler.NewVendorHandler(vendorSvc)
+	poH := handler.NewPOHandler(poSvc)
+	grH := handler.NewGoodsReceiptHandler(grSvc)
+	shipmentH := handler.NewShipmentHandler(shipmentSvc)
 	inventoryH := handler.NewInventoryHandler(inventorySvc)
 
 	r := gin.New()
@@ -128,7 +131,7 @@ func main() {
 	}
 
 	api := r.Group(scmAPIPrefix)
-	api.Use(middleware.Authenticate(jwtSvc, db))
+	api.Use(middleware.Authenticate(jwtSvc, db), middleware.Audit(mq))
 	{
 		api.GET("/vendors/optimal", middleware.RequireRoles(rolesOperator...), vendorH.GetOptimalSupplier)
 		api.POST("/vendors/:id/recalc-metrics", middleware.RequireRoles(rolesOperator...), vendorH.UpdateSupplierMetrics)

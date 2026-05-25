@@ -14,3 +14,9 @@ type IProductCache interface {
 	DeleteProduct(ctx context.Context, id uuid.UUID) error
 	WarmProducts(ctx context.Context, products []models.Product) error
 }
+
+type IVendorCache interface {
+	GetOptimalSupplier(ctx context.Context, sku string) (*models.Supplier, *models.SkuMapping, error)
+	SetOptimalSupplier(ctx context.Context, sku string, supplier *models.Supplier, mapping *models.SkuMapping) error
+	DeleteOptimalSupplier(ctx context.Context, sku string) error
+}

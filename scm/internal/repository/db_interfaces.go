@@ -12,6 +12,7 @@ import (
 type IVendorRepository interface {
 	GetSupplierByID(ctx context.Context, id uuid.UUID) (*models.Supplier, error)
 	FindSkuMappingsBySKU(ctx context.Context, sku string) ([]models.SkuMapping, error)
+	FindSkuMappingsBySupplierID(ctx context.Context, supplierID uuid.UUID) ([]models.SkuMapping, error)
 	UpdateSupplier(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error
 	FindGoodsReceiptsByVendor(ctx context.Context, vendorID uuid.UUID) ([]models.GoodsReceipt, error)
 	CountGoodsReceiptsByVendor(ctx context.Context, vendorID uuid.UUID) (int64, error)
