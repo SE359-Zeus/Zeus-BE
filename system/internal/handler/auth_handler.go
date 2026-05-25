@@ -99,15 +99,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	// Prefer cookie; fall back to JSON body for backward compatibility.
 	refreshToken, err := c.Cookie(models.RefreshTokenCookieName)
 	if err != nil || refreshToken == "" {
-		var req models.RefreshRequest
-		if err := c.ShouldBindJSON(&req); err != nil || req.RefreshToken == "" {
-			WriteAppError(c, exception.ErrInvalidBody)
-			return
-		}
-		refreshToken = req.RefreshToken
+		WriteAppError(c, exception.ErrInvalidBody)
+		return
 	}
 
 	result, err := h.authSvc.Refresh(c.Request.Context(), models.RefreshRequest{
@@ -153,4 +148,3 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	clearRefreshCookie(c)
 	WriteEnvelope(c, 200, "logged out successfully", gin.H{}, nil)
 }
-

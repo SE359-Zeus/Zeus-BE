@@ -266,17 +266,27 @@ func TestAuthHandler_Refresh_200(t *testing.T) {
 	mockSvc.AssertExpectations(t)
 }
 
-func TestAuthHandler_Refresh_401(t *testing.T) {
+func TestAuthHandler_Refresh_401_MissingCookie(t *testing.T) {
 	r, mockSvc := setupAuthTest()
 
-	req := models.RefreshRequest{RefreshToken: "expired-or-invalid"}
-	body, _ := json.Marshal(req)
+	w := httptest.NewRecorder()
+	reqHTTP, _ := http.NewRequest("POST", "/auth/refresh", nil)
+	reqHTTP.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, reqHTTP)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestAuthHandler_Refresh_401_InvalidCookie(t *testing.T) {
+	r, mockSvc := setupAuthTest()
 
 	mockSvc.On("Refresh", mock.Anything, mock.AnythingOfType("models.RefreshRequest")).Return(nil, service.ErrUnauthorized)
 
 	w := httptest.NewRecorder()
-	reqHTTP, _ := http.NewRequest("POST", "/auth/refresh", bytes.NewReader(body))
+	reqHTTP, _ := http.NewRequest("POST", "/auth/refresh", nil)
 	reqHTTP.Header.Set("Content-Type", "application/json")
+	reqHTTP.AddCookie(&http.Cookie{Name: models.RefreshTokenCookieName, Value: "expired-or-invalid"})
 	r.ServeHTTP(w, reqHTTP)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)

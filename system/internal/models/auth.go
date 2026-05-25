@@ -31,7 +31,7 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-// RefreshRequest is now optional in the body; the handler reads the cookie first.
+// RefreshRequest is kept for the service layer; the handler reads refresh tokens from the cookie.
 type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
