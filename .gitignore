@@ -21,3 +21,4 @@ count_parts.py
 *.db*
 .vscode
 *.pem
+scm-manifest.json
