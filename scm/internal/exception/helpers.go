@@ -7,9 +7,16 @@ import (
 )
 
 func WriteError(c *gin.Context, appErr *AppError) {
+	if appErr == nil {
+		appErr = ErrInternal
+	}
 	c.AbortWithStatusJSON(appErr.HTTPStatus, gin.H{
-		"error_code": appErr.Code,
 		"message":    appErr.Message,
+		"statusCode": appErr.HTTPStatus,
+		"metadata": gin.H{
+			"error_code": appErr.Code,
+		},
+		"data": nil,
 	})
 }
 

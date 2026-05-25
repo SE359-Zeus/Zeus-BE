@@ -14,6 +14,26 @@ func seedCatalogs(db *gorm.DB, data *PartsFile) (map[string]int32, map[string]mo
 	typeMap := make(map[string]int32)
 	catMap := make(map[string]models.PartCatalog)
 
+	var existingCount int64
+	if err := db.Model(&models.PartCatalog{}).Count(&existingCount).Error; err == nil && existingCount > 0 {
+		var partTypes []models.PartType
+		db.Find(&partTypes)
+		for _, pt := range partTypes {
+			typeMap[pt.PartTypeName] = pt.ID
+		}
+
+		var catalogs []models.PartCatalog
+		db.Find(&catalogs)
+		for _, c := range catalogs {
+			key := fmt.Sprintf("%s|%s", c.PartNumber, c.MfgNumber)
+			catMap[key] = c
+		}
+		if err := ensurePartsByModelTable(db); err != nil {
+			log.Printf("warning: failed to ensure parts_by_model table: %v", err)
+		}
+		return typeMap, catMap
+	}
+
 	for i, pt := range data.PartTypes {
 		id := int32(i + 1)
 		desc := pt.Description

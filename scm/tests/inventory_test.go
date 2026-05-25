@@ -90,6 +90,12 @@ func TestInventoryService_PartLifecycle_Exhaustive(t *testing.T) {
 		assert.Nil(t, fetched.ScrappedDate)
 	}
 
+	// Verify ListParts filtering by ProductID
+	partsByProd, _, err := svc.ListParts(ctx, nil, &prodID, nil, pagination.Params{Page: 1, Limit: 10}, "")
+	assert.NoError(t, err)
+	assert.Len(t, partsByProd, 1)
+	assert.Equal(t, partID, partsByProd[0].ID)
+
 	// 3. Remove
 	err = svc.RemovePart(ctx, partID)
 	assert.NoError(t, err, "Should successfully clear ProductID and set RemovalDate")

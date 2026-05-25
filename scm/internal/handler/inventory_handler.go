@@ -2,6 +2,7 @@ package handler
 
 import (
 	"strconv"
+	"time"
 
 	"zeus-scm-service/internal/exception"
 	"zeus-scm-service/internal/models"
@@ -278,7 +279,24 @@ func (h *InventoryHandler) GetPartCatalog(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	writeJSON(c, 200, cat)
+	price := 0.0
+	stock := 0
+	if cat != nil {
+		if _, p, s, err := h.svc.GetPartCatalogBySKU(c.Request.Context(), cat.PartNumber); err == nil {
+			price = p
+			stock = s
+		}
+	}
+	writeJSON(c, 200, gin.H{
+		"id":            cat.ID,
+		"part_number":   cat.PartNumber,
+		"part_types_id": cat.PartTypesID,
+		"mfg_number":    cat.MfgNumber,
+		"description":   cat.Description,
+		"status":        cat.PartMfgStatus,
+		"price":         price,
+		"stock_qty":     stock,
+	})
 }
 
 func (h *InventoryHandler) ListPartCatalog(c *gin.Context) {
@@ -362,4 +380,168 @@ func (h *InventoryHandler) UpdatePart(c *gin.Context) {
 		return
 	}
 	writeJSON(c, 200, p)
+}
+
+func (h *InventoryHandler) RegisterProduct(c *gin.Context) {
+	var req struct {
+		ProductModelCode string    `json:"product_model_code" binding:"required"`
+		CustomerID       uuid.UUID `json:"customer_id" binding:"required"`
+		ProductName      string    `json:"product_name" binding:"required"`
+		SerialNumber     string    `json:"serial_number" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		exception.WriteError(c, exception.ErrInvalidBody)
+		return
+	}
+	p := models.Product{
+		ID:               uuid.New(),
+		ProductModelCode: req.ProductModelCode,
+		CustomerID:       req.CustomerID,
+		ProductName:      req.ProductName,
+		SerialNumber:     req.SerialNumber,
+	}
+	if err := h.svc.CreateProduct(c.Request.Context(), &p); err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
+		return
+	}
+	writeJSON(c, 201, p)
+}
+
+func (h *InventoryHandler) CreatePartCatalog(c *gin.Context) {
+	var req struct {
+		SKU         string  `json:"sku" binding:"required"`
+		Description string  `json:"description"`
+		Price       float64 `json:"price"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		exception.WriteError(c, exception.ErrInvalidBody)
+		return
+	}
+
+	pc := models.PartCatalog{
+		ID:            uuid.New(),
+		PartNumber:    req.SKU,
+		PartTypesID:   1, // default part type
+		MfgNumber:     "MFG-" + req.SKU,
+		Description:   &req.Description,
+		PartMfgStatus: 1, // Active
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+
+	if err := h.svc.CreatePartCatalog(c.Request.Context(), &pc, req.Price); err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+
+	writeJSON(c, 201, gin.H{
+		"id":          pc.ID,
+		"sku":         pc.PartNumber,
+		"description": pc.Description,
+		"price":       req.Price,
+	})
+}
+
+func (h *InventoryHandler) UpdatePartCatalog(c *gin.Context) {
+	sku := c.Param("sku")
+	if sku == "" {
+		exception.WriteError(c, exception.ErrInvalidResourceID)
+		return
+	}
+
+	var req struct {
+		Description *string  `json:"description"`
+		Price       *float64 `json:"price"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		exception.WriteError(c, exception.ErrInvalidBody)
+		return
+	}
+
+	fields := make(map[string]any)
+	if req.Description != nil {
+		fields["description"] = *req.Description
+	}
+	if req.Price != nil {
+		fields["price"] = *req.Price
+	}
+
+	pc, err := h.svc.UpdatePartCatalogBySKU(c.Request.Context(), sku, fields)
+	if err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+
+	price := 0.0
+	if req.Price != nil {
+		price = *req.Price
+	} else {
+		if _, p, _, err := h.svc.GetPartCatalogBySKU(c.Request.Context(), sku); err == nil {
+			price = p
+		}
+	}
+
+	writeJSON(c, 200, gin.H{
+		"id":          pc.ID,
+		"sku":         pc.PartNumber,
+		"description": pc.Description,
+		"price":       price,
+	})
+}
+
+func (h *InventoryHandler) DeletePartCatalog(c *gin.Context) {
+	sku := c.Param("sku")
+	if sku == "" {
+		exception.WriteError(c, exception.ErrInvalidResourceID)
+		return
+	}
+
+	if err := h.svc.DeletePartCatalogBySKU(c.Request.Context(), sku); err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+
+	writeJSON(c, 200, gin.H{"message": "catalog part deleted"})
+}
+
+func (h *InventoryHandler) GetPartCatalogBySKU(c *gin.Context) {
+	sku := c.Param("sku")
+	if sku == "" {
+		exception.WriteError(c, exception.ErrInvalidResourceID)
+		return
+	}
+
+	pc, price, stock, err := h.svc.GetPartCatalogBySKU(c.Request.Context(), sku)
+	if err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+
+	writeJSON(c, 200, gin.H{
+		"id":          pc.ID,
+		"sku":         pc.PartNumber,
+		"description": pc.Description,
+		"price":       price,
+		"stock_qty":   stock,
+	})
 }

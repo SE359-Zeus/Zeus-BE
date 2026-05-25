@@ -5,9 +5,10 @@ import (
 )
 
 type PartsByModel struct {
-	PartCatalogID    uuid.UUID `gorm:"primaryKey;type:uuid"`
-	ProductModelCode string    `gorm:"primaryKey;type:varchar"`
-	Quantity         int32     `gorm:"not null"`
+	PartCatalogID    uuid.UUID `gorm:"primaryKey;type:uuid" json:"part_catalog_id"`
+	ProductModelCode string    `gorm:"primaryKey;type:varchar" json:"product_model_code"`
+	Quantity         int32     `gorm:"not null" json:"quantity"`
+	ImageName        *string   `gorm:"type:varchar" json:"image_name"`
 }
 
 func (PartsByModel) TableName() string {

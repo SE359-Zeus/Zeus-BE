@@ -104,7 +104,7 @@ func buildProcurementBundles(suppliers []models.Supplier, mappingsBySupplier map
 			bundle.GRID = fmt.Sprintf("GR-2026-%03d", i+1)
 			bundle.GRStatus = templates[i].grStatus
 			bundle.ArrivalDate = baseTime.AddDate(0, 0, 8+i*2)
-			bundle.OperatorID = fmt.Sprintf("operator-%d", i+1)
+			bundle.OperatorID = stableUUID("user:scm-operator").String()
 		}
 
 		bundles = append(bundles, bundle)

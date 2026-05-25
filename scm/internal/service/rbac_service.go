@@ -70,3 +70,9 @@ func (s *RBACService) CanAccess(roleName, method, path string) (bool, error) {
 	reqRank := s.getRoleLevel(requiredLevel)
 	return roleRank >= reqRank, nil
 }
+
+func (s *RBACService) CheckAccess(roleName, requiredLevel string) bool {
+	roleRank := s.getRoleLevel(roleName)
+	reqRank := s.getRoleLevel(requiredLevel)
+	return roleRank >= reqRank
+}

@@ -27,6 +27,7 @@ func setupInventoryTest() (*gin.Engine, *service.MockInventoryService) {
 	{
 		v1.GET("/inventory/products", h.ListProducts)
 		v1.POST("/inventory/products", h.CreateProduct)
+		v1.POST("/inventory/products/register", h.RegisterProduct)
 		v1.GET("/inventory/products/:id", h.GetProduct)
 		v1.GET("/inventory/product-models/:code", h.GetProductModel)
 		v1.POST("/inventory/product-models", h.CreateProductModel)
@@ -311,6 +312,7 @@ func TestInventoryHandler_GetPartCatalog_200(t *testing.T) {
 	catalog := &models.PartCatalog{ID: id, PartNumber: "PN-001"}
 
 	mockSvc.On("GetPartCatalog", mock.Anything, id).Return(catalog, nil)
+	mockSvc.On("GetPartCatalogBySKU", mock.Anything, "PN-001").Return(catalog, 150.0, 100, nil)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/inventory/part-catalog/"+id.String(), nil)
@@ -377,6 +379,42 @@ func TestInventoryHandler_UpdatePart_200(t *testing.T) {
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("PUT", "/api/v1/inventory/parts/"+id.String(), bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestInventoryHandler_RegisterProduct_201(t *testing.T) {
+	r, mockSvc := setupInventoryTest()
+
+	mockSvc.On("CreateProduct", mock.Anything, mock.AnythingOfType("*models.Product")).Return(nil)
+
+	body, _ := json.Marshal(map[string]any{
+		"product_model_code": "82SN003JVN",
+		"customer_id":        uuid.New().String(),
+		"product_name":       "IdeaPad 5 Pro",
+		"serial_number":      "SN-82SN003JVN-99",
+	})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/inventory/products/register", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestInventoryHandler_ListParts_WithProductID_200(t *testing.T) {
+	r, mockSvc := setupInventoryTest()
+	productID := uuid.New()
+	parts := []models.Part{{SerialNumber: "SN-001"}}
+	meta := &pagination.Meta{Page: 1, Limit: 15, TotalRows: 1}
+
+	mockSvc.On("ListParts", mock.Anything, (*uuid.UUID)(nil), &productID, (*int32)(nil), mock.AnythingOfType("pagination.Params"), "").Return(parts, meta, nil)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/inventory/parts?product_id="+productID.String(), nil)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)

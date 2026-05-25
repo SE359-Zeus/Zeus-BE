@@ -7,6 +7,13 @@ import (
 )
 
 func seedSuppliers(db *gorm.DB, count int) []models.Supplier {
+	var existingCount int64
+	if err := db.Model(&models.Supplier{}).Count(&existingCount).Error; err == nil && existingCount > 0 {
+		var suppliers []models.Supplier
+		db.Find(&suppliers)
+		return suppliers
+	}
+
 	type supplierSpec struct {
 		Name         string
 		Contact      string

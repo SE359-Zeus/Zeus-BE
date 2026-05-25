@@ -12,6 +12,7 @@ func main() {
 	dbPath := flag.String("db", "scm.db", "path to the SQLite database file")
 	migrationsPath := flag.String("migrations", "migrations", "path to SQL migrations")
 	partsDataPath := flag.String("parts-data", "reference/seeder/parts.json", "path to the parts seed data JSON")
+	manifestOutPath := flag.String("manifest-out", "seeder/resources/scm-manifest.json", "path to write the generated seed manifest JSON")
 	flag.Parse()
 
 	db, err := sqlite.NewDB(*dbPath)
@@ -24,7 +25,7 @@ func main() {
 		log.Printf("Migration warning (might already be up to date): %v", err)
 	}
 
-	if err := seeder.SeedAll(db, *partsDataPath); err != nil {
+	if err := seeder.SeedAll(db, *partsDataPath, *manifestOutPath); err != nil {
 		log.Fatalf("Seeding failed: %v", err)
 	}
 

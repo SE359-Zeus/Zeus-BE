@@ -354,3 +354,20 @@ func TestInventoryService_ListPartCatalog_Success(t *testing.T) {
 	assert.Equal(t, int64(1), resultMeta.TotalRows)
 	repo.AssertExpectations(t)
 }
+
+func TestInventoryService_ListParts_WithProductID(t *testing.T) {
+	svc, repo := setupInventorySvc()
+	params := pagination.Params{Page: 1, Limit: 15}
+	productID := uuid.New()
+	expected := []models.Part{{SerialNumber: "SN-001"}}
+	meta := &pagination.Meta{Page: 1, Limit: 15, TotalRows: 1}
+
+	repo.On("ListParts", anyCtx, (*uuid.UUID)(nil), &productID, (*int32)(nil), params, "").
+		Return(expected, meta, nil)
+
+	parts, resultMeta, err := svc.ListParts(context.Background(), nil, &productID, nil, params, "")
+	assert.NoError(t, err)
+	assert.Len(t, parts, 1)
+	assert.Equal(t, int64(1), resultMeta.TotalRows)
+	repo.AssertExpectations(t)
+}

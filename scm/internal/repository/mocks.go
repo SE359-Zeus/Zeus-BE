@@ -199,6 +199,52 @@ func (m *MockInventoryRepository) ListPartCatalog(ctx context.Context, typeID *i
 	return nil, args.Get(1).(*pagination.Meta), args.Error(2)
 }
 
+func (m *MockInventoryRepository) CreatePartCatalog(ctx context.Context, pc *models.PartCatalog) error {
+	args := m.Called(ctx, pc)
+	return args.Error(0)
+}
+
+func (m *MockInventoryRepository) UpdatePartCatalogFieldsBySKU(ctx context.Context, sku string, updates map[string]interface{}) (int64, error) {
+	args := m.Called(ctx, sku, updates)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockInventoryRepository) DeletePartCatalogBySKU(ctx context.Context, sku string) (int64, error) {
+	args := m.Called(ctx, sku)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockInventoryRepository) GetPartCatalogBySKU(ctx context.Context, sku string) (*models.PartCatalog, error) {
+	args := m.Called(ctx, sku)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.PartCatalog), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockInventoryRepository) GetComponentStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
+	args := m.Called(ctx, sku)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.ComponentStock), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockInventoryRepository) CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error {
+	args := m.Called(ctx, stock)
+	return args.Error(0)
+}
+
+func (m *MockInventoryRepository) UpdateComponentStockFieldsBySKU(ctx context.Context, sku string, updates map[string]interface{}) (int64, error) {
+	args := m.Called(ctx, sku, updates)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockInventoryRepository) DeleteComponentStockBySKU(ctx context.Context, sku string) (int64, error) {
+	args := m.Called(ctx, sku)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 type MockShipmentRepository struct {
 	mock.Mock
 }
