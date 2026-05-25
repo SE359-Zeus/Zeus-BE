@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -9,6 +10,8 @@ import (
 
 	"zeus-sales-service/config"
 	"zeus-sales-service/internal/controllers"
+	infraCache "zeus-sales-service/internal/infrastructure/cache"
+	infraMessaging "zeus-sales-service/internal/infrastructure/messaging"
 	"zeus-sales-service/internal/middlewares"
 	"zeus-sales-service/internal/repository/sqlite"
 	"zeus-sales-service/internal/repository/valkey"
@@ -16,7 +19,6 @@ import (
 
 	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,11 +31,25 @@ func main() {
 	}
 	defer sqliteRepo.Close()
 
-	redisClient := redis.NewClient(&redis.Options{Addr: cfg.ValkeyAddr})
-	defer redisClient.Close()
-	valkeyRepo := valkey.New(redisClient)
+	valkeyRepo := valkey.New(cfg.ValkeyAddr)
+	salesCache := infraCache.NewStore(cfg.ValkeyAddr)
+	var publisher infraMessaging.Publisher
+	if err := infraCache.New(cfg.ValkeyAddr).Ping(context.Background()); err != nil {
+		log.Printf("warning: valkey connection failed: %v", err)
+	} else {
+		log.Printf("valkey connection successful")
+	}
+	if rabbitmq, err := infraMessaging.NewRabbitMQ(cfg.RabbitMQURL); err != nil {
+		log.Printf("warning: sales messaging disabled: %v", err)
+	} else if err := rabbitmq.Ping(context.Background()); err != nil {
+		log.Printf("warning: rabbitmq connection failed: %v", err)
+	} else {
+		log.Printf("rabbitmq connection successful")
+		publisher = rabbitmq
+	}
+	infra := service.NewInfrastructure(salesCache, publisher)
 
-	services := service.NewServices(sqliteRepo, valkeyRepo)
+	services := service.NewServices(sqliteRepo, valkeyRepo, infra)
 	authVerifier, err := middlewares.NewJWTVerifierFromFile(cfg.JwtPublicKeyPath)
 	if err != nil {
 		log.Fatal(err)
@@ -42,6 +58,7 @@ func main() {
 
 	// Create main gin engine
 	r := gin.Default()
+	r.Use(middlewares.AllowAllCORS())
 
 	// Load OpenAPI spec
 	specPath := findOpenAPISpec()

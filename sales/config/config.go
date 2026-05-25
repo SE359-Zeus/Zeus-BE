@@ -1,8 +1,11 @@
 package config
 
 import (
+	"bufio"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 )
 
 // Config holds all application configuration loaded from environment variables
@@ -11,6 +14,7 @@ type Config struct {
 	Port             string
 	BaseURL          string
 	JwtPublicKeyPath string
+	RabbitMQURL      string
 
 	// Database
 	SQLiteDBPath string
@@ -26,18 +30,65 @@ type Config struct {
 	LogLevel string
 }
 
+var loadEnvOnce sync.Once
+
 // Load loads configuration from environment variables with sensible defaults
 func Load() *Config {
+	loadEnvOnce.Do(loadDotEnv)
 	return &Config{
-		Port:             getenv("SALES_PORT", "8082"),
-		BaseURL:          getenv("SALES_BASE_URL", "http://localhost:8082"),
-		JwtPublicKeyPath: getenv("JWT_PUBLIC_KEY_PATH", ""),
-		SQLiteDBPath:     getenv("SALES_SQLITE_DB", "./sales.db"),
-		ValkeyAddr:       getenv("SALES_VALKEY_ADDR", "localhost:6379"),
-		MRPServiceURL:    getenv("MRP_URL", "http://localhost:8082"),
-		SCMServiceURL:    getenv("SCM_URL", "http://localhost:8083"),
-		LogLevel:         getenv("LOG_LEVEL", "info"),
+		Port:             getenvAny("8082", "SALES_PORT", "PORT"),
+		BaseURL:          getenvAny("http://localhost:8082", "SALES_BASE_URL", "BASE_URL"),
+		JwtPublicKeyPath: getenvAny("", "JWT_PUBLIC_KEY_PATH"),
+		RabbitMQURL:      getenvAny("amqp://guest:guest@localhost:5672/", "RABBITMQ_URL"),
+		SQLiteDBPath:     getenvAny("./sales.db", "SALES_SQLITE_DB", "SQLITE_DB"),
+		ValkeyAddr:       getenvAny("localhost:6379", "SALES_VALKEY_ADDR", "VALKEY_ADDR"),
+		MRPServiceURL:    getenvAny("http://localhost:8082", "MRP_URL"),
+		SCMServiceURL:    getenvAny("http://localhost:8083", "SCM_URL"),
+		LogLevel:         getenvAny("info", "LOG_LEVEL"),
 	}
+}
+
+func loadDotEnv() {
+	file, err := os.Open(".env")
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		line = strings.TrimPrefix(line, "export ")
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" {
+			continue
+		}
+		if len(value) >= 2 {
+			if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) || (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
+				value = value[1 : len(value)-1]
+			}
+		}
+		if _, exists := os.LookupEnv(key); !exists {
+			_ = os.Setenv(key, value)
+		}
+	}
+}
+
+func getenvAny(fallback string, keys ...string) string {
+	for _, key := range keys {
+		if value := os.Getenv(key); value != "" {
+			return value
+		}
+	}
+	return fallback
 }
 
 // Helper function to get environment variable with fallback

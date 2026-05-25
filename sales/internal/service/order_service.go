@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"zeus-sales-service/config"
+	infraMessaging "zeus-sales-service/internal/infrastructure/messaging"
 	"zeus-sales-service/internal/middlewares"
 	"zeus-sales-service/internal/models"
 	"zeus-sales-service/internal/repository"
@@ -21,10 +22,15 @@ type OrderService struct {
 	repo    repository.DbRepository
 	cache   repository.CacheRepository
 	clients *ClientService
+	infra   *Infrastructure
 }
 
-func NewOrderService(repo repository.DbRepository, cache repository.CacheRepository, clients *ClientService) *OrderService {
-	return &OrderService{repo: repo, cache: cache, clients: clients}
+func NewOrderService(repo repository.DbRepository, cache repository.CacheRepository, clients *ClientService, infra ...*Infrastructure) *OrderService {
+	var sharedInfra *Infrastructure
+	if len(infra) > 0 {
+		sharedInfra = infra[0]
+	}
+	return &OrderService{repo: repo, cache: cache, clients: clients, infra: sharedInfra}
 }
 
 func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrderRequest) (*models.OrderResponse, error) {
@@ -61,7 +67,7 @@ func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrder
 	if err != nil {
 		return nil, err
 	}
-	pendingStatus, err := svc.repo.GetOrderStatusByCode(ctx, models.SalesOrderStatusPendingCode)
+	pendingStatus, err := svc.getStatusByCode(ctx, models.SalesOrderStatusPendingCode)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +120,11 @@ func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrder
 			// The order is already persisted; cache warmup must not fail the request.
 		}
 	}
+	svc.publish(ctx, infraMessaging.OrderCreatedQueue, map[string]any{
+		"order_id":  order.ID.String(),
+		"client_id": client.ID.String(),
+		"total":     order.TotalValue,
+	})
 	return svc.buildResponse(ctx, order, items)
 }
 
@@ -139,7 +150,7 @@ func (svc *OrderService) ListOrders(ctx context.Context) ([]models.OrderListItem
 	}
 	responses := make([]models.OrderListItemResponse, 0, len(orders))
 	for _, order := range orders {
-		client, _ := svc.repo.GetClient(ctx, order.ClientID)
+		client, _ := svc.clients.GetClient(ctx, order.ClientID)
 		if client == nil {
 			client = &models.Client{}
 		}
@@ -181,8 +192,8 @@ func (svc *OrderService) ListOrdersWithFilters(ctx context.Context, states []str
 		// load status code for filtering
 		includeByState := true
 		if len(stateSet) > 0 {
-			status, err := svc.repo.GetOrderStatusByID(ctx, order.StatusID)
-			if err != nil {
+			status, err := svc.getStatusByID(ctx, order.StatusID)
+			if err != nil || status == nil {
 				continue
 			}
 			if _, ok := stateSet[strings.ToUpper(status.Code)]; !ok {
@@ -192,7 +203,7 @@ func (svc *OrderService) ListOrdersWithFilters(ctx context.Context, states []str
 		if !includeByState {
 			continue
 		}
-		client, _ := svc.repo.GetClient(ctx, order.ClientID)
+		client, _ := svc.clients.GetClient(ctx, order.ClientID)
 		if client == nil {
 			client = &models.Client{}
 		}
@@ -228,7 +239,7 @@ func (svc *OrderService) GetMetrics(ctx context.Context) (*MetricsResponse, erro
 	now := time.Now().UTC()
 	cutoff := now.Add(-24 * time.Hour)
 	for _, order := range orders {
-		status, err := svc.repo.GetOrderStatusByID(ctx, order.StatusID)
+		status, err := svc.getStatusByID(ctx, order.StatusID)
 		if err != nil || status == nil {
 			continue
 		}
@@ -253,7 +264,7 @@ func (svc *OrderService) ListPendingOrders(ctx context.Context) ([]models.OrderL
 	}
 	responses := make([]models.OrderListItemResponse, 0, len(orders))
 	for _, order := range orders {
-		client, _ := svc.repo.GetClient(ctx, order.ClientID)
+		client, _ := svc.clients.GetClient(ctx, order.ClientID)
 		if client == nil {
 			client = &models.Client{}
 		}
@@ -359,7 +370,7 @@ func (svc *OrderService) CancelOrder(ctx context.Context, id uuid.UUID) error {
 	if order.Locked || status == nil || status.Code != models.SalesOrderStatusPendingCode {
 		return fmt.Errorf("%w: order cannot be cancelled once processing has started", middlewares.ErrConflict)
 	}
-	cancelledStatus, err := svc.repo.GetOrderStatusByCode(ctx, models.SalesOrderStatusCancelledCode)
+	cancelledStatus, err := svc.getStatusByCode(ctx, models.SalesOrderStatusCancelledCode)
 	if err != nil {
 		return err
 	}
@@ -372,6 +383,10 @@ func (svc *OrderService) CancelOrder(ctx context.Context, id uuid.UUID) error {
 	if svc.cache != nil {
 		_ = svc.cache.ClearQueue(ctx)
 	}
+	svc.publish(ctx, infraMessaging.OrderCancelledQueue, map[string]any{
+		"order_id": order.ID.String(),
+		"status":   models.SalesOrderStatusCancelledCode,
+	})
 	return nil
 }
 
@@ -385,7 +400,7 @@ func (svc *OrderService) resolveOrderStatus(ctx context.Context, order *models.S
 	if order.StatusID == uuid.Nil {
 		return nil, nil
 	}
-	status, err := svc.repo.GetOrderStatusByID(ctx, order.StatusID)
+	status, err := svc.getStatusByID(ctx, order.StatusID)
 	if err != nil {
 		return nil, err
 	}
@@ -442,13 +457,13 @@ func (svc *OrderService) ReserveInventory(ctx context.Context, id uuid.UUID) err
 
 func (svc *OrderService) buildResponse(ctx context.Context, order *models.SalesOrder, items []models.SalesOrderItem) (*models.OrderResponse, error) {
 	if order.Status == nil && order.StatusID != uuid.Nil {
-		status, err := svc.repo.GetOrderStatusByID(ctx, order.StatusID)
+		status, err := svc.getStatusByID(ctx, order.StatusID)
 		if err != nil {
 			return nil, err
 		}
 		order.Status = status
 	}
-	client, err := svc.repo.GetClient(ctx, order.ClientID)
+	client, err := svc.clients.GetClient(ctx, order.ClientID)
 	if err != nil {
 		return nil, err
 	}
@@ -456,4 +471,43 @@ func (svc *OrderService) buildResponse(ctx context.Context, order *models.SalesO
 		return nil, repository.ErrNotFound
 	}
 	return &models.OrderResponse{Order: *order, Client: *client, Items: items}, nil
+}
+
+func (svc *OrderService) getStatusByID(ctx context.Context, id uuid.UUID) (*models.SalesOrderStatusLUT, error) {
+	if svc != nil && svc.infra != nil && svc.infra.Cache != nil {
+		if cached, ok, err := svc.infra.Cache.GetStatusByID(ctx, id); err == nil && ok {
+			return cached, nil
+		}
+	}
+	status, err := svc.repo.GetOrderStatusByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if svc != nil && svc.infra != nil && svc.infra.Cache != nil && status != nil {
+		_ = svc.infra.Cache.SetStatus(ctx, *status)
+	}
+	return status, nil
+}
+
+func (svc *OrderService) getStatusByCode(ctx context.Context, code string) (*models.SalesOrderStatusLUT, error) {
+	if svc != nil && svc.infra != nil && svc.infra.Cache != nil {
+		if cached, ok, err := svc.infra.Cache.GetStatusByCode(ctx, code); err == nil && ok {
+			return cached, nil
+		}
+	}
+	status, err := svc.repo.GetOrderStatusByCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	if svc != nil && svc.infra != nil && svc.infra.Cache != nil && status != nil {
+		_ = svc.infra.Cache.SetStatus(ctx, *status)
+	}
+	return status, nil
+}
+
+func (svc *OrderService) publish(ctx context.Context, queue string, payload any) {
+	if svc == nil || svc.infra == nil || svc.infra.Publisher == nil {
+		return
+	}
+	_ = svc.infra.Publisher.Publish(ctx, queue, payload)
 }

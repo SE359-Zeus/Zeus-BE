@@ -1,34 +1,40 @@
 package valkey
 
 import (
+	"context"
+	"fmt"
+	"strings"
+
 	rootrepo "zeus-sales-service/internal/repository"
 
 	"github.com/redis/go-redis/v9"
 )
 
 type Repository struct {
-	client        *redis.Client
+	addr          string
 	queueKey      string
 	payloadKey    string
 	atpPrefix     string
 	reservePrefix string
 }
 
-func (repo *Repository) Close() error {
-	if repo == nil || repo.client == nil {
-		return nil
-	}
-	return repo.client.Close()
-}
-
-func New(client *redis.Client) *Repository {
+func New(addr string) *Repository {
 	return &Repository{
-		client:        client,
+		addr:          strings.TrimSpace(addr),
 		queueKey:      "sales:allocation_queue",
 		payloadKey:    "sales:allocation_queue:payload",
 		atpPrefix:     "sales:atp:",
 		reservePrefix: "sales:reservation:",
 	}
+}
+
+func (repo *Repository) withClient(ctx context.Context, fn func(*redis.Client) error) error {
+	if repo == nil || repo.addr == "" {
+		return fmt.Errorf("valkey address is empty")
+	}
+	client := redis.NewClient(&redis.Options{Addr: repo.addr})
+	defer client.Close()
+	return fn(client)
 }
 
 var _ rootrepo.ValkeyRepository = (*Repository)(nil)

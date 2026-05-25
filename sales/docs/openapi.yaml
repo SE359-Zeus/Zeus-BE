@@ -8,7 +8,7 @@ info:
 servers:
   - url: http://localhost:8081/api/v1/sales
 security:
-  - ApiKeyAuth: []
+  - BearerAuth: []
 paths:
   /orders:
     get:
@@ -513,10 +513,11 @@ paths:
 
 components:
   securitySchemes:
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Provide the access token in the Authorization header as `Bearer <access-token>`.
   schemas:
     Envelope:
       type: object

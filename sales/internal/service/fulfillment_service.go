@@ -16,10 +16,15 @@ import (
 type FulfillmentService struct {
 	sqlite repository.DbRepository
 	valkey repository.CacheRepository
+	infra  *Infrastructure
 }
 
-func NewFulfillmentService(sqliteRepo repository.DbRepository, valkeyRepo repository.CacheRepository) *FulfillmentService {
-	return &FulfillmentService{sqlite: sqliteRepo, valkey: valkeyRepo}
+func NewFulfillmentService(sqliteRepo repository.DbRepository, valkeyRepo repository.CacheRepository, infra ...*Infrastructure) *FulfillmentService {
+	var sharedInfra *Infrastructure
+	if len(infra) > 0 {
+		sharedInfra = infra[0]
+	}
+	return &FulfillmentService{sqlite: sqliteRepo, valkey: valkeyRepo, infra: sharedInfra}
 }
 
 func (svc *FulfillmentService) BuildQueue(ctx context.Context) ([]models.AllocationQueueEntry, error) {
@@ -119,7 +124,7 @@ func (svc *FulfillmentService) allocateOrder(ctx context.Context, orderID uuid.U
 	if err != nil {
 		return nil, err
 	}
-	processingStatus, err := svc.sqlite.GetOrderStatusByCode(ctx, models.SalesOrderStatusProcessingCode)
+	processingStatus, err := svc.getStatusByCode(ctx, models.SalesOrderStatusProcessingCode)
 	if err != nil {
 		return nil, err
 	}
@@ -159,6 +164,7 @@ func (svc *FulfillmentService) allocateOrder(ctx context.Context, orderID uuid.U
 	if err != nil {
 		return nil, err
 	}
+	svc.publish(ctx, "sales.fulfillment.processed", map[string]any{"order_id": order.ID.String(), "client_id": client.ID.String()})
 	return &models.FulfillmentManifest{
 		OrderID:            order.ID,
 		ClientID:           client.ID,
@@ -166,4 +172,27 @@ func (svc *FulfillmentService) allocateOrder(ctx context.Context, orderID uuid.U
 		Items:              reservationItems,
 		GeneratedAt:        time.Now().UTC(),
 	}, nil
+}
+
+func (svc *FulfillmentService) getStatusByCode(ctx context.Context, code string) (*models.SalesOrderStatusLUT, error) {
+	if svc != nil && svc.infra != nil && svc.infra.Cache != nil {
+		if cached, ok, err := svc.infra.Cache.GetStatusByCode(ctx, code); err == nil && ok {
+			return cached, nil
+		}
+	}
+	status, err := svc.sqlite.GetOrderStatusByCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	if svc != nil && svc.infra != nil && svc.infra.Cache != nil && status != nil {
+		_ = svc.infra.Cache.SetStatus(ctx, *status)
+	}
+	return status, nil
+}
+
+func (svc *FulfillmentService) publish(ctx context.Context, queue string, payload any) {
+	if svc == nil || svc.infra == nil || svc.infra.Publisher == nil {
+		return
+	}
+	_ = svc.infra.Publisher.Publish(ctx, queue, payload)
 }

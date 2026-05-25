@@ -9,20 +9,28 @@ import (
 )
 
 func (repo *Repository) GetATP(ctx context.Context, sku string) (int, error) {
-	value, err := repo.client.Get(ctx, repo.atpPrefix+strings.ToUpper(strings.TrimSpace(sku))).Result()
-	if err != nil {
-		if err == redis.Nil {
-			return 0, nil
+	var quantity int
+	err := repo.withClient(ctx, func(clientConn *redis.Client) error {
+		value, err := clientConn.Get(ctx, repo.atpPrefix+strings.ToUpper(strings.TrimSpace(sku))).Result()
+		if err != nil {
+			if err == redis.Nil {
+				quantity = 0
+				return nil
+			}
+			return err
 		}
-		return 0, err
-	}
-	parsed, err := strconv.Atoi(value)
-	if err != nil {
-		return 0, err
-	}
-	return parsed, nil
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return err
+		}
+		quantity = parsed
+		return nil
+	})
+	return quantity, err
 }
 
 func (repo *Repository) SetATP(ctx context.Context, sku string, quantity int) error {
-	return repo.client.Set(ctx, repo.atpPrefix+strings.ToUpper(strings.TrimSpace(sku)), quantity, 0).Err()
+	return repo.withClient(ctx, func(clientConn *redis.Client) error {
+		return clientConn.Set(ctx, repo.atpPrefix+strings.ToUpper(strings.TrimSpace(sku)), quantity, 0).Err()
+	})
 }

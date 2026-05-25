@@ -21,7 +21,6 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
 
@@ -198,13 +197,11 @@ func newIntegrationHarness(t *testing.T) (http.Handler, string, *sqlite.Reposito
 	sqliteRepo, err := sqlite.Open(filepath.Join(t.TempDir(), "sales.db"))
 	require.NoError(t, err)
 	server := miniredis.RunT(t)
-	redisClient := redis.NewClient(&redis.Options{Addr: server.Addr()})
-	valkeyRepo := valkey.New(redisClient)
+	valkeyRepo := valkey.New(server.Addr())
 	privateKey := generateTestKey(t)
 	authVerifier := middlewares.NewJWTVerifier(&privateKey.PublicKey)
 	adminToken := signTestToken(t, privateKey, "admin")
 	t.Cleanup(func() {
-		_ = redisClient.Close()
 		_ = sqliteRepo.Close()
 	})
 	return controllers.NewMux(service.NewServices(sqliteRepo, valkeyRepo), authVerifier), adminToken, sqliteRepo, valkeyRepo
