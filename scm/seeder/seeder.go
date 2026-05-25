@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func SeedAll(db *gorm.DB, partsDataPath string) error {
+func SeedAll(db *gorm.DB, partsDataPath string, manifestOutPath string) error {
 	log.Println("Starting SCM Seeder...")
 	gofakeit.Seed(0)
 
@@ -28,6 +28,10 @@ func SeedAll(db *gorm.DB, partsDataPath string) error {
 	seedInventory(db, catMap, suppliers)
 	seedProcurementData(db, suppliers, data)
 	seedProductsAndParts(db, modelsList, catMap)
+
+	if err := writeSeedManifest(db, manifestOutPath); err != nil {
+		return fmt.Errorf("failed to write seed manifest: %w", err)
+	}
 
 	log.Println("SCM Seeder finished successfully.")
 	return nil
