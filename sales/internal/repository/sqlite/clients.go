@@ -78,6 +78,14 @@ func (repo *Repository) GetClientByName(ctx context.Context, name string) (*mode
 	return &model, nil
 }
 
+func (repo *Repository) ExistsClientByName(ctx context.Context, name string) (bool, error) {
+	var count int64
+	if err := repo.db.WithContext(ctx).Model(&clientRecord{}).Where("lower(name) = lower(?)", strings.TrimSpace(name)).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 func (repo *Repository) ListClients(ctx context.Context) ([]models.Client, error) {
 	var records []clientRecord
 	if err := repo.db.WithContext(ctx).Order("name ASC").Find(&records).Error; err != nil {

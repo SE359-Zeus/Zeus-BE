@@ -500,6 +500,29 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+    delete:
+      tags: [Clients]
+      summary: Delete client profile
+      description: Permanently delete a client profile by UUID.
+      operationId: deleteClient
+      responses:
+        '200':
+          description: Client deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              examples:
+                deleted:
+                  value:
+                    message: "Client deleted"
+                    statusCode: 200
+                    data: {}
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   # ──────────────────────────────────────────────
   # Fulfillment
   # ──────────────────────────────────────────────

@@ -39,15 +39,19 @@ func (svc *ClientService) ResolveOrCreateClient(ctx context.Context, name string
 	if tier == "" {
 		tier = models.ClientTierB2C
 	}
-	client, err := svc.repo.GetClientByName(ctx, name)
-	if err == nil {
+	exists, err := svc.repo.ExistsClientByName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		client, err := svc.repo.GetClientByName(ctx, name)
+		if err != nil {
+			return nil, err
+		}
 		svc.cacheClient(ctx, client)
 		return client, nil
 	}
-	if err != repository.ErrNotFound {
-		return nil, err
-	}
-	client = &models.Client{
+	client := &models.Client{
 		ID:                        uuid.New(),
 		Name:                      name,
 		Tier:                      tier,
@@ -71,12 +75,12 @@ func (svc *ClientService) CreateClient(ctx context.Context, req models.CreateCli
 	}
 
 	// Reject duplicates — name is unique in the clients table
-	existing, err := svc.repo.GetClientByName(ctx, name)
-	if err == nil && existing != nil {
-		return nil, fmt.Errorf("%w: a client with this name already exists", middlewares.ErrConflict)
-	}
-	if err != nil && err != repository.ErrNotFound {
+	exists, err := svc.repo.ExistsClientByName(ctx, name)
+	if err != nil {
 		return nil, err
+	}
+	if exists {
+		return nil, fmt.Errorf("%w: a client with this name already exists", middlewares.ErrConflict)
 	}
 
 	client := &models.Client{

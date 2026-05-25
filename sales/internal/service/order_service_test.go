@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"zeus-sales-service/internal/models"
-	rootrepo "zeus-sales-service/internal/repository"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -69,7 +68,7 @@ func TestOrderService_CreateOrder_SetsDerivedFields(t *testing.T) {
 	pendingStatus := defaultPendingStatus()
 	clientID := uuid.New()
 
-	db.On("GetClientByName", mock.Anything, "Orbit Co").Return(nil, rootrepo.ErrNotFound)
+	db.On("ExistsClientByName", mock.Anything, "Orbit Co").Return(false, nil)
 	db.On("CreateClient", mock.Anything, mock.AnythingOfType("*models.Client")).Return(nil)
 	db.On("GetOrderStatusByCode", mock.Anything, models.SalesOrderStatusPendingCode).Return(pendingStatus, nil)
 	db.On("CreateOrder", mock.Anything, mock.AnythingOfType("*models.SalesOrder")).Return(nil)
@@ -239,7 +238,7 @@ func TestOrderService_CreateOrder_AcceptsCamelCaseDatePayload(t *testing.T) {
 	svc := newTestServicesWithMocks(db, cache).Orders
 	pendingStatus := defaultPendingStatus()
 
-	db.On("GetClientByName", mock.Anything, "Hung").Return(nil, rootrepo.ErrNotFound)
+	db.On("ExistsClientByName", mock.Anything, "Hung").Return(false, nil)
 	db.On("CreateClient", mock.Anything, mock.AnythingOfType("*models.Client")).Return(nil)
 	db.On("GetOrderStatusByCode", mock.Anything, models.SalesOrderStatusPendingCode).Return(pendingStatus, nil)
 	db.On("CreateOrder", mock.Anything, mock.AnythingOfType("*models.SalesOrder")).Return(nil)
