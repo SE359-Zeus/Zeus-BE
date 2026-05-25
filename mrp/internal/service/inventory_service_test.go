@@ -5,7 +5,10 @@ import (
 	"strings"
 	"testing"
 
+	"zeus-mrp-service/internal/models"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,6 +28,31 @@ func TestProductionService_GetInventoryMetrics(t *testing.T) {
 	res, err := svc.GetInventoryMetrics(context.Background())
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
+}
+
+func TestProductionService_GetInventoryLedger_UsesSCMClient(t *testing.T) {
+	mockRepo := setupMockRepo()
+	mockSCM := setupMockSCMClient()
+	mockSCM.On("ListStocks", mock.Anything, 1, 100, "sku", "asc", "").Return([]models.ComponentStock{{SKU: "SKU-1", Name: "Widget", StockQty: 12}}, false, nil)
+	svc := NewProductionService(mockRepo, mockSCM)
+
+	res, err := svc.GetInventoryLedger(context.Background())
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+	assert.Equal(t, "SKU-1", res[0].ID)
+	assert.Equal(t, 12, res[0].QtyChange)
+	assert.Equal(t, 12, res[0].RunningBalance)
+}
+
+func TestProductionService_GetInventoryBalanceBySKU_UsesSCMClient(t *testing.T) {
+	mockRepo := setupMockRepo()
+	mockSCM := setupMockSCMClient()
+	mockSCM.On("GetStockBySKU", mock.Anything, "SKU-1").Return(&models.ComponentStock{SKU: "SKU-1", StockQty: 27}, nil)
+	svc := NewProductionService(mockRepo, mockSCM)
+
+	qty, err := svc.GetInventoryBalanceBySKU(context.Background(), "SKU-1")
+	require.NoError(t, err)
+	assert.Equal(t, 27, qty)
 }
 
 func TestProductionService_ExportInventoryCSV(t *testing.T) {

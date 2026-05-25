@@ -18,8 +18,8 @@ type UserService interface {
 }
 
 type AuthService interface {
-	Login(ctx context.Context, req models.LoginRequest) (*models.TokenPair, error)
-	Refresh(ctx context.Context, req models.RefreshRequest) (*models.TokenPair, error)
+	Login(ctx context.Context, req models.LoginRequest) (*models.AuthLoginResult, error)
+	Refresh(ctx context.Context, req models.RefreshRequest) (*models.AuthLoginResult, error)
 	VerifyAccessToken(tokenString string) (*JWTClaims, error)
 	Logout(ctx context.Context, accessToken string) error
 }

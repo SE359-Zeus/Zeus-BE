@@ -46,6 +46,14 @@ type IInventoryRepository interface {
 
 	GetPartCatalogByID(ctx context.Context, id uuid.UUID) (*models.PartCatalog, error)
 	ListPartCatalog(ctx context.Context, typeID *int32, params pagination.Params, q string) ([]models.PartCatalog, *pagination.Meta, error)
+	CreatePartCatalog(ctx context.Context, pc *models.PartCatalog) error
+	UpdatePartCatalogFieldsBySKU(ctx context.Context, sku string, updates map[string]interface{}) (int64, error)
+	DeletePartCatalogBySKU(ctx context.Context, sku string) (int64, error)
+	GetPartCatalogBySKU(ctx context.Context, sku string) (*models.PartCatalog, error)
+	GetComponentStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error)
+	CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error
+	UpdateComponentStockFieldsBySKU(ctx context.Context, sku string, updates map[string]interface{}) (int64, error)
+	DeleteComponentStockBySKU(ctx context.Context, sku string) (int64, error)
 }
 
 type IShipmentRepository interface {

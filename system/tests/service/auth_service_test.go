@@ -74,12 +74,13 @@ func generateTestKey(t *testing.T) *rsa.PrivateKey {
 	return key
 }
 
-func assertTokenPair(t *testing.T, pair *models.TokenPair) {
+func assertTokenPair(t *testing.T, result *models.AuthLoginResult) {
 	t.Helper()
-	assert.NotEmpty(t, pair.AccessToken)
-	assert.NotEmpty(t, pair.RefreshToken)
-	assert.Equal(t, "Bearer", pair.TokenType)
-	assert.Equal(t, int64(900), pair.ExpiresIn)
+	assert.NotEmpty(t, result.Tokens.AccessToken)
+	assert.NotEmpty(t, result.Tokens.RefreshToken)
+	assert.Equal(t, "Bearer", result.Tokens.TokenType)
+	assert.Equal(t, int64(900), result.Tokens.ExpiresIn)
+	assert.NotNil(t, result.User)
 }
 
 func setupAuthSvc(t *testing.T) (service.AuthService, *service.MockUserRepository, *mockRefreshRepo, *service.MockSessionRepository) {
@@ -127,7 +128,7 @@ func TestAuthService_Login_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assertTokenPair(t, pair)
 
-	claims, err := svc.VerifyAccessToken(pair.AccessToken)
+	claims, err := svc.VerifyAccessToken(pair.Tokens.AccessToken)
 	assert.NoError(t, err)
 	assert.Equal(t, userID, claims.UserID)
 	assert.Equal(t, "admin", claims.Role)
@@ -216,7 +217,7 @@ func TestAuthService_Refresh_Success(t *testing.T) {
 	assert.NoError(t, err)
 
 	refreshClaims := &jwtRefreshClaims{}
-	_, _, err = jwt.NewParser().ParseUnverified(loginPair.RefreshToken, refreshClaims)
+	_, _, err = jwt.NewParser().ParseUnverified(loginPair.Tokens.RefreshToken, refreshClaims)
 	assert.NoError(t, err)
 
 	refreshRepo.On("ValidateRefreshToken", anyCtx, refreshClaims.JTI.String()).Return(userID.String(), nil)
@@ -229,7 +230,7 @@ func TestAuthService_Refresh_Success(t *testing.T) {
 	sessionRepo.On("Create", anyCtx, mock.AnythingOfType("*models.Session")).Return(nil)
 	sessionRepo.On("DeleteByJTI", anyCtx, mock.AnythingOfType("string")).Return(nil)
 
-	pair, err := svc.Refresh(context.Background(), models.RefreshRequest{RefreshToken: loginPair.RefreshToken})
+	pair, err := svc.Refresh(context.Background(), models.RefreshRequest{RefreshToken: loginPair.Tokens.RefreshToken})
 	assert.NoError(t, err)
 	assertTokenPair(t, pair)
 
@@ -256,7 +257,7 @@ func TestAuthService_Refresh_FallsBackToSessionStoreWhenCacheUnavailable(t *test
 	assert.NoError(t, err)
 
 	refreshClaims := &jwtRefreshClaims{}
-	_, _, err = jwt.NewParser().ParseUnverified(loginPair.RefreshToken, refreshClaims)
+	_, _, err = jwt.NewParser().ParseUnverified(loginPair.Tokens.RefreshToken, refreshClaims)
 	assert.NoError(t, err)
 
 	refreshRepo.On("ValidateRefreshToken", anyCtx, refreshClaims.JTI.String()).Return("", errors.New("cache unavailable"))
@@ -270,7 +271,7 @@ func TestAuthService_Refresh_FallsBackToSessionStoreWhenCacheUnavailable(t *test
 	sessionRepo.On("Create", anyCtx, mock.AnythingOfType("*models.Session")).Return(nil)
 	sessionRepo.On("DeleteByJTI", anyCtx, refreshClaims.JTI.String()).Return(nil)
 
-	pair, err := svc.Refresh(context.Background(), models.RefreshRequest{RefreshToken: loginPair.RefreshToken})
+	pair, err := svc.Refresh(context.Background(), models.RefreshRequest{RefreshToken: loginPair.Tokens.RefreshToken})
 	assert.NoError(t, err)
 	assertTokenPair(t, pair)
 
@@ -297,13 +298,13 @@ func TestAuthService_Refresh_ExpiredToken(t *testing.T) {
 	assert.NoError(t, err)
 
 	refreshClaims := &jwtRefreshClaims{}
-	_, _, err = jwt.NewParser().ParseUnverified(loginPair.RefreshToken, refreshClaims)
+	_, _, err = jwt.NewParser().ParseUnverified(loginPair.Tokens.RefreshToken, refreshClaims)
 	assert.NoError(t, err)
 
 	refreshRepo.On("ValidateRefreshToken", anyCtx, refreshClaims.JTI.String()).Return("", nil)
 	sessionRepo.On("GetByJTI", anyCtx, refreshClaims.JTI.String()).Return(nil, nil)
 
-	pair, err := svc.Refresh(context.Background(), models.RefreshRequest{RefreshToken: loginPair.RefreshToken})
+	pair, err := svc.Refresh(context.Background(), models.RefreshRequest{RefreshToken: loginPair.Tokens.RefreshToken})
 	assert.Error(t, err)
 	assert.Nil(t, pair)
 
@@ -338,7 +339,7 @@ func TestAuthService_VerifyAccessToken_Success(t *testing.T) {
 	pair, err := svc.Login(context.Background(), models.LoginRequest{Email: "v@z.com", Password: "pass"})
 	assert.NoError(t, err)
 
-	claimsResult, err := svc.VerifyAccessToken(pair.AccessToken)
+	claimsResult, err := svc.VerifyAccessToken(pair.Tokens.AccessToken)
 	assert.NoError(t, err)
 	assert.Equal(t, userID, claimsResult.UserID)
 	assert.Equal(t, "admin", claimsResult.Role)
@@ -375,13 +376,13 @@ func TestAuthService_Logout_Success(t *testing.T) {
 
 	pair, err := svc.Login(context.Background(), models.LoginRequest{Email: email, Password: password})
 	assert.NoError(t, err)
-	assert.NotEmpty(t, pair.AccessToken)
+	assert.NotEmpty(t, pair.Tokens.AccessToken)
 
 	refreshRepo.On("DeleteUserTokens", anyCtx, userID.String()).Return(nil)
 	sessionRepo.On("DeleteByUserID", anyCtx, userID.String()).Return(nil)
 	refreshRepo.On("BlacklistAccessToken", anyCtx, mock.AnythingOfType("string"), mock.AnythingOfType("time.Duration")).Return(nil)
 
-	err = svc.Logout(context.Background(), pair.AccessToken)
+	err = svc.Logout(context.Background(), pair.Tokens.AccessToken)
 	assert.NoError(t, err)
 
 	userRepo.AssertExpectations(t)

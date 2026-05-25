@@ -50,6 +50,17 @@ func (controller *ClientController) HandleClients(w http.ResponseWriter, r *http
 		}
 		pageItems, pagination := paginateItems(clients, page, pageSize)
 		writeEnvelope(w, http.StatusOK, "Clients listed", pagination, pageItems)
+	case http.MethodPost:
+		var req models.CreateClientRequest
+		if err := readJSON(r, &req); err != nil {
+			writeErrorJSON(w, http.StatusBadRequest, "invalid JSON payload", nil)
+			return
+		}
+		client, err := controller.svc.CreateClient(r.Context(), req)
+		if err != nil {
+			panic(err)
+		}
+		writeEnvelope(w, http.StatusCreated, "Client created", nil, client)
 	default:
 		writeErrorJSON(w, http.StatusMethodNotAllowed, http.StatusText(http.StatusMethodNotAllowed), nil)
 	}
@@ -79,6 +90,11 @@ func (controller *ClientController) HandleClientByID(w http.ResponseWriter, r *h
 			panic(err)
 		}
 		writeJSON(w, http.StatusOK, client)
+	case http.MethodDelete:
+		if err := controller.svc.DeleteClient(r.Context(), clientID); err != nil {
+			panic(err)
+		}
+		writeEnvelope(w, http.StatusOK, "Client deleted", nil, nil)
 	default:
 		writeErrorJSON(w, http.StatusMethodNotAllowed, http.StatusText(http.StatusMethodNotAllowed), nil)
 	}

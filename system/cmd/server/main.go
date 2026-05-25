@@ -16,6 +16,7 @@ import (
 	"zeus-system-service/internal/handler"
 	"zeus-system-service/internal/handler/middleware"
 	"zeus-system-service/internal/infrastructure/cache"
+	"zeus-system-service/internal/infrastructure/messaging"
 	"zeus-system-service/internal/repository/sqlite"
 	valkeyRepo "zeus-system-service/internal/repository/valkey"
 	"zeus-system-service/internal/service"
@@ -29,6 +30,33 @@ func dialValkey(addr string) func() (cache.ValkeyConn, error) {
 	return func() (cache.ValkeyConn, error) {
 		return cache.DialValkey(addr)
 	}
+}
+
+func checkValkeyConnection(addr string) {
+	conn, err := cache.DialValkey(addr)
+	if err != nil {
+		log.Printf("Warning: Valkey connection failed: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	if _, err := conn.Exists(context.Background(), "system:healthcheck"); err != nil {
+		log.Printf("Warning: Valkey health check failed: %v", err)
+		return
+	}
+
+	log.Printf("Valkey connection successful")
+}
+
+func checkRabbitMQConnection(url string) {
+	conn, err := messaging.Dial(url)
+	if err != nil {
+		log.Printf("Warning: RabbitMQ connection failed: %v", err)
+		return
+	}
+	conn.Close()
+
+	log.Printf("RabbitMQ connection successful")
 }
 
 func loadPrivateKey(path string) *rsa.PrivateKey {
@@ -128,6 +156,9 @@ func runtimeServerURL(port string) string {
 func main() {
 	cfg := config.Load()
 
+	checkValkeyConnection(cfg.ValkeyAddr)
+	checkRabbitMQConnection(cfg.RabbitMQURL)
+
 	db, err := sqlite.NewDB(cfg.DBPath)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
@@ -202,7 +233,7 @@ func main() {
 	// Disable Gin's trailing-slash redirect: prevents a 301 /docs → /docs/
 	// from escaping the nginx /system/docs/ proxy prefix in production.
 	r.RedirectTrailingSlash = false
-	r.Use(gin.Logger(), middleware.Recovery())
+	r.Use(middleware.CORS(), gin.Logger(), middleware.Recovery())
 
 	specPath := findOpenAPISpec()
 	specURL := runtimeServerURL(cfg.ServerPort)

@@ -29,18 +29,18 @@ type BOMExplosionResult struct {
 }
 
 type ReadinessMatrixRow struct {
-	OrderID           uuid.UUID            `json:"order_id"`
-	TargetBuild       string               `json:"target_build"`
-	Quantity          int                  `json:"quantity"`
-	Status            string               `json:"status"`
-	DeficitBreakdown  []BOMExplosionResult `json:"deficit_breakdown,omitempty"`
+	OrderID          uuid.UUID            `json:"order_id"`
+	TargetBuild      string               `json:"target_build"`
+	Quantity         int                  `json:"quantity"`
+	Status           string               `json:"status"`
+	DeficitBreakdown []BOMExplosionResult `json:"deficit_breakdown,omitempty"`
 }
 
 type ReadinessMetrics struct {
-	TotalOpenOrders       int     `json:"total_open_orders"`
-	ComponentsInShortage  int     `json:"components_in_shortage"`
-	BlockedOrders         int     `json:"blocked_orders"`
-	SupplyReadinessRate   float64 `json:"supply_readiness_rate"`
+	TotalOpenOrders      int     `json:"total_open_orders"`
+	ComponentsInShortage int     `json:"components_in_shortage"`
+	BlockedOrders        int     `json:"blocked_orders"`
+	SupplyReadinessRate  float64 `json:"supply_readiness_rate"`
 }
 
 type InventoryTransactionDTO struct {
@@ -116,6 +116,20 @@ type InventoryMetrics struct {
 	CycleCountGaps    int     `json:"cycle_count_gaps"`
 }
 
+type ComponentStock struct {
+	SKU          string    `json:"sku"`
+	Name         string    `json:"name"`
+	Category     string    `json:"category"`
+	StockQty     int       `json:"stock_qty"`
+	ReorderPoint int       `json:"reorder_point"`
+	UnitCost     float64   `json:"unit_cost"`
+	Status       string    `json:"status"`
+	LeadTimeDays int       `json:"lead_time_days"`
+	Location     string    `json:"location"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
 // --- Demand & POs DTOs ---
 
 type DemandPOSummary struct {
@@ -124,9 +138,9 @@ type DemandPOSummary struct {
 	Quantity     int       `json:"quantity"`
 	QtyReady     int       `json:"qty_ready"`
 	Status       string    `json:"status"`
-	Priority     string    `json:"priority"`      // HIGH, NORMAL, LOW
+	Priority     string    `json:"priority"` // HIGH, NORMAL, LOW
 	MissingCount int       `json:"missing_count"`
-	POCount      int       `json:"po_count"`      // number of draft POs raised
+	POCount      int       `json:"po_count"` // number of draft POs raised
 	TargetDate   time.Time `json:"target_date,omitempty"`
 }
 

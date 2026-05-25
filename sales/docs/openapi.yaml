@@ -3,41 +3,75 @@ info:
   title: Zeus Sales API
   version: 1.0.0
   description: >-
-    OpenAPI specification for the Sales module. Responses use a unified
-    envelope: {message, statusCode, metadata, data}.
+    OpenAPI specification for the Zeus Sales module.
+    Responses use a unified envelope: {message, statusCode, metadata, data}.
+    All endpoints require a valid Bearer JWT unless stated otherwise.
 servers:
   - url: http://localhost:8081/api/v1/sales
+    description: Local development server
 security:
   - BearerAuth: []
+
+tags:
+  - name: Orders
+    description: >-
+      Sales order lifecycle — create, retrieve, update, and cancel orders.
+      Orders are automatically queued for fulfillment upon creation.
+  - name: Clients
+    description: >-
+      Client account management — create and maintain customer profiles
+      including their account tier (B2B / B2C) and default delivery address.
+  - name: Fulfillment
+    description: >-
+      Inventory allocation queue — trigger processing of pending orders
+      and inspect the current queue state.
+  - name: Metrics
+    description: >-
+      Sales KPI dashboard — aggregate counters and value summaries for
+      operational monitoring (admin only).
+
 paths:
+
+  # ──────────────────────────────────────────────
+  # Orders
+  # ──────────────────────────────────────────────
   /orders:
     get:
-      summary: GET /orders
-      description: List sales orders with optional filtering by state, required date, and pagination.
+      tags: [Orders]
+      summary: List sales orders
+      description: >-
+        Return a paginated list of sales orders with optional filtering
+        by order state and required date.
+      operationId: listOrders
       parameters:
         - in: query
           name: page
           schema:
             type: integer
             minimum: 1
-          description: Page number starting at 1
+            default: 1
+          description: Page number (1-based)
         - in: query
           name: pageSize
           schema:
             type: integer
             minimum: 1
-          description: Items per page, capped by the API
+            maximum: 100
+            default: 10
+          description: Number of items per page
         - in: query
           name: states
           schema:
             type: string
-          description: Comma-separated order state codes to filter (e.g. PENDING,PROCESSING)
+          description: Comma-separated order state codes (e.g. PENDING,PROCESSING)
+          example: "PENDING,PROCESSING"
         - in: query
           name: date
           schema:
             type: string
             format: date
           description: Filter by required date (YYYY-MM-DD)
+          example: "2026-06-01"
       responses:
         '200':
           description: List of orders returned
@@ -62,40 +96,36 @@ paths:
                         status: "PENDING"
                         totalValue: 100.0
         '400':
-          description: Bad request (invalid filters)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              examples:
-                error:
-                  value:
-                    message: "bad request: invalid filter"
-                    statusCode: 400
-                    metadata: {}
-                    data: {}
+          $ref: '#/components/responses/BadRequest'
         '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              examples:
-                error:
-                  value:
-                    message: "internal server error"
-                    statusCode: 500
-                    metadata: {}
-                    data: {}
+          $ref: '#/components/responses/InternalError'
+
     post:
-      summary: POST /orders
-      description: Create a new sales order and queue it for fulfillment.
+      tags: [Orders]
+      summary: Create a sales order
+      description: >-
+        Create a new sales order and automatically queue it for inventory
+        fulfillment. The client is resolved by name — a new client record
+        is created if none exists with that name.
+      operationId: createOrder
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateOrderRequest'
+            examples:
+              standard:
+                summary: Standard order
+                value:
+                  clientName: "Orbit Co"
+                  destinationAddress: "123 Main St"
+                  clientTier: "B2C"
+                  requiredDate: "2026-06-15T00:00:00Z"
+                  items:
+                    - sku: "SKU-100"
+                      requestedQty: 3
+                      unitPrice: 15.0
       responses:
         '201':
           description: Order created
@@ -112,45 +142,21 @@ paths:
                       order:
                         id: "00000000-0000-0000-0000-000000000000"
         '400':
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              examples:
-                error:
-                  value:
-                    message: "validation error: client name is required"
-                    statusCode: 400
-                    metadata: {}
-                    data: {}
+          $ref: '#/components/responses/ValidationError'
         '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              examples:
-                error:
-                  value:
-                    message: "internal server error"
-                    statusCode: 500
-                    metadata: {}
-                    data: {}
+          $ref: '#/components/responses/InternalError'
 
   /orders/{id}:
     parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: string
+      - $ref: '#/components/parameters/ResourceID'
     get:
-      summary: GET /orders/{id}
-      description: Retrieve full order details, including line items and client info.
+      tags: [Orders]
+      summary: Get order details
+      description: Retrieve full order details including line items and client info.
+      operationId: getOrder
       responses:
         '200':
-          description: Order details
+          description: Order details returned
           content:
             application/json:
               schema:
@@ -175,34 +181,17 @@ paths:
                           allocatedQty: 0
                           unitPrice: 15.0
         '404':
-          description: Order not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              examples:
-                error:
-                  value:
-                    message: "not found"
-                    statusCode: 404
-                    metadata: {}
-                    data: {}
+          $ref: '#/components/responses/NotFound'
         '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              examples:
-                error:
-                  value:
-                    message: "internal server error"
-                    statusCode: 500
-                    metadata: {}
-                    data: {}
+          $ref: '#/components/responses/InternalError'
+
     patch:
-      summary: PATCH /orders/{id}
-      description: Update destination, required date, or items while order is still pending.
+      tags: [Orders]
+      summary: Update a pending order
+      description: >-
+        Update destination address, required date, or line items while the
+        order is still in PENDING state. Locked or processing orders are rejected.
+      operationId: updateOrder
       requestBody:
         required: true
         content:
@@ -217,34 +206,30 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '400':
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              examples:
-                error:
-                  value:
-                    message: "validation error: update request is empty"
-                    statusCode: 400
-                    metadata: {}
-                    data: {}
+          $ref: '#/components/responses/ValidationError'
         '409':
-          description: Conflict (order locked or already processing)
+          description: Conflict — order is locked or no longer editable
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
               examples:
-                error:
+                locked:
                   value:
                     message: "conflict: order is locked or no longer editable"
                     statusCode: 409
                     metadata: {}
                     data: {}
+        '500':
+          $ref: '#/components/responses/InternalError'
+
     post:
-      summary: POST /orders/{id}
-      description: Trigger inventory reservation and MRP processing for the selected order.
+      tags: [Orders]
+      summary: Trigger inventory reservation
+      description: >-
+        Trigger inventory reservation and MRP processing for the selected order.
+        This promotes the order from PENDING to PROCESSING.
+      operationId: reserveOrder
       responses:
         '200':
           description: Reservation triggered
@@ -259,42 +244,20 @@ paths:
                     statusCode: 200
                     data: {}
         '404':
-          description: Order not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              examples:
-                error:
-                  value:
-                    message: "not found"
-                    statusCode: 404
-                    metadata: {}
-                    data: {}
+          $ref: '#/components/responses/NotFound'
         '500':
-          description: MRP or server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              examples:
-                error:
-                  value:
-                    message: "mrp service returned status 500"
-                    statusCode: 500
-                    metadata: {}
-                    data: {}
+          $ref: '#/components/responses/InternalError'
 
   /orders/{id}/cancel:
     parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: string
+      - $ref: '#/components/parameters/ResourceID'
     post:
-      summary: POST /orders/{id}/cancel
-      description: Cancel a pending order explicitly through a dedicated action endpoint.
+      tags: [Orders]
+      summary: Cancel an order
+      description: >-
+        Cancel a PENDING order through a dedicated action endpoint.
+        Orders that have already started processing cannot be cancelled.
+      operationId: cancelOrder
       responses:
         '200':
           description: Order cancelled
@@ -308,55 +271,53 @@ paths:
                     message: "order cancelled"
                     statusCode: 200
                     data: {}
+        '404':
+          $ref: '#/components/responses/NotFound'
         '409':
-          description: Conflict (cannot cancel once processing started)
+          description: Conflict — cannot cancel once processing has started
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
               examples:
-                error:
+                processing:
                   value:
                     message: "conflict: order cannot be cancelled once processing has started"
                     statusCode: 409
                     metadata: {}
                     data: {}
-        '404':
-          description: Order not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              examples:
-                error:
-                  value:
-                    message: "not found"
-                    statusCode: 404
-                    metadata: {}
-                    data: {}
 
+  # ──────────────────────────────────────────────
+  # Clients
+  # ──────────────────────────────────────────────
   /clients:
     get:
-      summary: GET /clients
-      description: List clients with optional filtering by business tier.
+      tags: [Clients]
+      summary: List clients
+      description: Return a paginated list of clients with optional tier filtering.
+      operationId: listClients
       parameters:
         - in: query
           name: page
           schema:
             type: integer
             minimum: 1
-          description: Page number starting at 1
+            default: 1
+          description: Page number (1-based)
         - in: query
           name: pageSize
           schema:
             type: integer
             minimum: 1
-          description: Items per page, capped by the API
+            maximum: 100
+            default: 10
+          description: Number of items per page
         - in: query
           name: tiers
           schema:
             type: string
-          description: Comma-separated client tiers to filter
+          description: Comma-separated client tiers to filter (B2B,B2C)
+          example: "B2B,B2C"
       responses:
         '200':
           description: Clients listed
@@ -372,36 +333,112 @@ paths:
                     metadata:
                       page: 1
                       pageSize: 10
-                      total: 1
+                      total: 2
                       totalPages: 1
                     data:
                       - id: "11111111-1111-1111-1111-111111111111"
-                        name: "Orbit Co"
+                        name: "Acme Corp"
+                        tier: "B2B"
+                        default_destination_address: "42 Industrial Rd"
+                        total_lifetime_orders: 5
+                      - id: "22222222-2222-2222-2222-222222222222"
+                        name: "Jane Doe"
                         tier: "B2C"
+                        default_destination_address: ""
+                        total_lifetime_orders: 1
         '500':
-          description: Server error
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags: [Clients]
+      summary: Create a client
+      description: >-
+        Create a new client account with a unique name, an account tier
+        (B2B for enterprise, B2C for consumer), and an optional default
+        delivery address. Requires `admin` or `sales_operator` role.
+      operationId: createClient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClientRequest'
+            examples:
+              b2b_client:
+                summary: B2B enterprise client
+                value:
+                  name: "Acme Corp"
+                  tier: "B2B"
+                  defaultDestinationAddress: "42 Industrial Rd, Ho Chi Minh City"
+              b2c_client:
+                summary: B2C consumer client
+                value:
+                  name: "Jane Doe"
+                  tier: "B2C"
+                  defaultDestinationAddress: ""
+      responses:
+        '201':
+          description: Client created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              examples:
+                created:
+                  value:
+                    message: "Client created"
+                    statusCode: 201
+                    data:
+                      id: "11111111-1111-1111-1111-111111111111"
+                      name: "Acme Corp"
+                      tier: "B2B"
+                      default_destination_address: "42 Industrial Rd, Ho Chi Minh City"
+                      total_lifetime_orders: 0
+                      created_at: "2026-05-25T05:00:00Z"
+                      updated_at: "2026-05-25T05:00:00Z"
+        '400':
+          description: Validation error — missing name or invalid tier
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
               examples:
-                error:
+                missing_name:
                   value:
-                    message: "internal server error"
-                    statusCode: 500
+                    message: "validation error: client name is required"
+                    statusCode: 400
                     metadata: {}
                     data: {}
+                invalid_tier:
+                  value:
+                    message: "validation error: tier must be B2B or B2C"
+                    statusCode: 400
+                    metadata: {}
+                    data: {}
+        '409':
+          description: Conflict — a client with this name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                duplicate:
+                  value:
+                    message: "conflict: a client with this name already exists"
+                    statusCode: 409
+                    metadata: {}
+                    data: {}
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /clients/{id}:
     parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: string
+      - $ref: '#/components/parameters/ResourceID'
     get:
-      summary: GET /clients/{id}
-      description: Retrieve a client profile by identifier.
+      tags: [Clients]
+      summary: Get client profile
+      description: Retrieve a client profile by UUID.
+      operationId: getClient
       responses:
         '200':
           description: Client returned
@@ -409,28 +446,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Envelope'
-        '404':
-          description: Client not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
               examples:
-                error:
+                client:
                   value:
-                    message: "not found"
-                    statusCode: 404
-                    metadata: {}
-                    data: {}
+                    message: "OK"
+                    statusCode: 200
+                    data:
+                      id: "11111111-1111-1111-1111-111111111111"
+                      name: "Acme Corp"
+                      tier: "B2B"
+                      default_destination_address: "42 Industrial Rd"
+                      total_lifetime_orders: 5
+                      created_at: "2026-01-01T00:00:00Z"
+                      updated_at: "2026-05-01T00:00:00Z"
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
     patch:
-      summary: PATCH /clients/{id}
-      description: Update editable client profile fields such as name, tier, and default destination address.
+      tags: [Clients]
+      summary: Update client profile
+      description: >-
+        Update one or more editable fields on a client profile: name, tier,
+        or default destination address. At least one field must be provided.
+      operationId: updateClient
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateClientRequest'
+            examples:
+              rename:
+                summary: Rename the client
+                value:
+                  name: "Acme Corporation"
+              change_tier:
+                summary: Upgrade tier
+                value:
+                  tier: "B2B"
       responses:
         '200':
           description: Client updated
@@ -439,36 +494,46 @@ paths:
               schema:
                 $ref: '#/components/schemas/Envelope'
         '400':
-          description: Validation error
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags: [Clients]
+      summary: Delete client profile
+      description: Permanently delete a client profile by UUID.
+      operationId: deleteClient
+      responses:
+        '200':
+          description: Client deleted
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                $ref: '#/components/schemas/Envelope'
               examples:
-                error:
+                deleted:
                   value:
-                    message: "validation error: client id is required"
-                    statusCode: 400
-                    metadata: {}
+                    message: "Client deleted"
+                    statusCode: 200
                     data: {}
         '404':
-          description: Client not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-              examples:
-                error:
-                  value:
-                    message: "not found"
-                    statusCode: 404
-                    metadata: {}
-                    data: {}
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
+  # ──────────────────────────────────────────────
+  # Fulfillment
+  # ──────────────────────────────────────────────
   /fulfillment/process:
     post:
-      summary: POST /fulfillment/process
-      description: Start processing pending allocation queue entries.
+      tags: [Fulfillment]
+      summary: Process allocation queue
+      description: >-
+        Start processing all pending entries in the inventory allocation queue.
+        Each entry allocates stock to a sales order and advances its status.
+      operationId: processFulfillmentQueue
       responses:
         '200':
           description: Processing started
@@ -476,49 +541,55 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Envelope'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
               examples:
-                error:
+                started:
                   value:
-                    message: "internal server error"
-                    statusCode: 500
-                    metadata: {}
+                    message: "processing started"
+                    statusCode: 200
                     data: {}
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /fulfillment/queue:
     get:
-      summary: GET /fulfillment/queue
-      description: View the current state of the fulfillment allocation queue.
+      tags: [Fulfillment]
+      summary: View allocation queue
+      description: >-
+        Return the current state of the fulfillment allocation queue,
+        showing all pending order entries awaiting stock allocation.
+      operationId: getFulfillmentQueue
       responses:
         '200':
-          description: Queue status
+          description: Queue status returned
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Envelope'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
               examples:
-                error:
+                queue:
                   value:
-                    message: "internal server error"
-                    statusCode: 500
-                    metadata: {}
-                    data: {}
+                    message: "OK"
+                    statusCode: 200
+                    data:
+                      entries:
+                        - orderId: "00000000-0000-0000-0000-000000000000"
+                          clientName: "Orbit Co"
+                          queuedAt: "2026-05-25T05:00:00Z"
+        '500':
+          $ref: '#/components/responses/InternalError'
 
+  # ──────────────────────────────────────────────
+  # Metrics
+  # ──────────────────────────────────────────────
   /metrics:
     get:
-      summary: GET /metrics
-      description: Return sales KPI metrics for pending, processing value, and recent completions.
+      tags: [Metrics]
+      summary: Sales KPI metrics
+      description: >-
+        Return aggregate sales KPI counters: total pending orders, active
+        processing value, and orders completed in the last 24 hours.
+        Restricted to `admin` role.
+      operationId: getSalesMetrics
       responses:
         '200':
           description: Metrics returned
@@ -526,27 +597,108 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Envelope'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
               examples:
-                error:
+                metrics:
                   value:
-                    message: "internal server error"
-                    statusCode: 500
-                    metadata: {}
-                    data: {}
+                    message: "OK"
+                    statusCode: 200
+                    data:
+                      total_pending: 12
+                      active_processing_value: 48500.75
+                      completed_24h: 3
+        '500':
+          $ref: '#/components/responses/InternalError'
 
 components:
+
+  # ──────────────────────────────────────────────
+  # Security
+  # ──────────────────────────────────────────────
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Provide the access token in the Authorization header as `Bearer <access-token>`.
+      description: >-
+        Provide the access token in the Authorization header as
+        `Bearer <access-token>`.
+
+  # ──────────────────────────────────────────────
+  # Reusable Parameters
+  # ──────────────────────────────────────────────
+  parameters:
+    ResourceID:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: UUID of the resource
+
+  # ──────────────────────────────────────────────
+  # Reusable Responses
+  # ──────────────────────────────────────────────
+  responses:
+    BadRequest:
+      description: Bad request — invalid query parameters or body
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            error:
+              value:
+                message: "bad request: invalid filter"
+                statusCode: 400
+                metadata: {}
+                data: {}
+
+    ValidationError:
+      description: Validation error — a required field is missing or has an invalid value
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            error:
+              value:
+                message: "validation error: field is required"
+                statusCode: 400
+                metadata: {}
+                data: {}
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            error:
+              value:
+                message: "not found"
+                statusCode: 404
+                metadata: {}
+                data: {}
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            error:
+              value:
+                message: "internal server error"
+                statusCode: 500
+                metadata: {}
+                data: {}
+
+  # ──────────────────────────────────────────────
+  # Schemas
+  # ──────────────────────────────────────────────
   schemas:
     Envelope:
       type: object
@@ -559,38 +711,50 @@ components:
           type: object
         data:
           type: object
+
     ErrorEnvelope:
       allOf:
         - $ref: '#/components/schemas/Envelope'
-      description: Error response wrapped in the envelope
+      description: Error response wrapped in the standard envelope
+
+    # --- Orders ---
     Order:
       type: object
       properties:
         id:
           type: string
+          format: uuid
         clientId:
           type: string
+          format: uuid
         clientName:
+          type: string
+        destinationAddress:
           type: string
         requiredDate:
           type: string
           format: date-time
         statusCode:
           type: string
+          enum: [PENDING, PROCESSING, DELIVERING, COMPLETED, CANCELLED]
         totalValue:
           type: number
           format: float
+        locked:
+          type: boolean
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
+
     OrderItem:
       type: object
       properties:
         id:
           type: string
+          format: uuid
         sku:
           type: string
         requestedQty:
@@ -600,44 +764,119 @@ components:
         unitPrice:
           type: number
           format: float
-    OrdersListData:
+
+    CreateOrderRequest:
       type: object
+      required: [clientName, requiredDate, items]
       properties:
-        pagination:
-          $ref: '#/components/schemas/PaginationMetadata'
-        orders:
+        clientName:
+          type: string
+          description: Name of the client placing the order
+          example: "Orbit Co"
+        destinationAddress:
+          type: string
+          description: Delivery address (overrides client default)
+          example: "123 Main St"
+        clientTier:
+          type: string
+          enum: [B2B, B2C]
+          description: Tier used when auto-creating a new client
+          example: "B2C"
+        requiredDate:
+          type: string
+          format: date-time
+          description: Target fulfillment date (RFC3339)
+          example: "2026-06-15T00:00:00Z"
+        items:
           type: array
+          minItems: 1
           items:
-            $ref: '#/components/schemas/Order'
-    OrderDetailData:
+            type: object
+            required: [sku, requestedQty]
+            properties:
+              sku:
+                type: string
+                example: "SKU-100"
+              requestedQty:
+                type: integer
+                minimum: 1
+                example: 3
+              unitPrice:
+                type: number
+                format: float
+                example: 15.0
+
+    UpdateOrderRequest:
       type: object
+      description: All fields are optional; at least one must be provided.
       properties:
-        order:
-          $ref: '#/components/schemas/Order'
+        destinationAddress:
+          type: string
+        requiredDate:
+          type: string
+          format: date-time
         items:
           type: array
           items:
             $ref: '#/components/schemas/OrderItem'
+
+    # --- Clients ---
     Client:
       type: object
       properties:
         id:
           type: string
+          format: uuid
         name:
           type: string
         tier:
           type: string
-        totalLifetimeOrders:
+          enum: [B2B, B2C]
+        default_destination_address:
+          type: string
+        total_lifetime_orders:
           type: integer
-    ClientsListData:
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateClientRequest:
       type: object
+      required: [name, tier]
       properties:
-        pagination:
-          $ref: '#/components/schemas/PaginationMetadata'
-        clients:
-          type: array
-          items:
-            $ref: '#/components/schemas/Client'
+        name:
+          type: string
+          description: Unique display name for the client
+          example: "Acme Corp"
+        tier:
+          type: string
+          enum: [B2B, B2C]
+          description: Account tier — B2B for enterprise, B2C for consumer
+          example: "B2B"
+        defaultDestinationAddress:
+          type: string
+          description: Optional default shipping / delivery address
+          example: "42 Industrial Rd, Ho Chi Minh City"
+
+    UpdateClientRequest:
+      type: object
+      description: All fields are optional; at least one must be provided.
+      properties:
+        name:
+          type: string
+          description: New display name
+        tier:
+          type: string
+          enum: [B2B, B2C]
+          description: New account tier
+        defaultDestinationAddress:
+          type: string
+          description: New default delivery address
+
+    # --- Shared ---
     PaginationMetadata:
       type: object
       properties:
@@ -649,52 +888,7 @@ components:
           type: integer
         totalPages:
           type: integer
-    UpdateClientRequest:
-      type: object
-      properties:
-        name:
-          type: string
-        tier:
-          type: string
-        defaultDestinationAddress:
-          type: string
-    CreateOrderRequest:
-      type: object
-      required: [clientName, requiredDate, items]
-      properties:
-        clientName:
-          type: string
-        destinationAddress:
-          type: string
-        clientTier:
-          type: string
-        requiredDate:
-          type: string
-          format: date-time
-        items:
-          type: array
-          items:
-            type: object
-            properties:
-              sku:
-                type: string
-              requestedQty:
-                type: integer
-              unitPrice:
-                type: number
-                format: float
-    UpdateOrderRequest:
-      type: object
-      properties:
-        destinationAddress:
-          type: string
-        requiredDate:
-          type: string
-          format: date-time
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/OrderItem'
+
     MetricsData:
       type: object
       properties:
@@ -705,4 +899,3 @@ components:
           format: float
         completed_24h:
           type: integer
-

@@ -19,7 +19,7 @@ func TestClientService_ResolveOrCreateClient_CreatesWhenMissing(t *testing.T) {
 	svc := newTestServicesWithMocks(db, cache).Clients
 
 	name := "New Client"
-	db.On("GetClientByName", mock.Anything, name).Return(nil, rootrepo.ErrNotFound)
+	db.On("ExistsClientByName", mock.Anything, name).Return(false, nil)
 	db.On("CreateClient", mock.Anything, mock.AnythingOfType("*models.Client")).Return(nil)
 
 	client, err := svc.ResolveOrCreateClient(context.Background(), name, "Addr 1", models.ClientTierB2C)
@@ -35,6 +35,7 @@ func TestClientService_ResolveOrCreateClient_ExistingReturned(t *testing.T) {
 	svc := newTestServicesWithMocks(db, cache).Clients
 
 	existing := &models.Client{ID: uuid.New(), Name: "Existing", Tier: models.ClientTierB2B}
+	db.On("ExistsClientByName", mock.Anything, "Existing").Return(true, nil)
 	db.On("GetClientByName", mock.Anything, "Existing").Return(existing, nil)
 
 	client, err := svc.ResolveOrCreateClient(context.Background(), "Existing", "", models.ClientTierB2B)
@@ -112,6 +113,21 @@ func TestClientService_UpdateClient_NotFound(t *testing.T) {
 
 	_, err := svc.UpdateClient(context.Background(), id, models.UpdateClientRequest{Name: ptrString("X")})
 	require.Error(t, err)
+}
+
+func TestClientService_DeleteClient_Success(t *testing.T) {
+	db := setupMockDbRepo()
+	cache := setupMockCacheRepo()
+	svc := newTestServicesWithMocks(db, cache).Clients
+
+	id := uuid.New()
+	client := &models.Client{ID: id, Name: "Acme", Tier: models.ClientTierB2B}
+	db.On("GetClient", mock.Anything, id).Return(client, nil)
+	db.On("DeleteClient", mock.Anything, id).Return(nil)
+
+	err := svc.DeleteClient(context.Background(), id)
+	require.NoError(t, err)
+	db.AssertExpectations(t)
 }
 
 // ptrString helper intentionally omitted; reuse ptrString from other tests in package

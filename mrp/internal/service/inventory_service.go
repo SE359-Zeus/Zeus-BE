@@ -15,6 +15,11 @@ func (s *ProductionService) GetInventoryLedger(ctx context.Context) ([]models.In
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if s.scmClient != nil {
+		if txns, err := s.inventoryLedgerFromSCM(ctx); err == nil {
+			return txns, nil
+		}
+	}
 	txns, err := s.repo.GetInventoryTransactions(ctx)
 	if err != nil {
 		return nil, err
@@ -29,6 +34,11 @@ func (s *ProductionService) GetInventoryMetrics(ctx context.Context) (*models.In
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if s.scmClient != nil {
+		if metrics, err := s.inventoryMetricsFromSCM(ctx); err == nil {
+			return metrics, nil
+		}
+	}
 	m, err := s.repo.GetInventoryMetrics(ctx)
 	if err != nil {
 		return nil, err
@@ -40,8 +50,8 @@ func (s *ProductionService) GetInventoryMetrics(ctx context.Context) (*models.In
 	if m.StockAccuracy < 0 {
 		m.StockAccuracy = 0
 	}
-	if m.StockAccuracy > 1 {
-		m.StockAccuracy = 1
+	if m.StockAccuracy > 100 {
+		m.StockAccuracy = 100
 	}
 	if m.ActiveSKUs < 0 {
 		m.ActiveSKUs = 0
@@ -73,7 +83,7 @@ func (s *ProductionService) ExportInventoryCSV(ctx context.Context) ([]byte, err
 }
 
 func (s *ProductionService) GetInventoryTransactionByID(ctx context.Context, txnID string) (*models.InventoryTransactionDTO, error) {
-	txns, err := s.repo.GetInventoryTransactions(ctx)
+	txns, err := s.GetInventoryLedger(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -86,9 +96,89 @@ func (s *ProductionService) GetInventoryTransactionByID(ctx context.Context, txn
 }
 
 func (s *ProductionService) GetInventoryBalanceBySKU(ctx context.Context, sku string) (int, error) {
+	if s.scmClient != nil {
+		stock, err := s.scmClient.GetStockBySKU(ctx, sku)
+		if err == nil {
+			if stock == nil {
+				return 0, nil
+			}
+			return stock.StockQty, nil
+		}
+	}
 	pid, err := uuid.Parse(sku)
 	if err != nil {
 		return 0, fmt.Errorf("sku must be a UUID")
 	}
 	return s.repo.GetPartInventory(ctx, pid)
+}
+
+func (s *ProductionService) inventoryLedgerFromSCM(ctx context.Context) ([]models.InventoryTransactionDTO, error) {
+	if s.scmClient == nil {
+		return nil, nil
+	}
+
+	page := 1
+	limit := 100
+	rows := make([]models.InventoryTransactionDTO, 0)
+
+	for {
+		items, hasMore, err := s.scmClient.ListStocks(ctx, page, limit, "sku", "asc", "")
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range items {
+			rows = append(rows, models.InventoryTransactionDTO{
+				ID:             item.SKU,
+				SKU:            item.SKU,
+				Type:           "stock_snapshot",
+				QtyChange:      item.StockQty,
+				RunningBalance: item.StockQty,
+				Location:       item.Location,
+				Timestamp:      item.UpdatedAt,
+				Operator:       "SCM",
+				Reference:      item.Name,
+			})
+		}
+		if !hasMore || len(items) == 0 {
+			break
+		}
+		page++
+	}
+
+	return rows, nil
+}
+
+func (s *ProductionService) inventoryMetricsFromSCM(ctx context.Context) (*models.InventoryMetrics, error) {
+	if s.scmClient == nil {
+		return nil, nil
+	}
+
+	page := 1
+	limit := 100
+	activeSKUs := 0
+	cycleCountGaps := 0
+
+	for {
+		items, hasMore, err := s.scmClient.ListStocks(ctx, page, limit, "sku", "asc", "")
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range items {
+			activeSKUs++
+			if item.StockQty < item.ReorderPoint {
+				cycleCountGaps++
+			}
+		}
+		if !hasMore || len(items) == 0 {
+			break
+		}
+		page++
+	}
+
+	return &models.InventoryMetrics{
+		ActiveSKUs:        activeSKUs,
+		StockAccuracy:     100,
+		InventoryTurnover: 0,
+		CycleCountGaps:    cycleCountGaps,
+	}, nil
 }

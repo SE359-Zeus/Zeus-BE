@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	infraMessaging "zeus-sales-service/internal/infrastructure/messaging"
 	"zeus-sales-service/internal/middlewares"
 	"zeus-sales-service/internal/models"
 	"zeus-sales-service/internal/repository"
@@ -38,15 +39,19 @@ func (svc *ClientService) ResolveOrCreateClient(ctx context.Context, name string
 	if tier == "" {
 		tier = models.ClientTierB2C
 	}
-	client, err := svc.repo.GetClientByName(ctx, name)
-	if err == nil {
+	exists, err := svc.repo.ExistsClientByName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		client, err := svc.repo.GetClientByName(ctx, name)
+		if err != nil {
+			return nil, err
+		}
 		svc.cacheClient(ctx, client)
 		return client, nil
 	}
-	if err != repository.ErrNotFound {
-		return nil, err
-	}
-	client = &models.Client{
+	client := &models.Client{
 		ID:                        uuid.New(),
 		Name:                      name,
 		Tier:                      tier,
@@ -57,6 +62,43 @@ func (svc *ClientService) ResolveOrCreateClient(ctx context.Context, name string
 		return nil, err
 	}
 	svc.cacheClient(ctx, client)
+	return client, nil
+}
+
+func (svc *ClientService) CreateClient(ctx context.Context, req models.CreateClientRequest) (*models.Client, error) {
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return nil, fmt.Errorf("%w: client name is required", middlewares.ErrValidation)
+	}
+	if req.Tier != models.ClientTierB2B && req.Tier != models.ClientTierB2C {
+		return nil, fmt.Errorf("%w: tier must be B2B or B2C", middlewares.ErrValidation)
+	}
+
+	// Reject duplicates — name is unique in the clients table
+	exists, err := svc.repo.ExistsClientByName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, fmt.Errorf("%w: a client with this name already exists", middlewares.ErrConflict)
+	}
+
+	client := &models.Client{
+		ID:                        uuid.New(),
+		Name:                      name,
+		Tier:                      req.Tier,
+		DefaultDestinationAddress: strings.TrimSpace(req.DefaultDestinationAddress),
+		CreatedAt:                 time.Now().UTC(),
+		UpdatedAt:                 time.Now().UTC(),
+	}
+	if err := svc.repo.CreateClient(ctx, client); err != nil {
+		return nil, err
+	}
+	svc.cacheClient(ctx, client)
+	if svc.infra != nil && svc.infra.Publisher != nil {
+		_ = svc.infra.Publisher.Publish(ctx, "sales.client.created", client)
+		svc.publishAudit(ctx, "CREATE", "sales/clients/"+client.ID.String(), "Created client "+client.Name)
+	}
 	return client, nil
 }
 
@@ -129,8 +171,29 @@ func (svc *ClientService) UpdateClient(ctx context.Context, id uuid.UUID, req mo
 	}
 	if svc.infra != nil && svc.infra.Publisher != nil {
 		_ = svc.infra.Publisher.Publish(ctx, "sales.client.updated", client)
+		svc.publishAudit(ctx, "UPDATE", "sales/clients/"+client.ID.String(), "Updated client "+client.Name)
 	}
 	return client, nil
+}
+
+func (svc *ClientService) DeleteClient(ctx context.Context, id uuid.UUID) error {
+	if id == uuid.Nil {
+		return fmt.Errorf("%w: client id is required", middlewares.ErrValidation)
+	}
+	client, err := svc.repo.GetClient(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := svc.repo.DeleteClient(ctx, id); err != nil {
+		return err
+	}
+	if svc.infra != nil && svc.infra.Cache != nil && client != nil {
+		_ = svc.infra.Cache.DeleteClient(ctx, client.ID, client.Name)
+	}
+	if svc.infra != nil && svc.infra.Publisher != nil && client != nil {
+		svc.publishAudit(ctx, "DELETE", "sales/clients/"+client.ID.String(), "Deleted client "+client.Name)
+	}
+	return nil
 }
 
 func (svc *ClientService) cacheClient(ctx context.Context, client *models.Client) {
@@ -178,4 +241,22 @@ func (svc *ClientService) getCachedClients(ctx context.Context) []models.Client 
 		return nil
 	}
 	return clients
+}
+
+func (svc *ClientService) publishAudit(ctx context.Context, actionType string, targetResource string, details string) {
+	if svc == nil || svc.infra == nil || svc.infra.Publisher == nil {
+		return
+	}
+	userID, _ := ctx.Value(middlewares.ContextKeyUserID).(string)
+	email, _ := ctx.Value(middlewares.ContextKeyEmail).(string)
+	if strings.TrimSpace(userID) == "" || strings.TrimSpace(email) == "" {
+		return
+	}
+	_ = svc.infra.Publisher.Publish(ctx, infraMessaging.AuditQueue, map[string]any{
+		"user_id":         userID,
+		"user_email":      email,
+		"action_type":     strings.ToUpper(strings.TrimSpace(actionType)),
+		"target_resource": targetResource,
+		"details":         details,
+	})
 }

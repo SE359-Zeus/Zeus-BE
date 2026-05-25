@@ -1,6 +1,7 @@
 .PHONY: run migrate migrate-up migrate-down seed test
 
 DB ?= ./sales.db
+MANIFEST ?= ./scm-manifest.json
 
 run:
 	go run ./cmd/server
@@ -17,7 +18,7 @@ migrate-down:
 	@echo "migrate-down is not implemented for sales yet."
 
 seed:
-	go run ./cmd/seeder -db $(DB)
+	go run ./cmd/seeder -db $(DB) -manifest $(MANIFEST)
 
 test:
 	go test ./...

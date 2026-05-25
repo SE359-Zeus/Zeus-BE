@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"math"
+	"strings"
 	"time"
 
 	"zeus-system-service/internal/models"
@@ -12,7 +13,7 @@ import (
 )
 
 type auditService struct {
-	repo        repository.AuditRepository
+	repo          repository.AuditRepository
 	actionTypeSvc ActionTypeService
 }
 
@@ -24,6 +25,7 @@ func (s *auditService) Ingest(ctx context.Context, req models.IngestAuditRequest
 	if req.ActionType == "" {
 		return ErrInvalidInput
 	}
+	req.ActionType = models.ActionType(strings.ToUpper(string(req.ActionType)))
 	valid, err := s.actionTypeSvc.IsValid(ctx, req.ActionType)
 	if err != nil {
 		return err

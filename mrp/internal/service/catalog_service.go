@@ -106,6 +106,7 @@ func (s *ProductionService) CreateAssembly(ctx context.Context, req models.Creat
 	if s.cache != nil {
 		_ = s.cache.InvalidateBOM(ctx, req.Name, uniquePartIDs(entries)...)
 	}
+	s.publishAudit(ctx, "CREATE", "mrp/assemblies/"+req.Name, "Created assembly "+req.Name)
 
 	return req, nil
 }
@@ -150,6 +151,7 @@ func (s *ProductionService) UpdateAssembly(ctx context.Context, id uuid.UUID, re
 	if s.cache != nil {
 		_ = s.cache.InvalidateBOM(ctx, modelCode, uniquePartIDs(entries)...)
 	}
+	s.publishAudit(ctx, "UPDATE", "mrp/assemblies/"+modelCode, "Updated assembly "+modelCode)
 
 	return req, nil
 }
@@ -169,6 +171,7 @@ func (s *ProductionService) DeleteAssembly(ctx context.Context, id uuid.UUID) er
 	if s.cache != nil {
 		_ = s.cache.InvalidateBOM(ctx, modelCode)
 	}
+	s.publishAudit(ctx, "DELETE", "mrp/assemblies/"+modelCode, "Deleted assembly "+modelCode)
 	return nil
 }
 
@@ -226,8 +229,12 @@ func (s *ProductionService) CreateCatalogPart(ctx context.Context, sku, descript
 	if err == nil && existing != nil {
 		return nil, fmt.Errorf("component with SKU %s already exists", sku)
 	}
-
-	return s.scmClient.CreateCatalogPart(ctx, sku, description, price)
+	part, err := s.scmClient.CreateCatalogPart(ctx, sku, description, price)
+	if err != nil {
+		return nil, err
+	}
+	s.publishAudit(ctx, "CREATE", "mrp/catalog/"+sku, "Created catalog component "+sku)
+	return part, nil
 }
 
 func (s *ProductionService) UpdateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error) {
@@ -239,7 +246,12 @@ func (s *ProductionService) UpdateCatalogPart(ctx context.Context, sku, descript
 		return nil, fmt.Errorf("sku cannot be empty")
 	}
 
-	return s.scmClient.UpdateCatalogPart(ctx, sku, description, price)
+	part, err := s.scmClient.UpdateCatalogPart(ctx, sku, description, price)
+	if err != nil {
+		return nil, err
+	}
+	s.publishAudit(ctx, "UPDATE", "mrp/catalog/"+sku, "Updated catalog component "+sku)
+	return part, nil
 }
 
 func (s *ProductionService) DeleteCatalogPart(ctx context.Context, sku string) error {
@@ -251,7 +263,11 @@ func (s *ProductionService) DeleteCatalogPart(ctx context.Context, sku string) e
 		return fmt.Errorf("sku cannot be empty")
 	}
 
-	return s.scmClient.DeleteCatalogPart(ctx, sku)
+	if err := s.scmClient.DeleteCatalogPart(ctx, sku); err != nil {
+		return err
+	}
+	s.publishAudit(ctx, "DELETE", "mrp/catalog/"+sku, "Deleted catalog component "+sku)
+	return nil
 }
 
 func groupAssemblies(boms []models.BomEntry) []models.AssemblyResponse {

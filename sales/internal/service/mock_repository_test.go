@@ -38,6 +38,11 @@ func (m *MockDbRepository) GetClientByName(ctx context.Context, name string) (*m
 	return nil, args.Error(1)
 }
 
+func (m *MockDbRepository) ExistsClientByName(ctx context.Context, name string) (bool, error) {
+	args := m.Called(ctx, name)
+	return args.Bool(0), args.Error(1)
+}
+
 func (m *MockDbRepository) ListClients(ctx context.Context) ([]models.Client, error) {
 	args := m.Called(ctx)
 	if args.Get(0) != nil {
@@ -48,6 +53,10 @@ func (m *MockDbRepository) ListClients(ctx context.Context) ([]models.Client, er
 
 func (m *MockDbRepository) UpdateClient(ctx context.Context, client *models.Client) error {
 	return m.Called(ctx, client).Error(0)
+}
+
+func (m *MockDbRepository) DeleteClient(ctx context.Context, id uuid.UUID) error {
+	return m.Called(ctx, id).Error(0)
 }
 
 func (m *MockDbRepository) ListOrderStatuses(ctx context.Context) ([]models.SalesOrderStatusLUT, error) {

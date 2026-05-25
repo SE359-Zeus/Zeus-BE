@@ -37,7 +37,15 @@ func NewClient() *Client {
 }
 
 func (c *Client) GetPartCatalogBySKU(ctx context.Context, sku string) (*models.Part, error) {
-	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/part-catalog/sku/%s", c.baseURL, url.PathEscape(sku))
+	stock, err := c.GetStockBySKU(ctx, sku)
+	if err != nil || stock == nil {
+		return nil, err
+	}
+	return &models.Part{SKU: stock.SKU, Description: stock.Name, Price: stock.UnitCost}, nil
+}
+
+func (c *Client) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
+	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/stocks/%s", c.baseURL, url.PathEscape(sku))
 	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
 	if err != nil {
 		return nil, err
@@ -57,22 +65,69 @@ func (c *Client) GetPartCatalogBySKU(ctx context.Context, sku string) (*models.P
 		return nil, fmt.Errorf("SCM API returned status %d", resp.StatusCode)
 	}
 
-	var res struct {
-		ID          uuid.UUID `json:"id"`
-		SKU         string    `json:"sku"`
-		Description string    `json:"description"`
-		Price       float64   `json:"price"`
+	var envelope struct {
+		Data models.ComponentStock `json:"data"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
 		return nil, err
 	}
+	return &envelope.Data, nil
+}
 
-	return &models.Part{
-		ID:          res.ID,
-		SKU:         res.SKU,
-		Description: res.Description,
-		Price:       res.Price,
-	}, nil
+func (c *Client) ListStocks(ctx context.Context, page, limit int, sortBy, sortDir, q string) ([]models.ComponentStock, bool, error) {
+	query := url.Values{}
+	if page > 0 {
+		query.Set("page", fmt.Sprintf("%d", page))
+	}
+	if limit > 0 {
+		query.Set("limit", fmt.Sprintf("%d", limit))
+	}
+	if sortBy != "" {
+		query.Set("sort_by", sortBy)
+	}
+	if sortDir != "" {
+		query.Set("sort_dir", sortDir)
+	}
+	if q != "" {
+		query.Set("q", q)
+	}
+
+	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/stocks?%s", c.baseURL, query.Encode())
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return nil, false, err
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, false, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, false, fmt.Errorf("SCM API returned status %d", resp.StatusCode)
+	}
+
+	var envelope struct {
+		Data struct {
+			Data struct {
+				Items []models.ComponentStock `json:"items"`
+			} `json:"data"`
+			Pagination struct {
+				Page       int `json:"page"`
+				Limit      int `json:"limit"`
+				TotalRows  int `json:"total_rows"`
+				TotalPages int `json:"total_pages"`
+			} `json:"pagination"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, false, err
+	}
+
+	hasMore := envelope.Data.Pagination.TotalPages > 0 && envelope.Data.Pagination.Page < envelope.Data.Pagination.TotalPages
+	return envelope.Data.Data.Items, hasMore, nil
 }
 
 func (c *Client) CreateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error) {

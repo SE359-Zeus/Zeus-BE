@@ -25,7 +25,10 @@ import (
 func main() {
 	cfg := configs.Load()
 	valkeyConn := cache.DialValkey(cfg.ValkeyAddr)
-	messaginginfra.NewRabbitMQ(cfg.RabbitMQURL)
+	rabbitmq := messaginginfra.NewRabbitMQ(cfg.RabbitMQURL)
+	if err := rabbitmq.DeclareQueue(messaginginfra.AuditQueue, true); err != nil {
+		log.Printf("warning: failed to declare audit queue: %v", err)
+	}
 
 	dbPath := os.Getenv("MRP_DB_PATH")
 	if dbPath == "" {
@@ -39,7 +42,7 @@ func main() {
 	scmClient := scminfra.NewClient()
 	repo := reposqlite.NewSqliteMRPRepository(db)
 	cacheRepo := repoValkey.NewWithClient(valkeyConn)
-	svc := service.NewProductionService(repo, scmClient, cacheRepo)
+	svc := service.NewProductionService(repo, scmClient, cacheRepo, rabbitmq)
 	authVerifier, err := middlewares.NewJWTVerifierFromFile(cfg.JwtPublicKeyPath)
 	if err != nil {
 		log.Fatalf("failed to initialize access-token verifier: %v", err)

@@ -53,5 +53,6 @@ func (s *ProductionService) PlanProduction(ctx context.Context, req models.Creat
 		Status:           order.Status,
 		Shortages:        []models.ShortageLog{},
 	}
+	s.publishAudit(ctx, "CREATE", "mrp/production-orders/"+order.ID.String(), "Created production order for model "+order.ProductModelCode)
 	return resp, nil
 }

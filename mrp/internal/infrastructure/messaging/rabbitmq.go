@@ -12,6 +12,8 @@ import (
 
 var ErrUnavailable = errors.New("rabbitmq unavailable")
 
+const AuditQueue = "system.audit.log"
+
 type RabbitMQ struct {
 	url       string
 	available bool
@@ -83,6 +85,9 @@ func (r *RabbitMQ) DeclareQueue(queue string, durable bool) error {
 
 func (r *RabbitMQ) PublishJSON(queue string, payload any) error {
 	return r.withChannel(func(channel *amqp.Channel) error {
+		if _, err := channel.QueueDeclare(queue, true, false, false, false, nil); err != nil {
+			return err
+		}
 		body, err := json.Marshal(payload)
 		if err != nil {
 			return err

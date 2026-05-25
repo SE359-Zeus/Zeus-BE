@@ -150,6 +150,22 @@ func (m *MockSCMClient) GetPartCatalogBySKU(ctx context.Context, sku string) (*m
 	return nil, args.Error(1)
 }
 
+func (m *MockSCMClient) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
+	args := m.Called(ctx, sku)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.ComponentStock), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockSCMClient) ListStocks(ctx context.Context, page, limit int, sortBy, sortDir, q string) ([]models.ComponentStock, bool, error) {
+	args := m.Called(ctx, page, limit, sortBy, sortDir, q)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.ComponentStock), args.Bool(1), args.Error(2)
+	}
+	return nil, args.Bool(1), args.Error(2)
+}
+
 func (m *MockSCMClient) CreateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error) {
 	args := m.Called(ctx, sku, description, price)
 	if args.Get(0) != nil {
