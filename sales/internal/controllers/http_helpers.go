@@ -3,9 +3,11 @@ package controllers
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"zeus-sales-service/internal/middlewares"
+	"zeus-sales-service/internal/models"
 
 	"github.com/google/uuid"
 )
@@ -65,4 +67,51 @@ func parseIDAndAction(path string, prefix string) (uuid.UUID, string, bool) {
 		action = parts[1]
 	}
 	return id, action, true
+}
+
+func parsePagination(r *http.Request) (int, int) {
+	page := 1
+	pageSize := 10
+	if value := strings.TrimSpace(r.URL.Query().Get("page")); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			page = parsed
+		}
+	}
+	if value := strings.TrimSpace(r.URL.Query().Get("pageSize")); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			pageSize = parsed
+		}
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return page, pageSize
+}
+
+func paginateItems[T any](items []T, page, pageSize int) ([]T, models.PaginationMetadata) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
+	}
+	total := len(items)
+	totalPages := 0
+	if total > 0 {
+		totalPages = (total + pageSize - 1) / pageSize
+	}
+	start := (page - 1) * pageSize
+	if start > total {
+		start = total
+	}
+	end := start + pageSize
+	if end > total {
+		end = total
+	}
+	return items[start:end], models.PaginationMetadata{
+		Page:       page,
+		PageSize:   pageSize,
+		Total:      total,
+		TotalPages: totalPages,
+	}
 }

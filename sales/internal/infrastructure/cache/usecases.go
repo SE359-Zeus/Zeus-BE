@@ -205,7 +205,14 @@ func (store *Store) withClient(ctx context.Context, fn func(*redis.Client) error
 	if store == nil || store.addr == "" {
 		return nil
 	}
-	client := redis.NewClient(&redis.Options{Addr: store.addr})
+	client := redis.NewClient(&redis.Options{
+		Addr:         store.addr,
+		MaxRetries:   -1,
+		DialTimeout:  500 * time.Millisecond,
+		ReadTimeout:  500 * time.Millisecond,
+		WriteTimeout: 500 * time.Millisecond,
+		PoolTimeout:  500 * time.Millisecond,
+	})
 	defer client.Close()
 	return fn(client)
 }

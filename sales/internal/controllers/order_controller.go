@@ -33,6 +33,7 @@ func (controller *OrderController) HandleOrders(w http.ResponseWriter, r *http.R
 	case http.MethodGet:
 		// parse optional filters: states (CSV of status codes), date (YYYY-MM-DD)
 		q := r.URL.Query()
+		page, pageSize := parsePagination(r)
 		var states []string
 		if s := q.Get("states"); s != "" {
 			for _, part := range strings.Split(s, ",") {
@@ -55,7 +56,8 @@ func (controller *OrderController) HandleOrders(w http.ResponseWriter, r *http.R
 			writeErrorJSON(w, http.StatusInternalServerError, err.Error(), nil)
 			return
 		}
-		writeJSON(w, http.StatusOK, orders)
+		pageItems, pagination := paginateItems(orders, page, pageSize)
+		writeEnvelope(w, http.StatusOK, "List orders successful", pagination, pageItems)
 	default:
 		writeErrorJSON(w, http.StatusMethodNotAllowed, http.StatusText(http.StatusMethodNotAllowed), nil)
 	}
