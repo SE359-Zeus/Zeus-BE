@@ -60,6 +60,42 @@ func (svc *ClientService) ResolveOrCreateClient(ctx context.Context, name string
 	return client, nil
 }
 
+func (svc *ClientService) CreateClient(ctx context.Context, req models.CreateClientRequest) (*models.Client, error) {
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return nil, fmt.Errorf("%w: client name is required", middlewares.ErrValidation)
+	}
+	if req.Tier != models.ClientTierB2B && req.Tier != models.ClientTierB2C {
+		return nil, fmt.Errorf("%w: tier must be B2B or B2C", middlewares.ErrValidation)
+	}
+
+	// Reject duplicates — name is unique in the clients table
+	existing, err := svc.repo.GetClientByName(ctx, name)
+	if err == nil && existing != nil {
+		return nil, fmt.Errorf("%w: a client with this name already exists", middlewares.ErrConflict)
+	}
+	if err != nil && err != repository.ErrNotFound {
+		return nil, err
+	}
+
+	client := &models.Client{
+		ID:                        uuid.New(),
+		Name:                      name,
+		Tier:                      req.Tier,
+		DefaultDestinationAddress: strings.TrimSpace(req.DefaultDestinationAddress),
+		CreatedAt:                 time.Now().UTC(),
+		UpdatedAt:                 time.Now().UTC(),
+	}
+	if err := svc.repo.CreateClient(ctx, client); err != nil {
+		return nil, err
+	}
+	svc.cacheClient(ctx, client)
+	if svc.infra != nil && svc.infra.Publisher != nil {
+		_ = svc.infra.Publisher.Publish(ctx, "sales.client.created", client)
+	}
+	return client, nil
+}
+
 func (svc *ClientService) GetClient(ctx context.Context, id uuid.UUID) (*models.Client, error) {
 	if id == uuid.Nil {
 		return nil, fmt.Errorf("%w: client id is required", middlewares.ErrValidation)
