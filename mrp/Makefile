@@ -2,6 +2,7 @@
 
 # Database file for local sqlite migrations/seeding
 DB ?= ./mrp.db
+MANIFEST ?= ./contracts/scm-manifest.json
 
 run:
 	go run ./cmd/server
@@ -17,7 +18,7 @@ migrate-down:
 	@echo "migrate-down is not implemented for mrp yet."
 
 seed:
-	go run ./cmd/seeder -db $(DB)
+	go run ./cmd/seeder -db $(DB) -manifest $(MANIFEST)
 
 test:
 	go test ./...

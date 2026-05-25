@@ -12,12 +12,17 @@ import (
 	"github.com/google/uuid"
 )
 
-func SeedAll(ctx context.Context, repo repository.DbRepository) error {
+func SeedAll(ctx context.Context, repo repository.DbRepository, manifestPath string) error {
 	if repo == nil {
 		return fmt.Errorf("repository is required")
 	}
 
 	log.Println("Starting MRP seeder...")
+
+	manifestData, err := loadManifest(manifestPath)
+	if err != nil {
+		return fmt.Errorf("load manifest: %w", err)
+	}
 
 	openOrders, err := repo.GetOpenProductionOrders(ctx)
 	if err != nil {
@@ -33,65 +38,15 @@ func SeedAll(ctx context.Context, repo repository.DbRepository) error {
 	}
 
 	now := time.Now().UTC()
-	alphaModel := "WORKSTATION-ALPHA"
-	betaModel := "WORKSTATION-BETA"
-	gammaModel := "WORKSTATION-GAMMA"
-
-	alphaPartCPU := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:part:cpu"))
-	alphaPartPSU := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:part:psu"))
-	alphaPartRAM := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:part:ram"))
-	betaPartSSD := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:part:ssd"))
-	betaPartFAN := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:part:fan"))
-	gammaPartCase := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:part:case"))
-	gammaPartPSU := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:part:psu_v2"))
-	sharedPartCPU := alphaPartCPU // reuse CPU across models to demonstrate where-used
-
-	// We no longer seed parts in MRP locally as parts catalog is owned by SCM.
-
-	bomEntries := []models.BomEntry{
-		{ParentModelCode: alphaModel, ComponentPartID: alphaPartCPU, RequiredQuantityPerUnit: 1},
-		{ParentModelCode: alphaModel, ComponentPartID: alphaPartPSU, RequiredQuantityPerUnit: 1},
-		{ParentModelCode: alphaModel, ComponentPartID: alphaPartRAM, RequiredQuantityPerUnit: 2},
-		{ParentModelCode: betaModel, ComponentPartID: alphaPartCPU, RequiredQuantityPerUnit: 1},
-		{ParentModelCode: betaModel, ComponentPartID: betaPartSSD, RequiredQuantityPerUnit: 1},
-		{ParentModelCode: betaModel, ComponentPartID: betaPartFAN, RequiredQuantityPerUnit: 2},
-		// Gamma model BOM — demonstrates a different BOM with some shared and unique parts
-		{ParentModelCode: gammaModel, ComponentPartID: sharedPartCPU, RequiredQuantityPerUnit: 1},
-		{ParentModelCode: gammaModel, ComponentPartID: gammaPartCase, RequiredQuantityPerUnit: 1},
-		{ParentModelCode: gammaModel, ComponentPartID: gammaPartPSU, RequiredQuantityPerUnit: 1},
+	bomEntries, catalogByID, modelByCode, err := buildBOMEntriesFromManifest(manifestData)
+	if err != nil {
+		return err
 	}
 	if err := repo.CreateBOMEntries(ctx, bomEntries); err != nil {
 		return fmt.Errorf("seed bom entries: %w", err)
 	}
 
-	orderAlphaID := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:order:alpha"))
-	orderBetaID := uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:order:beta"))
-	productionOrders := []models.ProductionOrder{
-		{
-			ID:               orderAlphaID,
-			ProductModelCode: alphaModel,
-			TargetQuantity:   10,
-			Status:           models.StatusClearToBuild,
-			ScheduledAt:      now.Add(72 * time.Hour),
-			CreatedAt:        now,
-		},
-		{
-			ID:               orderBetaID,
-			ProductModelCode: betaModel,
-			TargetQuantity:   6,
-			Status:           models.StatusShortage,
-			ScheduledAt:      now.Add(96 * time.Hour),
-			CreatedAt:        now,
-		},
-		{
-			ID:               uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:order:gamma")),
-			ProductModelCode: gammaModel,
-			TargetQuantity:   4,
-			Status:           models.StatusPartial,
-			ScheduledAt:      now.Add(48 * time.Hour),
-			CreatedAt:        now,
-		},
-	}
+	productionOrders := buildProductionOrdersFromManifest(manifestData, bomEntries, now)
 	for i := range productionOrders {
 		order := productionOrders[i]
 		if err := repo.CreateProductionOrder(ctx, &order); err != nil {
@@ -99,37 +54,7 @@ func SeedAll(ctx context.Context, repo repository.DbRepository) error {
 		}
 	}
 
-	shortageLogs := []models.ShortageLog{
-		{
-			ID:                uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:shortage:beta:ssd")),
-			ProductionOrderID: orderBetaID,
-			PartID:            betaPartSSD,
-			ShortageQty:       6,
-			ResolutionStatus:  models.ResolutionStatusPlanned,
-		},
-		{
-			ID:                uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:shortage:beta:fan")),
-			ProductionOrderID: orderBetaID,
-			PartID:            betaPartFAN,
-			ShortageQty:       4,
-			ResolutionStatus:  models.ResolutionStatusPlanned,
-		},
-		// Additional shortages for gamma order to exercise shortage aggregation logic
-		{
-			ID:                uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:shortage:gamma:psu")),
-			ProductionOrderID: uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:order:gamma")),
-			PartID:            gammaPartPSU,
-			ShortageQty:       2,
-			ResolutionStatus:  models.ResolutionStatusPlanned,
-		},
-		{
-			ID:                uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:shortage:gamma:case")),
-			ProductionOrderID: uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:order:gamma")),
-			PartID:            gammaPartCase,
-			ShortageQty:       1,
-			ResolutionStatus:  models.ResolutionStatusPlanned,
-		},
-	}
+	shortageLogs := buildShortageLogsFromManifest(productionOrders, bomEntries, catalogByID, modelByCode)
 	for i := range shortageLogs {
 		entry := shortageLogs[i]
 		if err := repo.CreateShortageLog(ctx, &entry); err != nil {
@@ -139,4 +64,110 @@ func SeedAll(ctx context.Context, repo repository.DbRepository) error {
 
 	log.Println("MRP seeder finished successfully.")
 	return nil
+}
+
+func buildBOMEntriesFromManifest(m *manifest) ([]models.BomEntry, map[string]manifestCatalog, map[string]manifestModel, error) {
+	if m == nil {
+		return nil, nil, nil, fmt.Errorf("manifest is required")
+	}
+	catalogByID := make(map[string]manifestCatalog, len(m.PartCatalogs))
+	for _, catalog := range m.PartCatalogs {
+		catalogByID[catalog.ID] = catalog
+	}
+	modelByCode := make(map[string]manifestModel, len(m.ProductModels))
+	entries := make([]models.BomEntry, 0)
+	for _, model := range m.ProductModels {
+		modelByCode[model.ModelCode] = model
+		for _, bom := range model.Bom {
+			partID, err := uuid.Parse(bom.PartCatalogID)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("invalid part_catalog_id %q for model %s: %w", bom.PartCatalogID, model.ModelCode, err)
+			}
+			entries = append(entries, models.BomEntry{
+				ParentModelCode:         model.ModelCode,
+				ComponentPartID:         partID,
+				RequiredQuantityPerUnit: int(bom.Quantity),
+			})
+		}
+	}
+	return entries, catalogByID, modelByCode, nil
+}
+
+func buildProductionOrdersFromManifest(m *manifest, bomEntries []models.BomEntry, now time.Time) []models.ProductionOrder {
+	if m == nil || len(m.ProductModels) == 0 {
+		return nil
+	}
+	limit := 3
+	if len(m.ProductModels) < limit {
+		limit = len(m.ProductModels)
+	}
+	orders := make([]models.ProductionOrder, 0, limit)
+	statuses := []models.ProductionOrderStatus{
+		models.StatusClearToBuild,
+		models.StatusPartial,
+		models.StatusShortage,
+	}
+	for i := 0; i < limit; i++ {
+		model := m.ProductModels[i]
+		orderID := stableUUID("mrp:order:" + model.ModelCode)
+		baseQty := 4 + i*2
+		if len(model.Bom) > 0 {
+			baseQty += len(model.Bom)
+		}
+		orders = append(orders, models.ProductionOrder{
+			ID:               orderID,
+			ProductModelCode: model.ModelCode,
+			TargetQuantity:   baseQty,
+			Status:           statuses[i],
+			ScheduledAt:      now.Add(time.Duration(48+i*24) * time.Hour),
+			CreatedAt:        now,
+		})
+	}
+	return orders
+}
+
+func buildShortageLogsFromManifest(orders []models.ProductionOrder, bomEntries []models.BomEntry, _ map[string]manifestCatalog, modelByCode map[string]manifestModel) []models.ShortageLog {
+	if len(orders) == 0 {
+		return nil
+	}
+	byModel := make(map[string][]models.BomEntry)
+	for _, entry := range bomEntries {
+		byModel[entry.ParentModelCode] = append(byModel[entry.ParentModelCode], entry)
+	}
+	logs := make([]models.ShortageLog, 0)
+	for _, order := range orders {
+		if order.Status == models.StatusClearToBuild {
+			continue
+		}
+		bomList := byModel[order.ProductModelCode]
+		if len(bomList) == 0 {
+			continue
+		}
+		if model, ok := modelByCode[order.ProductModelCode]; ok && len(model.Bom) == 0 {
+			continue
+		}
+		for idx, bom := range bomList {
+			multiplier := 1
+			if order.Status == models.StatusShortage {
+				multiplier = 2
+			}
+			shortageQty := bom.RequiredQuantityPerUnit * order.TargetQuantity / 4
+			if shortageQty < 1 {
+				shortageQty = 1
+			}
+			shortageQty *= multiplier
+			logs = append(logs, models.ShortageLog{
+				ID:                 stableUUID(fmt.Sprintf("mrp:shortage:%s:%d", order.ID.String(), idx)),
+				ProductionOrderID:  order.ID,
+				PartID:             bom.ComponentPartID,
+				ShortageQty:        shortageQty,
+				ResolutionStatusID: 1,
+				ResolutionStatus:   models.ResolutionStatusPlanned,
+			})
+			if order.Status == models.StatusPartial && idx == 1 {
+				break
+			}
+		}
+	}
+	return logs
 }

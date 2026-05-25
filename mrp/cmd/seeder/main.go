@@ -14,6 +14,8 @@ import (
 func main() {
 	defaultDBPath := getenv("MRP_DB_PATH", filepath.Join(".", "mrp.db"))
 	dbPath := flag.String("db", defaultDBPath, "sqlite database path")
+	defaultManifestPath := getenv("SCM_MANIFEST_PATH", filepath.Join(".", "contracts", "scm-manifest.json"))
+	manifestPath := flag.String("manifest", defaultManifestPath, "path to the SCM seed manifest JSON")
 	flag.Parse()
 
 	db, err := reposqlite.OpenDatabase(*dbPath)
@@ -22,7 +24,7 @@ func main() {
 	}
 
 	repo := reposqlite.NewSqliteMRPRepository(db)
-	if err := seeder.SeedAll(context.Background(), repo); err != nil {
+	if err := seeder.SeedAll(context.Background(), repo, *manifestPath); err != nil {
 		log.Fatal(err)
 	}
 }
