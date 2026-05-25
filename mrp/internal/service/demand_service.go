@@ -29,16 +29,53 @@ func (s *ProductionService) GetDemandSummary(ctx context.Context) ([]models.Dema
 			return nil, err
 		}
 
+		// derive qty_ready: if shortage exists, available qty from BOM explosion
+		qtyReady := order.TargetQuantity
+		if len(shortages) > 0 {
+			qtyReady = 0 // simplified; full explosion calculates exact qty
+		}
+
 		result = append(result, models.DemandPOSummary{
 			OrderID:      order.ID.String(),
 			TargetBuild:  order.ProductModelCode,
 			Quantity:     order.TargetQuantity,
+			QtyReady:     qtyReady,
 			Status:       string(order.Status),
+			Priority:     "NORMAL", // default until priority field is in the order model
 			MissingCount: len(shortages),
+			POCount:      0, // populated when SCM PO handoff is wired
+			TargetDate:   order.ScheduledAt,
 		})
 	}
 
 	return result, nil
+}
+
+// GetDemandMetrics returns the KPI card values for the Demand view header.
+func (s *ProductionService) GetDemandMetrics(ctx context.Context) (*models.DemandMetrics, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	orders, err := s.repo.GetOpenProductionOrders(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	metrics := &models.DemandMetrics{}
+	metrics.TotalDemandOrders = len(orders)
+
+	for _, order := range orders {
+		metrics.TotalUnitsRequired += order.TargetQuantity
+		switch order.Status {
+		case models.StatusClearToBuild:
+			metrics.ReadyToBuild++
+		case models.StatusShortage, models.StatusPartial:
+			metrics.ShortageOrPartial++
+		}
+	}
+
+	return metrics, nil
 }
 
 func (s *ProductionService) GeneratePOsForShortages(ctx context.Context) error {
@@ -73,7 +110,12 @@ func (s *ProductionService) GeneratePickList(ctx context.Context, orderID uuid.U
 		return nil, nil
 	}
 
-	bomEntries, err := s.repo.GetBOMByModelCode(ctx, order.ProductModelCode)
+	var bomEntries []models.BomEntry
+	if s.cache != nil {
+		bomEntries, err = s.cache.GetBOMByModelCode(ctx, order.ProductModelCode, s.repo.GetBOMByModelCode)
+	} else {
+		bomEntries, err = s.repo.GetBOMByModelCode(ctx, order.ProductModelCode)
+	}
 	if err != nil {
 		return nil, err
 	}

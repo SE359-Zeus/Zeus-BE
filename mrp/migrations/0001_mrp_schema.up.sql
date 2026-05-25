@@ -56,7 +56,6 @@ CREATE TABLE IF NOT EXISTS shortage_logs (
     production_order_id TEXT NOT NULL,
     part_id TEXT NOT NULL,
     shortage_qty INTEGER NOT NULL CHECK (shortage_qty > 0),
-    resolution_status TEXT NOT NULL DEFAULT 'EMITTED',
     FOREIGN KEY (production_order_id) REFERENCES production_orders(id)
         ON UPDATE CASCADE
         ON DELETE CASCADE,

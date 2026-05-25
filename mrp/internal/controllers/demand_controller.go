@@ -25,6 +25,16 @@ func parseDemandOrderID(r *http.Request) (uuid.UUID, error) {
 	return orderID, nil
 }
 
+// GET /api/v1/mrp/demand/metrics
+func (c *ProductionController) GetDemandMetrics(w http.ResponseWriter, r *http.Request) {
+	m, err := c.svc.GetDemandMetrics(r.Context())
+	if err != nil {
+		writeErrorJSON(w, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, m)
+}
+
 // GET /api/v1/mrp/demand
 func (c *ProductionController) GetDemandSummary(w http.ResponseWriter, r *http.Request) {
 	page, per, err := parsePaginationParams(r)

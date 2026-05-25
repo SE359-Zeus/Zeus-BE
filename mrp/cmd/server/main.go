@@ -6,46 +6,26 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
+
 	"zeus-mrp-service/configs"
 	"zeus-mrp-service/internal/controllers"
+	cacheinfra "zeus-mrp-service/internal/infrastructure/cache"
+	messaginginfra "zeus-mrp-service/internal/infrastructure/messaging"
 	"zeus-mrp-service/internal/middlewares"
 	reposqlite "zeus-mrp-service/internal/repository/sqlite"
+	repoValkey "zeus-mrp-service/internal/repository/valkey"
 	"zeus-mrp-service/internal/service"
-
-	"context"
 
 	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	"gopkg.in/yaml.v3"
 )
 
-func probeValkey(addr string) {
-	if addr == "" {
-		log.Println("Valkey probe skipped: no address configured")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	client := redis.NewClient(&redis.Options{Addr: addr})
-	defer client.Close()
-
-	if err := client.Ping(ctx).Err(); err != nil {
-		log.Printf("Warning: Valkey connection failed at %s: %v", addr, err)
-		return
-	}
-
-	log.Printf("Valkey connection successful at %s", addr)
-}
-
 func main() {
 	cfg := configs.Load()
-	probeValkey(cfg.ValkeyAddr)
+	valkeyConn := cacheinfra.DialValkey(cfg.ValkeyAddr)
+	messaginginfra.NewRabbitMQ(cfg.RabbitMQURL)
 
-	// Open sqlite DB (creates file if not present)
 	dbPath := os.Getenv("MRP_DB_PATH")
 	if dbPath == "" {
 		dbPath = "mrp.db"
@@ -56,10 +36,16 @@ func main() {
 	}
 
 	repo := reposqlite.NewSqliteMRPRepository(db)
-	svc := service.NewProductionService(repo)
-	mux := controllers.NewMux(svc)
+	cacheRepo := repoValkey.NewWithClient(valkeyConn)
+	svc := service.NewProductionService(repo, cacheRepo)
+	authVerifier, err := middlewares.NewJWTVerifierFromFile(cfg.JwtPublicKeyPath)
+	if err != nil {
+		log.Fatalf("failed to initialize access-token verifier: %v", err)
+	}
+	mux := controllers.NewMux(svc, authVerifier)
 
 	r := gin.Default()
+	r.Use(middlewares.AllowAllCORS())
 
 	specPath := findOpenAPISpec()
 	specURL := runtimeServerURL(cfg.Port)

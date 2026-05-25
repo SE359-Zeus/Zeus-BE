@@ -52,7 +52,12 @@ func (s *ProductionService) RunBOMExplosion(ctx context.Context, orderID uuid.UU
 		return []models.BOMExplosionResult{}, nil
 	}
 
-	bomEntries, err := s.repo.GetBOMByModelCode(ctx, order.ProductModelCode)
+	var bomEntries []models.BomEntry
+	if s.cache != nil {
+		bomEntries, err = s.cache.GetBOMByModelCode(ctx, order.ProductModelCode, s.repo.GetBOMByModelCode)
+	} else {
+		bomEntries, err = s.repo.GetBOMByModelCode(ctx, order.ProductModelCode)
+	}
 	if err != nil {
 		return nil, err
 	}

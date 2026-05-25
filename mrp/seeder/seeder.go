@@ -103,14 +103,14 @@ func SeedAll(ctx context.Context, repo repository.DbRepository) error {
 			ProductionOrderID: orderBetaID,
 			PartID:            betaPartSSD,
 			ShortageQty:       6,
-			ResolutionStatus:  "EMITTED",
+			ResolutionStatus:  models.ResolutionStatusPlanned,
 		},
 		{
 			ID:                uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:shortage:beta:fan")),
 			ProductionOrderID: orderBetaID,
 			PartID:            betaPartFAN,
 			ShortageQty:       4,
-			ResolutionStatus:  "EMITTED",
+			ResolutionStatus:  models.ResolutionStatusPlanned,
 		},
 		// Additional shortages for gamma order to exercise shortage aggregation logic
 		{
@@ -118,14 +118,14 @@ func SeedAll(ctx context.Context, repo repository.DbRepository) error {
 			ProductionOrderID: uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:order:gamma")),
 			PartID:            gammaPartPSU,
 			ShortageQty:       2,
-			ResolutionStatus:  "PENDING",
+			ResolutionStatus:  models.ResolutionStatusPlanned,
 		},
 		{
 			ID:                uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:shortage:gamma:case")),
 			ProductionOrderID: uuid.NewSHA1(uuid.NameSpaceURL, []byte("mrp:order:gamma")),
 			PartID:            gammaPartCase,
 			ShortageQty:       1,
-			ResolutionStatus:  "PENDING",
+			ResolutionStatus:  models.ResolutionStatusPlanned,
 		},
 	}
 	for i := range shortageLogs {

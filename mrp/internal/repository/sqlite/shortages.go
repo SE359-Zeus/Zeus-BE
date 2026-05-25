@@ -12,21 +12,28 @@ func (r *sqliteMRPRepository) CreateShortageLog(ctx context.Context, log *models
 	if log == nil {
 		return fmt.Errorf("shortage log is nil")
 	}
+	statusID, status := resolutionStatusDetails(log.ResolutionStatus)
+	if log.ResolutionStatus == "" {
+		statusID = 1
+		status = models.ResolutionStatusPlanned
+	}
 
 	type shortageRecord struct {
-		ID                string `gorm:"column:id"`
-		ProductionOrderID string `gorm:"column:production_order_id"`
-		PartID            string `gorm:"column:part_id"`
-		ShortageQty       int    `gorm:"column:shortage_qty"`
-		ResolutionStatus  string `gorm:"column:resolution_status"`
+		ID                 string `gorm:"column:id"`
+		ProductionOrderID  string `gorm:"column:production_order_id"`
+		PartID             string `gorm:"column:part_id"`
+		ShortageQty        int    `gorm:"column:shortage_qty"`
+		ResolutionStatusID int    `gorm:"column:resolution_status_id"`
+		ResolutionStatus   string `gorm:"column:resolution_status"`
 	}
 
 	rec := shortageRecord{
-		ID:                log.ID.String(),
-		ProductionOrderID: log.ProductionOrderID.String(),
-		PartID:            log.PartID.String(),
-		ShortageQty:       log.ShortageQty,
-		ResolutionStatus:  log.ResolutionStatus,
+		ID:                 log.ID.String(),
+		ProductionOrderID:  log.ProductionOrderID.String(),
+		PartID:             log.PartID.String(),
+		ShortageQty:        log.ShortageQty,
+		ResolutionStatusID: statusID,
+		ResolutionStatus:   status,
 	}
 
 	return r.db.WithContext(ctx).Table("shortage_logs").Create(&rec).Error
@@ -38,17 +45,18 @@ func (r *sqliteMRPRepository) GetShortagesByOrderID(ctx context.Context, orderID
 	}
 
 	type row struct {
-		ID                string
-		ProductionOrderID string
-		PartID            string
-		ShortageQty       int
-		ResolutionStatus  string
+		ID                 string
+		ProductionOrderID  string
+		PartID             string
+		ShortageQty        int
+		ResolutionStatusID int
+		ResolutionStatus   string
 	}
 
 	var rows []row
 	err := r.db.WithContext(ctx).
 		Table("shortage_logs").
-		Select("id, production_order_id, part_id, shortage_qty, resolution_status").
+		Select("id, production_order_id, part_id, shortage_qty, resolution_status_id, resolution_status").
 		Where("production_order_id = ?", orderID.String()).
 		Order("id ASC").
 		Find(&rows).Error
@@ -72,11 +80,12 @@ func (r *sqliteMRPRepository) GetShortagesByOrderID(ctx context.Context, orderID
 		}
 
 		logs = append(logs, models.ShortageLog{
-			ID:                id,
-			ProductionOrderID: productionOrderID,
-			PartID:            partID,
-			ShortageQty:       row.ShortageQty,
-			ResolutionStatus:  row.ResolutionStatus,
+			ID:                 id,
+			ProductionOrderID:  productionOrderID,
+			PartID:             partID,
+			ShortageQty:        row.ShortageQty,
+			ResolutionStatusID: row.ResolutionStatusID,
+			ResolutionStatus:   row.ResolutionStatus,
 		})
 	}
 
@@ -116,4 +125,19 @@ func (r *sqliteMRPRepository) GetAggregatedShortages(ctx context.Context) ([]mod
 	}
 
 	return results, nil
+}
+
+func resolutionStatusDetails(status string) (int, string) {
+	switch status {
+	case models.ResolutionStatusPartial:
+		return 2, models.ResolutionStatusPartial
+	case models.ResolutionStatusShortage:
+		return 3, models.ResolutionStatusShortage
+	case models.ResolutionStatusReadyToBuild:
+		return 4, models.ResolutionStatusReadyToBuild
+	case models.ResolutionStatusPlanned:
+		return 1, models.ResolutionStatusPlanned
+	default:
+		return 1, models.ResolutionStatusPlanned
+	}
 }

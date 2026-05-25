@@ -22,6 +22,7 @@ type ProductionOrderResponse struct {
 
 type BOMExplosionResult struct {
 	PartID           uuid.UUID `json:"part_id"`
+	ComponentSKU     string    `json:"component_sku,omitempty"` // human-readable SKU for UI display
 	TotalRequiredQty int       `json:"total_required_qty"`
 	AvailableQty     int       `json:"available_qty"`
 	IsShortage       bool      `json:"is_shortage"`
@@ -69,18 +70,29 @@ type PickListItem struct {
 // --- BOM & Assembly DTOs ---
 
 type CreateAssemblyRequest struct {
-	Name       string               `json:"name" validate:"required"`
-	Components []ComponentReference `json:"components" validate:"required,dive"`
+	Name        string               `json:"name" validate:"required"`
+	Description string               `json:"description"`
+	Components  []ComponentReference `json:"components" validate:"required,dive"`
 }
 
 type UpdateAssemblyRequest struct {
-	Name       string               `json:"name"`
-	Components []ComponentReference `json:"components"`
+	Name        string               `json:"name"`
+	Description string               `json:"description"`
+	Components  []ComponentReference `json:"components"`
 }
 
 type ComponentReference struct {
 	SKU      string `json:"sku" validate:"required"`
 	Quantity int    `json:"qty" validate:"gt=0"`
+}
+
+// AssemblyResponse is the detail view for a single product assembly (GET /assemblies/{id}).
+type AssemblyResponse struct {
+	ModelCode   string               `json:"model_code"`
+	Name        string               `json:"name"`
+	Description string               `json:"description"`
+	TotalParts  int                  `json:"total_parts"`
+	Components  []ComponentReference `json:"components"`
 }
 
 // --- Pagination & Filtering ---
@@ -107,9 +119,21 @@ type InventoryMetrics struct {
 // --- Demand & POs DTOs ---
 
 type DemandPOSummary struct {
-	OrderID      string `json:"order_id"`
-	TargetBuild  string `json:"target_build"`
-	Quantity     int    `json:"quantity"`
-	Status       string `json:"status"`
-	MissingCount int    `json:"missing_count"`
+	OrderID      string    `json:"order_id"`
+	TargetBuild  string    `json:"target_build"`
+	Quantity     int       `json:"quantity"`
+	QtyReady     int       `json:"qty_ready"`
+	Status       string    `json:"status"`
+	Priority     string    `json:"priority"`      // HIGH, NORMAL, LOW
+	MissingCount int       `json:"missing_count"`
+	POCount      int       `json:"po_count"`      // number of draft POs raised
+	TargetDate   time.Time `json:"target_date,omitempty"`
+}
+
+// DemandMetrics is the KPI summary for the Demand view header cards.
+type DemandMetrics struct {
+	TotalDemandOrders  int `json:"total_demand_orders"`
+	ReadyToBuild       int `json:"ready_to_build"`
+	ShortageOrPartial  int `json:"shortage_or_partial"`
+	TotalUnitsRequired int `json:"total_units_required"`
 }

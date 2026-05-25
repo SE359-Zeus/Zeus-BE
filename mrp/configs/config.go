@@ -10,13 +10,15 @@ import (
 )
 
 type Config struct {
-	Port            string
-	BaseURL         string
-	Env             string
-	ValkeyAddr      string
-	ReadTimeout     time.Duration
-	WriteTimeout    time.Duration
-	ShutdownTimeout time.Duration
+	Port             string
+	BaseURL          string
+	Env              string
+	ValkeyAddr       string
+	RabbitMQURL      string
+	JwtPublicKeyPath string
+	ReadTimeout      time.Duration
+	WriteTimeout     time.Duration
+	ShutdownTimeout  time.Duration
 }
 
 func Load() *Config {
@@ -24,13 +26,15 @@ func Load() *Config {
 
 	port := getEnv("MRP_PORT", "8081")
 	return &Config{
-		Port:            port,
-		BaseURL:         getEnv("MRP_BASE_URL", "http://localhost:"+port),
-		Env:             getEnv("MRP_ENV", "development"),
-		ValkeyAddr:      normalizeAddr(getEnv("MRP_VALKEY_ADDR", "localhost:6379")),
-		ReadTimeout:     time.Duration(getEnvInt("MRP_READ_TIMEOUT_SEC", 15)) * time.Second,
-		WriteTimeout:    time.Duration(getEnvInt("MRP_WRITE_TIMEOUT_SEC", 15)) * time.Second,
-		ShutdownTimeout: time.Duration(getEnvInt("MRP_SHUTDOWN_TIMEOUT_SEC", 10)) * time.Second,
+		Port:             port,
+		BaseURL:          getEnv("MRP_BASE_URL", "http://localhost:"+port),
+		Env:              getEnv("MRP_ENV", "development"),
+		ValkeyAddr:       normalizeAddr(getEnv("MRP_VALKEY_ADDR", getEnv("VALKEY_ADDR", "localhost:6379"))),
+		RabbitMQURL:      getEnv("MRP_RABBITMQ_URL", getEnv("RABBITMQ_URL", "")),
+		JwtPublicKeyPath: getEnv("JWT_PUBLIC_KEY_PATH", ""),
+		ReadTimeout:      time.Duration(getEnvInt("MRP_READ_TIMEOUT_SEC", 15)) * time.Second,
+		WriteTimeout:     time.Duration(getEnvInt("MRP_WRITE_TIMEOUT_SEC", 15)) * time.Second,
+		ShutdownTimeout:  time.Duration(getEnvInt("MRP_SHUTDOWN_TIMEOUT_SEC", 10)) * time.Second,
 	}
 }
 

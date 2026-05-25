@@ -8,33 +8,61 @@ import (
 	"github.com/google/uuid"
 )
 
-func (s *ProductionService) GetAssemblies(ctx context.Context) ([]any, error) {
+func (s *ProductionService) GetAssemblies(ctx context.Context) ([]models.AssemblyResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-
-	boms, err := s.repo.GetAllBOMs(ctx)
+	var (
+		boms []models.BomEntry
+		err  error
+	)
+	if s.cache != nil {
+		boms, err = s.cache.GetAllBOMs(ctx, s.repo.GetAllBOMs)
+	} else {
+		boms, err = s.repo.GetAllBOMs(ctx)
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	// group by parent model code
-	grouped := map[string][]models.ComponentReference{}
+	return groupAssemblies(boms), nil
+}
+
+func (s *ProductionService) GetAssemblyByModelCode(ctx context.Context, modelCode string) (*models.AssemblyResponse, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if modelCode == "" {
+		return nil, fmt.Errorf("model code is required")
+	}
+	var (
+		boms []models.BomEntry
+		err  error
+	)
+	if s.cache != nil {
+		boms, err = s.cache.GetBOMByModelCode(ctx, modelCode, s.repo.GetBOMByModelCode)
+	} else {
+		boms, err = s.repo.GetBOMByModelCode(ctx, modelCode)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(boms) == 0 {
+		return nil, nil
+	}
+	comps := make([]models.ComponentReference, 0, len(boms))
 	for _, e := range boms {
-		grouped[e.ParentModelCode] = append(grouped[e.ParentModelCode], models.ComponentReference{
+		comps = append(comps, models.ComponentReference{
 			SKU:      e.ComponentPartID.String(),
 			Quantity: e.RequiredQuantityPerUnit,
 		})
 	}
-
-	result := make([]any, 0, len(grouped))
-	for model, comps := range grouped {
-		result = append(result, models.CreateAssemblyRequest{
-			Name:       model,
-			Components: comps,
-		})
-	}
-	return result, nil
+	return &models.AssemblyResponse{
+		ModelCode:  modelCode,
+		Name:       modelCode,
+		TotalParts: len(comps),
+		Components: comps,
+	}, nil
 }
 
 func (s *ProductionService) CreateAssembly(ctx context.Context, req models.CreateAssemblyRequest) (any, error) {
@@ -45,7 +73,8 @@ func (s *ProductionService) CreateAssembly(ctx context.Context, req models.Creat
 		return nil, fmt.Errorf("assembly name is required")
 	}
 
-	// convert components to BomEntry
+	// Reject duplicate component SKUs
+	seen := map[string]struct{}{}
 	entries := make([]models.BomEntry, 0, len(req.Components))
 	for i, c := range req.Components {
 		if c.Quantity <= 0 {
@@ -55,6 +84,10 @@ func (s *ProductionService) CreateAssembly(ctx context.Context, req models.Creat
 		if err != nil {
 			return nil, fmt.Errorf("component[%d] sku must be a UUID", i)
 		}
+		if _, dup := seen[c.SKU]; dup {
+			return nil, fmt.Errorf("component[%d] sku %s is duplicated in this request", i, c.SKU)
+		}
+		seen[c.SKU] = struct{}{}
 		entries = append(entries, models.BomEntry{
 			ParentModelCode:         req.Name,
 			ComponentPartID:         pid,
@@ -68,6 +101,9 @@ func (s *ProductionService) CreateAssembly(ctx context.Context, req models.Creat
 	}
 	if err := s.repo.CreateBOMEntries(ctx, entries); err != nil {
 		return nil, err
+	}
+	if s.cache != nil {
+		_ = s.cache.InvalidateBOM(ctx, req.Name, uniquePartIDs(entries)...)
 	}
 
 	return req, nil
@@ -110,6 +146,9 @@ func (s *ProductionService) UpdateAssembly(ctx context.Context, id uuid.UUID, re
 	if err := s.repo.CreateBOMEntries(ctx, entries); err != nil {
 		return nil, err
 	}
+	if s.cache != nil {
+		_ = s.cache.InvalidateBOM(ctx, modelCode, uniquePartIDs(entries)...)
+	}
 
 	return req, nil
 }
@@ -123,28 +162,33 @@ func (s *ProductionService) DeleteAssembly(ctx context.Context, id uuid.UUID) er
 	}
 	// treat id as string model code
 	modelCode := id.String()
-	return s.repo.DeleteBOMEntriesByModelCode(ctx, modelCode)
+	if err := s.repo.DeleteBOMEntriesByModelCode(ctx, modelCode); err != nil {
+		return err
+	}
+	if s.cache != nil {
+		_ = s.cache.InvalidateBOM(ctx, modelCode)
+	}
+	return nil
 }
 
 func (s *ProductionService) GetCatalog(ctx context.Context) ([]any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	boms, err := s.repo.GetAllBOMs(ctx)
+	var (
+		boms []models.BomEntry
+		err  error
+	)
+	if s.cache != nil {
+		boms, err = s.cache.GetAllBOMs(ctx, s.repo.GetAllBOMs)
+	} else {
+		boms, err = s.repo.GetAllBOMs(ctx)
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	// produce simple catalog: list unique parent models
-	parentSet := map[string]struct{}{}
-	for _, e := range boms {
-		parentSet[e.ParentModelCode] = struct{}{}
-	}
-	res := make([]any, 0, len(parentSet))
-	for p := range parentSet {
-		res = append(res, map[string]any{"model_code": p})
-	}
-	return res, nil
+	return catalogFromBOMs(boms), nil
 }
 
 func (s *ProductionService) GetWhereUsed(ctx context.Context, sku string) ([]any, error) {
@@ -155,13 +199,76 @@ func (s *ProductionService) GetWhereUsed(ctx context.Context, sku string) ([]any
 	if err != nil {
 		return nil, fmt.Errorf("sku must be a UUID representing part id")
 	}
-	entries, err := s.repo.GetWhereUsedByPartID(ctx, pid)
+	var entries []models.BomEntry
+	if s.cache != nil {
+		entries, err = s.cache.GetWhereUsedByPartID(ctx, pid, s.repo.GetWhereUsedByPartID)
+	} else {
+		entries, err = s.repo.GetWhereUsedByPartID(ctx, pid)
+	}
 	if err != nil {
 		return nil, err
 	}
+	return whereUsedFromBOMs(entries), nil
+}
+
+func groupAssemblies(boms []models.BomEntry) []models.AssemblyResponse {
+	order := []string{}
+	grouped := map[string][]models.ComponentReference{}
+	for _, e := range boms {
+		if _, seen := grouped[e.ParentModelCode]; !seen {
+			order = append(order, e.ParentModelCode)
+		}
+		grouped[e.ParentModelCode] = append(grouped[e.ParentModelCode], models.ComponentReference{
+			SKU:      e.ComponentPartID.String(),
+			Quantity: e.RequiredQuantityPerUnit,
+		})
+	}
+
+	result := make([]models.AssemblyResponse, 0, len(order))
+	for _, model := range order {
+		comps := grouped[model]
+		result = append(result, models.AssemblyResponse{
+			ModelCode:  model,
+			Name:       model,
+			TotalParts: len(comps),
+			Components: comps,
+		})
+	}
+	return result
+}
+
+func catalogFromBOMs(boms []models.BomEntry) []any {
+	parentSet := map[string]struct{}{}
+	for _, e := range boms {
+		parentSet[e.ParentModelCode] = struct{}{}
+	}
+	res := make([]any, 0, len(parentSet))
+	for p := range parentSet {
+		res = append(res, map[string]any{"model_code": p})
+	}
+	return res
+}
+
+func whereUsedFromBOMs(entries []models.BomEntry) []any {
 	res := make([]any, 0, len(entries))
 	for _, e := range entries {
 		res = append(res, map[string]any{"parent_model": e.ParentModelCode, "required_qty": e.RequiredQuantityPerUnit})
 	}
-	return res, nil
+	return res
+}
+
+func uniquePartIDs(entries []models.BomEntry) []uuid.UUID {
+	seen := make(map[uuid.UUID]struct{}, len(entries))
+	result := make([]uuid.UUID, 0, len(entries))
+	for _, entry := range entries {
+		if entry.ComponentPartID == uuid.Nil {
+			continue
+		}
+		if _, ok := seen[entry.ComponentPartID]; ok {
+			continue
+		}
+		seen[entry.ComponentPartID] = struct{}{}
+		result = append(result, entry.ComponentPartID)
+	}
+	return result
 }

@@ -15,36 +15,112 @@ func NewProductionController(svc *service.ProductionService) *ProductionControll
 	return &ProductionController{svc: svc}
 }
 
-func NewMux(svc *service.ProductionService) http.Handler {
+func NewMux(svc *service.ProductionService, authVerifier middlewares.TokenVerifier) http.Handler {
 	mux := http.NewServeMux()
 	controller := NewProductionController(svc)
+	authenticate := middlewares.Authenticate(authVerifier)
+	protect := func(handler http.Handler, methodRoles map[string][]string) http.Handler {
+		return middlewares.Chain(handler, authenticate, middlewares.RequireMethodRoles(methodRoles))
+	}
 
-	mux.HandleFunc("GET /api/v1/mrp/readiness", controller.GetReadinessMatrix)
-	mux.HandleFunc("GET /api/v1/mrp/readiness/metrics", controller.GetReadinessMetrics)
-	mux.HandleFunc("GET /api/v1/mrp/readiness/export", controller.ExportReport)
-	mux.HandleFunc("GET /api/v1/mrp/readiness/{orderId}", controller.GetReadinessByOrderID)
-	mux.HandleFunc("POST /api/v1/mrp/readiness/{orderId}/generate-po", controller.GeneratePOForDeficits)
-	mux.HandleFunc("GET /api/v1/mrp/shortages", controller.GetShortages)
+	// --- Readiness / Dashboard ---
+	mux.Handle("/api/v1/mrp/readiness", protect(http.HandlerFunc(controller.GetReadinessMatrix), map[string][]string{
+		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/readiness/metrics", protect(http.HandlerFunc(controller.GetReadinessMetrics), map[string][]string{
+		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/readiness/export", protect(http.HandlerFunc(controller.ExportReport), map[string][]string{
+		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/readiness/{orderId}", protect(http.HandlerFunc(controller.GetReadinessByOrderID), map[string][]string{
+		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/readiness/{orderId}/generate-po", protect(http.HandlerFunc(controller.GeneratePOForDeficits), map[string][]string{
+		http.MethodPost: {"mrp_operator", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/shortages", protect(http.HandlerFunc(controller.GetShortages), map[string][]string{
+		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},
+	}))
 
-	mux.HandleFunc("GET /api/v1/mrp/assemblies", controller.GetAssemblies)
-	mux.HandleFunc("POST /api/v1/mrp/assemblies", controller.CreateAssembly)
-	mux.HandleFunc("PUT /api/v1/mrp/assemblies/{id}", controller.UpdateAssembly)
-	mux.HandleFunc("DELETE /api/v1/mrp/assemblies/{id}", controller.DeleteAssembly)
-	mux.HandleFunc("GET /api/v1/mrp/catalog", controller.GetCatalog)
-	mux.HandleFunc("GET /api/v1/mrp/catalog/{sku}/where-used", controller.GetWhereUsed)
+	// --- BOM & Catalog ---
+	mux.Handle("/api/v1/mrp/assemblies", protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			controller.CreateAssembly(w, r)
+		default:
+			controller.GetAssemblies(w, r)
+		}
+	}), map[string][]string{
+		http.MethodGet:  {"mrp_operator", "mrp_worker", "admin"},
+		http.MethodPost: {"mrp_operator", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/assemblies/{id}", protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			controller.GetAssemblyDetail(w, r)
+		case http.MethodPut:
+			controller.UpdateAssembly(w, r)
+		case http.MethodDelete:
+			controller.DeleteAssembly(w, r)
+		default:
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
+	}), map[string][]string{
+		http.MethodGet:    {"mrp_operator", "mrp_worker", "admin"},
+		http.MethodPut:    {"mrp_operator", "admin"},
+		http.MethodDelete: {"mrp_operator", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/catalog", protect(http.HandlerFunc(controller.GetCatalog), map[string][]string{
+		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/catalog/{sku}/where-used", protect(http.HandlerFunc(controller.GetWhereUsed), map[string][]string{
+		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},
+	}))
 
-	mux.HandleFunc("GET /api/v1/mrp/demand", controller.GetDemandSummary)
-	mux.HandleFunc("POST /api/v1/mrp/demand/generate-pos", controller.GeneratePOs)
-	mux.HandleFunc("GET /api/v1/mrp/demand/{orderId}/pick-list", controller.GetPickList)
-	mux.HandleFunc("POST /api/v1/mrp/demand/{orderId}/pick-list", controller.GeneratePickList)
+	// --- Demand ---
+	mux.Handle("/api/v1/mrp/demand/metrics", protect(http.HandlerFunc(controller.GetDemandMetrics), map[string][]string{
+		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/demand", protect(http.HandlerFunc(controller.GetDemandSummary), map[string][]string{
+		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/demand/generate-pos", protect(http.HandlerFunc(controller.GeneratePOs), map[string][]string{
+		http.MethodPost: {"mrp_operator", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/demand/{orderId}/pick-list", protect(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			controller.GeneratePickList(w, r)
+		default:
+			controller.GetPickList(w, r)
+		}
+	}), map[string][]string{
+		http.MethodGet:  {"mrp_operator", "mrp_worker", "admin"},
+		http.MethodPost: {"mrp_operator", "admin"},
+	}))
 
-	mux.HandleFunc("GET /api/v1/mrp/inventory/ledger", controller.GetInventoryLedger)
-	mux.HandleFunc("GET /api/v1/mrp/inventory/metrics", controller.GetInventoryMetrics)
-	mux.HandleFunc("GET /api/v1/mrp/inventory/ledger/export", controller.ExportInventoryCSV)
-	mux.HandleFunc("GET /api/v1/mrp/inventory/transactions/{txnId}", controller.GetInventoryTransactionByID)
-	mux.HandleFunc("GET /api/v1/mrp/inventory/balance/{sku}", controller.GetInventoryBalanceBySKU)
+	// --- Inventory Ledger (read-only proxy to SCM) ---
+	mux.Handle("/api/v1/mrp/inventory/ledger", protect(http.HandlerFunc(controller.GetInventoryLedger), map[string][]string{
+		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/inventory/metrics", protect(http.HandlerFunc(controller.GetInventoryMetrics), map[string][]string{
+		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/inventory/ledger/export", protect(http.HandlerFunc(controller.ExportInventoryCSV), map[string][]string{
+		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/inventory/transactions/{txnId}", protect(http.HandlerFunc(controller.GetInventoryTransactionByID), map[string][]string{
+		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},
+	}))
+	mux.Handle("/api/v1/mrp/inventory/balance/{sku}", protect(http.HandlerFunc(controller.GetInventoryBalanceBySKU), map[string][]string{
+		http.MethodGet: {"mrp_operator", "mrp_worker", "admin"},
+	}))
 
-	mux.HandleFunc("POST /api/v1/production/orders", controller.CreateOrder)
+	// --- Production Orders ---
+	mux.Handle("/api/v1/production/orders", protect(http.HandlerFunc(controller.CreateOrder), map[string][]string{
+		http.MethodPost: {"mrp_operator", "admin"},
+	}))
 
 	return middlewares.ErrorHandler(mux)
 }

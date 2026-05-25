@@ -7,6 +7,8 @@ info:
     envelope: {message, statusCode, metadata, data}.
 servers:
   - url: /api/v1/mrp
+security:
+  - BearerAuth: []
 paths:
   /readiness:
     get:
@@ -335,6 +337,12 @@ paths:
                 $ref: '#/components/schemas/Envelope'
 
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Provide the access token in the Authorization header as `Bearer <access-token>`.
   schemas:
     Envelope:
       type: object

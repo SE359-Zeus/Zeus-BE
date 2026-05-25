@@ -21,7 +21,6 @@ func (c *ProductionController) GetAssemblies(w http.ResponseWriter, r *http.Requ
 		writeErrorJSON(w, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
-	// convert to []any for generic pagination
 	items := make([]any, 0, len(res))
 	for _, v := range res {
 		items = append(items, v)
@@ -39,10 +38,29 @@ func (c *ProductionController) CreateAssembly(w http.ResponseWriter, r *http.Req
 	}
 	created, err := c.svc.CreateAssembly(r.Context(), req)
 	if err != nil {
-		writeErrorJSON(w, http.StatusInternalServerError, err.Error(), nil)
+		writeErrorJSON(w, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
+}
+
+// GET /api/v1/mrp/assemblies/{id}
+func (c *ProductionController) GetAssemblyDetail(w http.ResponseWriter, r *http.Request) {
+	modelCode := r.PathValue("id")
+	if modelCode == "" {
+		writeErrorJSON(w, http.StatusBadRequest, "id path parameter is required", nil)
+		return
+	}
+	assembly, err := c.svc.GetAssemblyByModelCode(r.Context(), modelCode)
+	if err != nil {
+		writeErrorJSON(w, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+	if assembly == nil {
+		writeErrorJSON(w, http.StatusNotFound, "assembly not found", nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, assembly)
 }
 
 // PUT /api/v1/mrp/assemblies/{id}
@@ -54,17 +72,21 @@ func (c *ProductionController) UpdateAssembly(w http.ResponseWriter, r *http.Req
 	}
 	id, err := uuid.Parse(rawID)
 	if err != nil {
-		writeErrorJSON(w, http.StatusBadRequest, "invalid id", nil)
-		return
+		// treat as model code string if not a UUID
+		id = uuid.Nil
 	}
 	var req models.UpdateAssemblyRequest
 	if err := readJSON(r, &req); err != nil {
 		writeErrorJSON(w, http.StatusBadRequest, "invalid json payload", nil)
 		return
 	}
+	// If id is Nil and the user passed a model-code string, put it in Name
+	if id == uuid.Nil && req.Name == "" {
+		req.Name = rawID
+	}
 	updated, err := c.svc.UpdateAssembly(r.Context(), id, req)
 	if err != nil {
-		writeErrorJSON(w, http.StatusInternalServerError, err.Error(), nil)
+		writeErrorJSON(w, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 	writeJSON(w, http.StatusOK, updated)
