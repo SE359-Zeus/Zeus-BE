@@ -7,6 +7,8 @@ import (
 
 	"zeus-mrp-service/internal/models"
 
+	"github.com/google/uuid"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -53,6 +55,13 @@ func TestProductionService_GetInventoryBalanceBySKU_UsesSCMClient(t *testing.T) 
 	qty, err := svc.GetInventoryBalanceBySKU(context.Background(), "SKU-1")
 	require.NoError(t, err)
 	assert.Equal(t, 27, qty)
+}
+
+func TestProductionService_GetInventoryBalanceBySKU_RejectsUUIDSKU(t *testing.T) {
+	svc := NewProductionService(setupMockRepo(), setupMockSCMClient())
+	qty, err := svc.GetInventoryBalanceBySKU(context.Background(), uuid.New().String())
+	require.Error(t, err)
+	assert.Equal(t, 0, qty)
 }
 
 func TestProductionService_ExportInventoryCSV(t *testing.T) {

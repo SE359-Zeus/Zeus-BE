@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // ------------------------------------------------------------
@@ -21,6 +22,22 @@ func TestProductionService_GetAssemblies(t *testing.T) {
 	assert.NotNil(t, res)
 }
 
+func TestProductionService_GetAssemblies_UsesPartNumberSKUs(t *testing.T) {
+	mockRepo := new(MockMRPRepository)
+	partID := uuid.New()
+	mockRepo.On("GetAllBOMs", mock.Anything).Return([]models.BomEntry{{ParentModelCode: "MODEL-X", ComponentPartID: partID, RequiredQuantityPerUnit: 2}}, nil)
+	mockSCM := setupMockSCMClient()
+	mockSCM.On("GetPartCatalogByID", mock.Anything, partID).Return(&models.Part{ID: partID, SKU: "PN-1001"}, nil)
+	svc := NewProductionService(mockRepo, mockSCM)
+
+	res, err := svc.GetAssemblies(context.Background())
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+	require.Len(t, res[0].Components, 1)
+	assert.Equal(t, "PN-1001", res[0].Components[0].SKU)
+	assert.NotEqual(t, partID.String(), res[0].Components[0].SKU)
+}
+
 func TestProductionService_GetCatalog(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	res, err := svc.GetCatalog(context.Background())
@@ -29,10 +46,21 @@ func TestProductionService_GetCatalog(t *testing.T) {
 }
 
 func TestProductionService_GetWhereUsed(t *testing.T) {
-	svc := NewProductionService(setupMockRepo())
-	res, err := svc.GetWhereUsed(context.Background(), uuid.New().String())
+	mockRepo := setupMockRepo()
+	mockSCM := setupMockSCMClient()
+	partID := uuid.New()
+	mockSCM.On("GetPartCatalogBySKU", mock.Anything, "PN-001").Return(&models.Part{ID: partID, SKU: "PN-001"}, nil)
+	svc := NewProductionService(mockRepo, mockSCM)
+	res, err := svc.GetWhereUsed(context.Background(), "PN-001")
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
+}
+
+func TestProductionService_GetWhereUsed_RejectsUUIDSKU(t *testing.T) {
+	svc := NewProductionService(setupMockRepo(), setupMockSCMClient())
+	res, err := svc.GetWhereUsed(context.Background(), uuid.New().String())
+	assert.Error(t, err)
+	assert.Nil(t, res)
 }
 
 func TestProductionService_CreateAssembly(t *testing.T) {

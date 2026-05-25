@@ -37,12 +37,83 @@ func NewClient() *Client {
 }
 
 func (c *Client) GetPartCatalogBySKU(ctx context.Context, sku string) (*models.Part, error) {
-	stock, err := c.GetStockBySKU(ctx, sku)
-	if err != nil || stock == nil {
+	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/part-catalog/sku/%s", c.baseURL, url.PathEscape(sku))
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
 		return nil, err
 	}
-	return &models.Part{SKU: stock.SKU, Description: stock.Name, Price: stock.UnitCost}, nil
+	req.Header.Set("X-API-KEY", c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("SCM API returned status %d", resp.StatusCode)
+	}
+
+	var envelope struct {
+		Data struct {
+			ID          uuid.UUID `json:"id"`
+			SKU         string    `json:"sku"`
+			Description string    `json:"description"`
+			Price       float64   `json:"price"`
+			StockQty    int       `json:"stock_qty"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, err
+	}
+	if envelope.Data.ID == uuid.Nil {
+		return nil, nil
+	}
+	return &models.Part{ID: envelope.Data.ID, SKU: envelope.Data.SKU, Description: envelope.Data.Description, Price: envelope.Data.Price}, nil
 }
+
+func (c *Client) GetPartCatalogByID(ctx context.Context, id uuid.UUID) (*models.Part, error) {
+	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/part-catalog/%s", c.baseURL, url.PathEscape(id.String()))
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("SCM API returned status %d", resp.StatusCode)
+	}
+
+	var envelope struct {
+		Data struct {
+			ID          uuid.UUID `json:"id"`
+			PartNumber  string    `json:"part_number"`
+			Description string    `json:"description"`
+			Price       float64   `json:"price"`
+			StockQty    int       `json:"stock_qty"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, err
+	}
+	if envelope.Data.ID == uuid.Nil {
+		return nil, nil
+	}
+	return &models.Part{ID: envelope.Data.ID, SKU: envelope.Data.PartNumber, Description: envelope.Data.Description, Price: envelope.Data.Price}, nil
+}
+
 
 func (c *Client) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
 	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/stocks/%s", c.baseURL, url.PathEscape(sku))
