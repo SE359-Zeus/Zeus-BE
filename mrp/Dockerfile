@@ -17,7 +17,7 @@ FROM alpine:3.22
 
 RUN apk add --no-cache ca-certificates
 
-RUN addgroup -S mrp && adduser -S mrp -G mrp
+RUN addgroup -S -g 1001 mrp && adduser -S -u 1001 -G mrp mrp
 
 WORKDIR /app
 

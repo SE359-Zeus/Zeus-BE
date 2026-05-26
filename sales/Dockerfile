@@ -17,6 +17,8 @@ FROM alpine:3.22
 
 RUN apk add --no-cache ca-certificates
 
+RUN addgroup -S -g 1001 sales && adduser -S -u 1001 -G sales sales
+
 WORKDIR /app
 
 ARG VERSION=dev
@@ -27,6 +29,10 @@ COPY --from=builder /out/server ./server
 COPY --from=builder /out/migrate ./migrate
 COPY --from=builder /out/seeder ./seeder
 COPY --from=builder /app/docs ./docs
+
+RUN chown -R sales:sales /app
+
+USER sales
 
 EXPOSE 8082
 

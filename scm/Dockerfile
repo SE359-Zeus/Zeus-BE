@@ -20,6 +20,8 @@ FROM alpine:3.22
 
 RUN apk add --no-cache ca-certificates sqlite-libs
 
+RUN addgroup -S -g 1001 scm && adduser -S -u 1001 -G scm scm
+
 WORKDIR /app
 
 ARG VERSION=dev
@@ -32,6 +34,10 @@ COPY --from=builder /out/seeder /app/seeder
 COPY --from=builder /src/scm/docs ./docs
 COPY --from=builder /src/scm/internal/migration ./migrations
 COPY --from=builder /src/reference/seeder/parts.json ./reference/seeder/parts.json
+
+RUN chown -R scm:scm /app
+
+USER scm
 
 EXPOSE 8081
 

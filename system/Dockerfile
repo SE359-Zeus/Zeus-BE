@@ -21,6 +21,8 @@ FROM alpine:3.22
 
 RUN apk add --no-cache ca-certificates sqlite-libs
 
+RUN addgroup -S -g 1001 system && adduser -S -u 1001 -G system system
+
 WORKDIR /app
 
 
@@ -34,6 +36,10 @@ COPY --from=build /out/seeder /app/seeder
 COPY --from=build /src/system/docs ./docs
 COPY --from=build /src/system/migrations ./migrations
 COPY --from=build /src/system/templates ./templates
+
+RUN chown -R system:system /app
+
+USER system
 
 EXPOSE 8083
 
