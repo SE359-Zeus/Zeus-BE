@@ -86,6 +86,11 @@ type ComponentReference struct {
 	Quantity int    `json:"qty" validate:"gt=0"`
 }
 
+type ProductModel struct {
+	ModelCode string `json:"model_code"`
+	ModelName string `json:"model_name"`
+}
+
 // AssemblyResponse is the detail view for a single product assembly (GET /assemblies/{id}).
 type AssemblyResponse struct {
 	ModelCode   string               `json:"model_code"`
