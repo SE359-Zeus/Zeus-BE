@@ -9,10 +9,11 @@ import (
 type Infrastructure struct {
 	Cache     *infraCache.Store
 	Publisher infraMessaging.Publisher
+	SCMClient SCMClient
 }
 
-func NewInfrastructure(cache *infraCache.Store, publisher infraMessaging.Publisher) *Infrastructure {
-	return &Infrastructure{Cache: cache, Publisher: publisher}
+func NewInfrastructure(cache *infraCache.Store, publisher infraMessaging.Publisher, scmClient SCMClient) *Infrastructure {
+	return &Infrastructure{Cache: cache, Publisher: publisher, SCMClient: scmClient}
 }
 
 type Services struct {

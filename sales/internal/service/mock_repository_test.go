@@ -59,6 +59,14 @@ func (m *MockDbRepository) DeleteClient(ctx context.Context, id uuid.UUID) error
 	return m.Called(ctx, id).Error(0)
 }
 
+func (m *MockDbRepository) GetClientByAPIKeyPrefix(ctx context.Context, prefix string) (*models.Client, error) {
+	args := m.Called(ctx, prefix)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Client), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockDbRepository) ListOrderStatuses(ctx context.Context) ([]models.SalesOrderStatusLUT, error) {
 	args := m.Called(ctx)
 	if args.Get(0) != nil {

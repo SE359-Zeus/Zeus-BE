@@ -17,6 +17,8 @@ type clientRecord struct {
 	Tier                      string    `gorm:"column:tier"`
 	DefaultDestinationAddress string    `gorm:"column:default_destination_address"`
 	TotalLifetimeOrders       int       `gorm:"column:total_lifetime_orders"`
+	ApiKeyPrefix              string    `gorm:"column:api_key_prefix"`
+	ApiKeyHash                string    `gorm:"column:api_key_hash"`
 	CreatedAt                 time.Time `gorm:"column:created_at"`
 	UpdatedAt                 time.Time `gorm:"column:updated_at"`
 }
@@ -30,6 +32,8 @@ func clientRecordFromModel(client *models.Client) *clientRecord {
 		Tier:                      string(client.Tier),
 		DefaultDestinationAddress: client.DefaultDestinationAddress,
 		TotalLifetimeOrders:       client.TotalLifetimeOrders,
+		ApiKeyPrefix:              client.ApiKeyPrefix,
+		ApiKeyHash:                client.ApiKeyHash,
 		CreatedAt:                 client.CreatedAt,
 		UpdatedAt:                 client.UpdatedAt,
 	}
@@ -43,6 +47,8 @@ func (record clientRecord) toModel() models.Client {
 		Tier:                      models.ClientTier(record.Tier),
 		DefaultDestinationAddress: record.DefaultDestinationAddress,
 		TotalLifetimeOrders:       record.TotalLifetimeOrders,
+		ApiKeyPrefix:              record.ApiKeyPrefix,
+		ApiKeyHash:                record.ApiKeyHash,
 		CreatedAt:                 record.CreatedAt,
 		UpdatedAt:                 record.UpdatedAt,
 	}
@@ -105,6 +111,8 @@ func (repo *Repository) UpdateClient(ctx context.Context, client *models.Client)
 		"tier":                        string(client.Tier),
 		"default_destination_address": client.DefaultDestinationAddress,
 		"total_lifetime_orders":       client.TotalLifetimeOrders,
+		"api_key_prefix":              client.ApiKeyPrefix,
+		"api_key_hash":                client.ApiKeyHash,
 		"updated_at":                  client.UpdatedAt,
 	})
 	if result.Error != nil {
@@ -126,3 +134,13 @@ func (repo *Repository) DeleteClient(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
+
+func (repo *Repository) GetClientByAPIKeyPrefix(ctx context.Context, prefix string) (*models.Client, error) {
+	var record clientRecord
+	if err := repo.db.WithContext(ctx).Where("api_key_prefix = ?", prefix).First(&record).Error; err != nil {
+		return nil, mapRecordError(err)
+	}
+	model := record.toModel()
+	return &model, nil
+}
+

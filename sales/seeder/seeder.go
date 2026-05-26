@@ -15,6 +15,7 @@ import (
 	"zeus-sales-service/internal/service"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func SeedAll(ctx context.Context, sqliteRepo repository.DbRepository, manifestPath string) error {
@@ -127,6 +128,7 @@ func buildManifestClients(manifest *scmManifest) []manifestClientSeed {
 		"4200 Industry Way, Fremont, CA 94538",
 		"701 Mission Blvd, Los Angeles, CA 90017",
 		"9020 Harbor Point, San Diego, CA 92101",
+		"9020 Harbor Point, San Diego, CA 92101",
 	}
 	for i, product := range manifest.Products {
 		if _, ok := seen[product.CustomerID]; ok {
@@ -166,15 +168,34 @@ func buildManifestClients(manifest *scmManifest) []manifestClientSeed {
 }
 
 func seedClientsToRepository(ctx context.Context, sqliteRepo repository.DbRepository, clients []manifestClientSeed) error {
-	for _, client := range clients {
+	for i, client := range clients {
 		if _, err := sqliteRepo.GetClientByName(ctx, client.Name); err == nil {
 			continue
 		}
+		// Show/Define the raw API keys in the code clearly before hashing and storing.
+		// Format: clnt<index>_p.secretkey<index>_secure_token
+		// Example for SCM Customer 01:
+		// Raw API Key: clnt01_p.secretkey01_secure_token
+		// Prefix:      clnt01_p (first 8 characters)
+		// Secret:      clnt01_p.secretkey01_secure_token (full string used in bcrypt)
+		clientIndex := i + 1
+		prefix := fmt.Sprintf("clnt%02d_p", clientIndex)
+		rawApiKey := fmt.Sprintf("%s.secretkey%02d_secure_token", prefix, clientIndex)
+
+		log.Printf("Seeding client: %s | Prefix: %s | Raw API Key: %s", client.Name, prefix, rawApiKey)
+
+		hashBytes, err := bcrypt.GenerateFromPassword([]byte(rawApiKey), bcrypt.DefaultCost)
+		if err != nil {
+			return fmt.Errorf("failed to hash api key: %w", err)
+		}
+
 		if err := sqliteRepo.CreateClient(ctx, &models.Client{
 			ID:                        client.ID,
 			Name:                      client.Name,
 			Tier:                      client.Tier,
 			DefaultDestinationAddress: client.Address,
+			ApiKeyPrefix:              prefix,
+			ApiKeyHash:                string(hashBytes),
 		}); err != nil {
 			return fmt.Errorf("seed client %s: %w", client.Name, err)
 		}

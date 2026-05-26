@@ -15,6 +15,7 @@ import (
 	"zeus-sales-service/internal/infrastructure/cronjob"
 	infraMessaging "zeus-sales-service/internal/infrastructure/messaging"
 	"zeus-sales-service/internal/infrastructure/observability"
+	infraSCM "zeus-sales-service/internal/infrastructure/scm"
 	"zeus-sales-service/internal/middlewares"
 	"zeus-sales-service/internal/repository/sqlite"
 	"zeus-sales-service/internal/repository/valkey"
@@ -72,7 +73,8 @@ func main() {
 		slog.Info("rabbitmq connection successful", slog.String("service", "sales"), slog.String("component", "rabbitmq"))
 		publisher = rabbitmq
 	}
-	infra := service.NewInfrastructure(salesCache, publisher)
+	scmClient := infraSCM.NewClient(cfg.SCMServiceURL, cfg.ScmAPIKey)
+	infra := service.NewInfrastructure(salesCache, publisher, scmClient)
 
 	services := service.NewServices(sqliteRepo, valkeyRepo, infra)
 	authVerifier, err := middlewares.NewJWTVerifierFromFile(cfg.JwtPublicKeyPath)

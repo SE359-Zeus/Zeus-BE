@@ -62,11 +62,46 @@ func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrder
 		}
 		seen[key] = struct{}{}
 		totalValue += float64(item.RequestedQty) * item.UnitPrice
+
+		// Validate SKU against SCM
+		if svc.infra != nil && svc.infra.SCMClient != nil {
+			valid, err := svc.infra.SCMClient.CheckSKU(ctx, sku)
+			if err != nil {
+				return nil, fmt.Errorf("failed to validate SKU %s with SCM: %w", sku, err)
+			}
+			if !valid {
+				return nil, fmt.Errorf("%w: SKU %s is not an active, orderable finished good in SCM", middlewares.ErrValidation, sku)
+			}
+		}
 	}
-	client, err := svc.clients.ResolveOrCreateClient(ctx, req.ClientName, req.DestinationAddress, req.ClientTier)
-	if err != nil {
-		return nil, err
+
+	var client *models.Client
+	role, _ := ctx.Value(middlewares.ContextKeyRole).(string)
+	if role == "client" {
+		userIDVal := ctx.Value(middlewares.ContextKeyUserID)
+		var clientID uuid.UUID
+		var err error
+		if idStr, ok := userIDVal.(string); ok {
+			clientID, err = uuid.Parse(idStr)
+		} else if id, ok := userIDVal.(uuid.UUID); ok {
+			clientID = id
+		}
+		if err == nil && clientID != uuid.Nil {
+			client, err = svc.clients.GetClient(ctx, clientID)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
+
+	if client == nil {
+		var err error
+		client, err = svc.clients.ResolveOrCreateClient(ctx, req.ClientName, req.DestinationAddress, req.ClientTier)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	pendingStatus, err := svc.getStatusByCode(ctx, models.SalesOrderStatusPendingCode)
 	if err != nil {
 		return nil, err
@@ -125,6 +160,9 @@ func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrder
 		"client_id": client.ID.String(),
 		"total":     order.TotalValue,
 	})
+
+	svc.publishAudit(ctx, "CREATE", "sales/orders/"+order.ID.String(), fmt.Sprintf("Created sales order %s for client %s", order.ID.String(), client.Name), client)
+
 	return svc.buildResponse(ctx, order, items)
 }
 
@@ -511,3 +549,35 @@ func (svc *OrderService) publish(ctx context.Context, queue string, payload any)
 	}
 	_ = svc.infra.Publisher.Publish(ctx, queue, payload)
 }
+
+func (svc *OrderService) publishAudit(ctx context.Context, actionType, targetResource, details string, client *models.Client) {
+	if svc == nil || svc.infra == nil || svc.infra.Publisher == nil {
+		return
+	}
+	var userIDStr string
+	if val := ctx.Value(middlewares.ContextKeyUserID); val != nil {
+		if id, ok := val.(uuid.UUID); ok {
+			userIDStr = id.String()
+		} else if s, ok := val.(string); ok {
+			userIDStr = s
+		}
+	}
+	email, _ := ctx.Value(middlewares.ContextKeyEmail).(string)
+	if strings.TrimSpace(userIDStr) == "" && client != nil {
+		userIDStr = client.ID.String()
+	}
+	if strings.TrimSpace(email) == "" && client != nil {
+		email = "client:" + client.Name
+	}
+	if strings.TrimSpace(userIDStr) == "" || strings.TrimSpace(email) == "" {
+		return
+	}
+	_ = svc.infra.Publisher.Publish(ctx, infraMessaging.AuditQueue, map[string]any{
+		"user_id":         userIDStr,
+		"user_email":      email,
+		"action_type":     strings.ToUpper(strings.TrimSpace(actionType)),
+		"target_resource": targetResource,
+		"details":         details,
+	})
+}
+
