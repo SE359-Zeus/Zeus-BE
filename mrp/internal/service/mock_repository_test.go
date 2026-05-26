@@ -220,3 +220,13 @@ func setupMockSCMClient() *MockSCMClient {
 	m := new(MockSCMClient)
 	return m
 }
+
+type MockAuditPublisher struct {
+	mock.Mock
+}
+
+func (m *MockAuditPublisher) PublishJSON(queue string, payload any) error {
+	args := m.Called(queue, payload)
+	return args.Error(0)
+}
+
