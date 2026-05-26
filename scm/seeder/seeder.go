@@ -30,7 +30,7 @@ func SeedAll(db *gorm.DB, partsDataPath string, manifestOutPath string) error {
 	seedProductsAndParts(db, modelsList, catMap)
 
 	if err := writeSeedManifest(db, manifestOutPath); err != nil {
-		return fmt.Errorf("failed to write seed manifest: %w", err)
+		log.Printf("warning: failed to write seed manifest %q: %v", manifestOutPath, err)
 	}
 
 	log.Println("SCM Seeder finished successfully.")
