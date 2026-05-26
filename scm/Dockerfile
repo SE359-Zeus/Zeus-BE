@@ -36,7 +36,7 @@ COPY --from=builder /src/scm/internal/migration ./migrations
 COPY --from=builder /src/reference/seeder/parts.json ./reference/seeder/parts.json
 
 RUN chown -R scm:scm /app
-RUN mkdir -p /app/contracts && chown -R scm:scm /app/contracts
+# RUN mkdir -p /app/contracts && chown -R scm:scm /app/contracts
 
 USER scm
 
