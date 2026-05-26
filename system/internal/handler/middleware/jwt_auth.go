@@ -15,6 +15,7 @@ const (
 	ContextKeyEmail    = "email"
 	ContextKeyFullName = "full_name"
 	ContextKeyStatus   = "status"
+	ContextKeyAuthMethod = "auth_method"
 )
 
 func JWTAuth(authSvc service.AuthService) gin.HandlerFunc {
@@ -42,6 +43,7 @@ func JWTAuth(authSvc service.AuthService) gin.HandlerFunc {
 		c.Set(ContextKeyEmail, claims.Email)
 		c.Set(ContextKeyFullName, claims.FullName)
 		c.Set(ContextKeyStatus, claims.Status)
+		c.Set(ContextKeyAuthMethod, "jwt")
 		c.Next()
 	}
 }

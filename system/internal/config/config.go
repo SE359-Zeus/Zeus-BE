@@ -22,6 +22,11 @@ type Config struct {
 	EmailFromName    string
 	EmailTemplateDir string
 	RabbitMQURL      string
+	// Observability
+	Env           string // APP_ENV — e.g. "production", "staging", "development"
+	AlloyURL      string // Alloy Loki-receiver endpoint (empty = stdout only)
+	AlloyUsername string // Grafana Cloud user ID (empty for local Alloy)
+	AlloyPassword string // Grafana Cloud API token (empty for local Alloy)
 }
 
 func Load() *Config {
@@ -41,6 +46,10 @@ func Load() *Config {
 		EmailFromName:    getEnv("EMAIL_FROM_NAME", ""),
 		EmailTemplateDir: strings.TrimSpace(getEnv("EMAIL_TEMPLATE_DIR", "templates")),
 		RabbitMQURL:      getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
+		Env:           getEnv("APP_ENV", "production"),
+		AlloyURL:      getEnv("ALLOY_URL", ""),
+		AlloyUsername: getEnv("ALLOY_USERNAME", ""),
+		AlloyPassword: getEnv("ALLOY_PASSWORD", ""),
 	}
 }
 
