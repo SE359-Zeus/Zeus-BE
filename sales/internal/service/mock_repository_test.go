@@ -240,3 +240,13 @@ func (m *MockMRPClient) CreateProductionOrder(ctx context.Context, req MRPCreate
 var _ SCMClient = (*MockSCMClient)(nil)
 var _ MRPClient = (*MockMRPClient)(nil)
 
+type MockPublisher struct {
+	mock.Mock
+}
+
+func (m *MockPublisher) Publish(ctx context.Context, queue string, payload any) error {
+	args := m.Called(ctx, queue, payload)
+	return args.Error(0)
+}
+
+

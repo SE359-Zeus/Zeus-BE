@@ -264,16 +264,16 @@ func TestOrderService_CreateOrder_AcceptsCamelCaseDatePayload(t *testing.T) {
 	assert.Equal(t, models.SalesOrderStatusPendingCode, response.Order.Status.Code)
 }
 
-func TestOrderService_CreateOrder_CallsSCMandMRPClients(t *testing.T) {
+func TestOrderService_CreateOrder_CallsSCMAndPublishesToQueue(t *testing.T) {
 	db := setupMockDbRepo()
 	cache := setupMockCacheRepo()
 
 	mockSCM := new(MockSCMClient)
-	mockMRP := new(MockMRPClient)
+	mockPublisher := new(MockPublisher)
 
 	infra := &Infrastructure{
 		SCMClient: mockSCM,
-		MRPClient: mockMRP,
+		Publisher: mockPublisher,
 	}
 
 	svc := NewServices(db, cache, infra).Orders
@@ -288,11 +288,23 @@ func TestOrderService_CreateOrder_CallsSCMandMRPClients(t *testing.T) {
 	db.On("GetClient", mock.Anything, mock.Anything).Return(&models.Client{ID: uuid.New(), Name: "Acme", Tier: models.ClientTierB2B}, nil)
 	cache.On("EnqueueOrder", mock.Anything, mock.AnythingOfType("models.AllocationQueueEntry")).Return(nil)
 
-	// Set expectations on SCM check and MRP demand creation
+	// Set expectations on SCM check and RabbitMQ queue publishing
 	mockSCM.On("CheckSKU", mock.Anything, "SKU-MRP-TEST").Return(true, nil)
-	mockMRP.On("CreateProductionOrder", mock.Anything, mock.MatchedBy(func(req MRPCreateOrderReq) bool {
-		return req.ProductModelCode == "SKU-MRP-TEST" && req.TargetQuantity == 5
+	mockPublisher.On("Publish", mock.Anything, "sales.order.created", mock.MatchedBy(func(payload any) bool {
+		m, ok := payload.(map[string]any)
+		if !ok {
+			return false
+		}
+		items, ok := m["items"].([]map[string]any)
+		if !ok {
+			return false
+		}
+		if len(items) != 1 {
+			return false
+		}
+		return items[0]["sku"] == "SKU-MRP-TEST" && items[0]["qty"] == 5
 	})).Return(nil)
+	mockPublisher.On("Publish", mock.Anything, "system.audit.log", mock.Anything).Return(nil)
 
 	response, err := svc.CreateOrder(context.Background(), models.CreateOrderRequest{
 		ClientName:   "Acme",
@@ -307,7 +319,7 @@ func TestOrderService_CreateOrder_CallsSCMandMRPClients(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, response)
 	mockSCM.AssertExpectations(t)
-	mockMRP.AssertExpectations(t)
+	mockPublisher.AssertExpectations(t)
 }
 
 func ptrString(value string) *string {

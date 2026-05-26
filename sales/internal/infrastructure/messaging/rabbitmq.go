@@ -13,6 +13,7 @@ import (
 
 const (
 	OrderCreatedQueue    = "sales.order.created"
+	OrderUpdatedQueue    = "sales.order.updated"
 	OrderAllocatedQueue  = "sales.order.allocated"
 	OrderCancelledQueue  = "sales.order.cancelled"
 	ClientUpdatedQueue   = "sales.client.updated"
@@ -80,6 +81,7 @@ func (r *RabbitMQ) Publish(ctx context.Context, queue string, payload any) error
 func declareQueues(channel *amqp.Channel) error {
 	for _, queue := range []string{
 		OrderCreatedQueue,
+		OrderUpdatedQueue,
 		OrderAllocatedQueue,
 		OrderCancelledQueue,
 		ClientUpdatedQueue,

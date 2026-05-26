@@ -141,20 +141,6 @@ func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrder
 		}
 	}
 
-	// Notify MRP to plan production (create demand) for each line item
-	if svc.infra != nil && svc.infra.MRPClient != nil {
-		for _, item := range items {
-			mrpReq := MRPCreateOrderReq{
-				ProductModelCode: item.SKU,
-				TargetQuantity:   item.RequestedQty,
-				ScheduledAt:      order.RequiredDate,
-			}
-			if err := svc.infra.MRPClient.CreateProductionOrder(ctx, mrpReq); err != nil {
-				return nil, fmt.Errorf("failed to submit production demand to MRP for SKU %s: %w", item.SKU, err)
-			}
-		}
-	}
-
 	client.TotalLifetimeOrders++
 	if err := svc.clients.repo.UpdateClient(ctx, client); err != nil {
 		return nil, err
@@ -170,10 +156,20 @@ func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrder
 			// The order is already persisted; cache warmup must not fail the request.
 		}
 	}
+
+	orderItems := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		orderItems = append(orderItems, map[string]any{
+			"sku": item.SKU,
+			"qty": item.RequestedQty,
+		})
+	}
 	svc.publish(ctx, infraMessaging.OrderCreatedQueue, map[string]any{
-		"order_id":  order.ID.String(),
-		"client_id": client.ID.String(),
-		"total":     order.TotalValue,
+		"order_id":      order.ID.String(),
+		"client_id":     client.ID.String(),
+		"total":         order.TotalValue,
+		"required_date": order.RequiredDate.Format(time.RFC3339),
+		"items":         orderItems,
 	})
 
 	svc.publishAudit(ctx, "CREATE", "sales/orders/"+order.ID.String(), fmt.Sprintf("Created sales order %s for client %s", order.ID.String(), client.Name), client)
@@ -401,20 +397,6 @@ func (svc *OrderService) UpdateOrder(ctx context.Context, id uuid.UUID, req mode
 		}
 		order.TotalValue = total
 
-		// Notify MRP to plan production (create demand) for each updated line item
-		if svc.infra != nil && svc.infra.MRPClient != nil {
-			for _, item := range items {
-				mrpReq := MRPCreateOrderReq{
-					ProductModelCode: item.SKU,
-					TargetQuantity:   item.RequestedQty,
-					ScheduledAt:      order.RequiredDate,
-				}
-				if err := svc.infra.MRPClient.CreateProductionOrder(ctx, mrpReq); err != nil {
-					return nil, fmt.Errorf("failed to submit production demand to MRP for SKU %s: %w", item.SKU, err)
-				}
-			}
-		}
-
 		if err := svc.repo.ReplaceOrderItems(ctx, order.ID, items); err != nil {
 			return nil, err
 		}
@@ -432,6 +414,22 @@ func (svc *OrderService) UpdateOrder(ctx context.Context, id uuid.UUID, req mode
 	if client == nil {
 		client = &models.Client{}
 	}
+
+	orderItems := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		orderItems = append(orderItems, map[string]any{
+			"sku": item.SKU,
+			"qty": item.RequestedQty,
+		})
+	}
+	svc.publish(ctx, infraMessaging.OrderUpdatedQueue, map[string]any{
+		"order_id":      order.ID.String(),
+		"client_id":     order.ClientID.String(),
+		"total":         order.TotalValue,
+		"required_date": order.RequiredDate.Format(time.RFC3339),
+		"items":         orderItems,
+	})
+
 	return &models.OrderResponse{Order: *order, Client: *client, Items: items}, nil
 }
 
