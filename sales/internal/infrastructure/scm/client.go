@@ -66,3 +66,22 @@ func (c *Client) CheckSKU(ctx context.Context, sku string) (bool, error) {
 
 	return false, nil
 }
+
+// Ping checks the health endpoint of the SCM service to verify connectivity.
+func (c *Client) Ping(ctx context.Context) error {
+	healthURL := fmt.Sprintf("%s/health", c.baseURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+	return nil
+}
+

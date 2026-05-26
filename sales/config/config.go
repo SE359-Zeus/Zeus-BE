@@ -51,7 +51,7 @@ func Load() *Config {
 		ValkeyAddr:       getenvAny("localhost:6379", "SALES_VALKEY_ADDR", "VALKEY_ADDR"),
 		MRPServiceURL:    getenvAny("http://localhost:8082", "MRP_URL"),
 		SCMServiceURL:    getenvAny("http://localhost:8083", "SCM_BASE_URL", "SCM_URL"),
-		ScmAPIKey:        getenvAny("scmkey01-admin-20260524", "scm_api_key", "X_API_KEY"),
+		ScmAPIKey:        getenvAny("scmkey01-admin-20260524", "SCM_API_KEY", "scm_api_key", "X_API_KEY"),
 		LogLevel:         getenvAny("info", "LOG_LEVEL"),
 		Env:              getenvAny("development", "SALES_ENV", "APP_ENV"),
 		AlloyURL:         getenvAny("", "ALLOY_URL"),

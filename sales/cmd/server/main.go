@@ -74,6 +74,11 @@ func main() {
 		publisher = rabbitmq
 	}
 	scmClient := infraSCM.NewClient(cfg.SCMServiceURL, cfg.ScmAPIKey)
+	if err := scmClient.Ping(context.Background()); err != nil {
+		slog.Warn("scm connection failed", slog.String("service", "sales"), slog.String("component", "scm"), slog.String("url", cfg.SCMServiceURL), slog.String("error", err.Error()))
+	} else {
+		slog.Info("scm connection successful", slog.String("service", "sales"), slog.String("component", "scm"), slog.String("url", cfg.SCMServiceURL))
+	}
 	infra := service.NewInfrastructure(salesCache, publisher, scmClient)
 
 	services := service.NewServices(sqliteRepo, valkeyRepo, infra)
