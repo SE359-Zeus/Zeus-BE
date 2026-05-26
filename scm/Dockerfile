@@ -36,9 +36,9 @@ COPY --from=builder /src/scm/internal/migration ./migrations
 COPY --from=builder /src/reference/seeder/parts.json ./reference/seeder/parts.json
 
 RUN chown -R scm:scm /app
-RUN mkdir -p /app/contracts
 
 USER scm
+RUN mkdir -p /app/contracts
 
 EXPOSE 8081
 
