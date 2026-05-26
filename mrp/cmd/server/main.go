@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -25,6 +25,7 @@ import (
 )
 
 func main() {
+	setupLogger()
 	cfg := configs.Load()
 	valkeyConn := cache.DialValkey(cfg.ValkeyAddr)
 	logStartupValkey(valkeyConn, cfg.ValkeyAddr)
@@ -37,7 +38,8 @@ func main() {
 	}
 	db, err := reposqlite.OpenDatabase(dbPath)
 	if err != nil {
-		log.Fatalf("failed to open sqlite db: %v", err)
+		slog.Error("failed to open sqlite db", slog.String("service", "mrp"), slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 
 	scmClient := scminfra.NewClient()
@@ -47,18 +49,28 @@ func main() {
 	svc := service.NewProductionService(repo, scmClient, cacheRepo, rabbitmq)
 	authVerifier, err := middlewares.NewJWTVerifierFromFile(cfg.JwtPublicKeyPath)
 	if err != nil {
-		log.Fatalf("failed to initialize access-token verifier: %v", err)
+		slog.Error("failed to initialize access-token verifier", slog.String("service", "mrp"), slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 	mux := controllers.NewMux(svc, authVerifier)
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.CustomRecovery(func(c *gin.Context, recovered any) {
+		slog.Error("gin recovery triggered",
+			slog.String("service", "mrp"),
+			slog.String("event", "panic"),
+			slog.String("path", c.Request.URL.Path),
+			slog.Any("error", recovered),
+		)
+		c.AbortWithStatus(http.StatusInternalServerError)
+	}))
 	r.Use(middlewares.AllowAllCORS())
 
 	specPath := findOpenAPISpec()
 	specURL := runtimeServerURL(cfg.Port)
 	spec, err := loadOpenAPISpec(specPath, specURL)
 	if err != nil {
-		log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
+		slog.Warn("could not load openapi spec", slog.String("service", "mrp"), slog.String("spec_path", specPath), slog.String("error", err.Error()))
 	}
 
 	r.GET("/docs/*any", openapiui.WrapHandler(openapiui.Config{
@@ -68,12 +80,12 @@ func main() {
 			if spec == nil {
 				data, err := os.ReadFile(specPath)
 				if err != nil {
-					log.Printf("error reading openapi.yaml: %v", err)
+					slog.Error("error reading openapi.yaml", slog.String("service", "mrp"), slog.String("spec_path", specPath), slog.String("error", err.Error()))
 					return nil, err
 				}
 				var parsed any
 				if err := yaml.Unmarshal(data, &parsed); err != nil {
-					log.Printf("error parsing openapi.yaml: %v", err)
+					slog.Error("error parsing openapi.yaml", slog.String("service", "mrp"), slog.String("spec_path", specPath), slog.String("error", err.Error()))
 					return nil, err
 				}
 				if specMap, ok := parsed.(map[string]any); ok {
@@ -90,10 +102,16 @@ func main() {
 		middlewares.ErrorHandler(mux).ServeHTTP(w, r)
 	}))
 
-	log.Printf("Zeus MRP Service running on :%s", cfg.Port)
+	slog.Info("mrp service started", slog.String("service", "mrp"), slog.String("port", cfg.Port))
 	if err := r.Run(":" + cfg.Port); err != nil {
-		log.Fatalf("server error: %v", err)
+		slog.Error("server error", slog.String("service", "mrp"), slog.String("error", err.Error()))
+		os.Exit(1)
 	}
+}
+
+func setupLogger() {
+	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+	slog.SetDefault(slog.New(handler))
 }
 
 func findOpenAPISpec() string {
@@ -145,53 +163,53 @@ func logStartupSCM(baseURL string) {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/health", nil)
 	if err != nil {
-		log.Printf("SCM connection failed: %v", err)
+		slog.Error("scm connection failed", slog.String("service", "mrp"), slog.String("component", "scm"), slog.String("error", err.Error()))
 		return
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Printf("SCM connection failed at %s: %v", baseURL, err)
+		slog.Error("scm connection failed", slog.String("service", "mrp"), slog.String("component", "scm"), slog.String("base_url", baseURL), slog.String("error", err.Error()))
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("SCM connection failed at %s: status %d", baseURL, resp.StatusCode)
+		slog.Error("scm connection failed", slog.String("service", "mrp"), slog.String("component", "scm"), slog.String("base_url", baseURL), slog.Int("status", resp.StatusCode))
 		return
 	}
-	log.Printf("SCM connection successful at %s", baseURL)
+	slog.Info("scm connection successful", slog.String("service", "mrp"), slog.String("component", "scm"), slog.String("base_url", baseURL))
 }
 
 func logStartupRabbitMQ(url string, rabbitmq *messaginginfra.RabbitMQ) {
 	if url == "" {
-		log.Println("RabbitMQ disabled: no URL configured")
+		slog.Info("rabbitmq disabled", slog.String("service", "mrp"), slog.String("component", "rabbitmq"), slog.String("reason", "no_url_configured"))
 		return
 	}
 	if rabbitmq == nil {
-		log.Printf("RabbitMQ connection failed at %s: client is nil", url)
+		slog.Error("rabbitmq connection failed", slog.String("service", "mrp"), slog.String("component", "rabbitmq"), slog.String("url", url), slog.String("error", "client is nil"))
 		return
 	}
 	if err := rabbitmq.DeclareQueue(messaginginfra.AuditQueue, true); err != nil {
-		log.Printf("RabbitMQ connection failed at %s: %v", url, err)
+		slog.Error("rabbitmq connection failed", slog.String("service", "mrp"), slog.String("component", "rabbitmq"), slog.String("url", url), slog.String("error", err.Error()))
 		return
 	}
-	log.Printf("RabbitMQ connection successful at %s", url)
+	slog.Info("rabbitmq connection successful", slog.String("service", "mrp"), slog.String("component", "rabbitmq"), slog.String("url", url))
 }
 
 func logStartupValkey(conn cache.ValkeyConn, addr string) {
 	if addr == "" {
-		log.Println("Valkey cache disabled: no address configured")
+		slog.Info("valkey cache disabled", slog.String("service", "mrp"), slog.String("component", "valkey"), slog.String("reason", "no_address_configured"))
 		return
 	}
 	if conn == nil {
-		log.Printf("Valkey connection failed at %s: client is nil", addr)
+		slog.Error("valkey connection failed", slog.String("service", "mrp"), slog.String("component", "valkey"), slog.String("addr", addr), slog.String("error", "client is nil"))
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	if _, err := conn.Exists(ctx, "mrp:startup:probe"); err != nil {
-		log.Printf("Valkey connection failed at %s: %v", addr, err)
+		slog.Error("valkey connection failed", slog.String("service", "mrp"), slog.String("component", "valkey"), slog.String("addr", addr), slog.String("error", err.Error()))
 		return
 	}
-	log.Printf("Valkey connection successful at %s", addr)
+	slog.Info("valkey connection successful", slog.String("service", "mrp"), slog.String("component", "valkey"), slog.String("addr", addr))
 }

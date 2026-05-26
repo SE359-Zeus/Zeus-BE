@@ -3,7 +3,10 @@ package middlewares
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
+	"strings"
+	"time"
 )
 
 var (
@@ -55,21 +58,80 @@ func NewHTTPError(status int, code, message string, err error) *HTTPError {
 
 func ErrorHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		logger := requestLoggerFromContext(r)
+		slog.Info("request started",
+			slog.String("service", "mrp"),
+			slog.String("event", "http_request_started"),
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.String("query", r.URL.RawQuery),
+			slog.String("remote_addr", r.RemoteAddr),
+			slog.String("user_id", logger.userID),
+			slog.String("role", logger.role),
+		)
+
+		recorder := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		defer func() {
 			if recovered := recover(); recovered != nil {
 				httpError := normalizeError(recovered)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(httpError.Status)
-				_ = json.NewEncoder(w).Encode(ResponseEnvelope{
+				recorder.Header().Set("Content-Type", "application/json")
+				recorder.WriteHeader(httpError.Status)
+				_ = json.NewEncoder(recorder).Encode(ResponseEnvelope{
 					Message:    httpError.Message,
 					StatusCode: httpError.Status,
 					Metadata:   map[string]any{"code": httpError.Code},
 					Data:       nil,
 				})
+				slog.Error("request failed",
+					slog.String("service", "mrp"),
+					slog.String("event", "http_request_failed"),
+					slog.String("outcome", "panic"),
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.Int("status", httpError.Status),
+					slog.Int64("duration_ms", time.Since(start).Milliseconds()),
+					slog.String("error", httpError.Message),
+					slog.String("user_id", logger.userID),
+					slog.String("role", logger.role),
+				)
+				return
 			}
+			slog.Info("request completed",
+				slog.String("service", "mrp"),
+				slog.String("event", "http_request_completed"),
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.Int("status", recorder.statusCode),
+				slog.Int64("duration_ms", time.Since(start).Milliseconds()),
+				slog.String("user_id", logger.userID),
+				slog.String("role", logger.role),
+			)
 		}()
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(recorder, r)
 	})
+}
+
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (w *loggingResponseWriter) WriteHeader(statusCode int) {
+	w.statusCode = statusCode
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+func requestLoggerFromContext(r *http.Request) struct{ userID, role string } {
+	userID, _ := r.Context().Value(ContextKeyUserID).(string)
+	role, _ := r.Context().Value(ContextKeyRole).(string)
+	if strings.TrimSpace(userID) == "" {
+		userID = "anonymous"
+	}
+	if strings.TrimSpace(role) == "" {
+		role = "unknown"
+	}
+	return struct{ userID, role string }{userID: userID, role: role}
 }
 
 func normalizeError(value any) *HTTPError {

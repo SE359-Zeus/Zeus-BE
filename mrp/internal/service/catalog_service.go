@@ -26,7 +26,11 @@ func (s *ProductionService) GetAssemblies(ctx context.Context) ([]models.Assembl
 		return nil, err
 	}
 
-	return s.hydrateAssemblyNames(ctx, groupAssemblies(boms)), nil
+	assemblies, err := s.groupAssemblies(ctx, boms)
+	if err != nil {
+		return nil, err
+	}
+	return s.hydrateAssemblyNames(ctx, assemblies), nil
 }
 
 func (s *ProductionService) GetAssembliesPage(ctx context.Context, page, per int) ([]models.AssemblyResponse, int, error) {
@@ -37,7 +41,11 @@ func (s *ProductionService) GetAssembliesPage(ctx context.Context, page, per int
 	if err != nil {
 		return nil, 0, err
 	}
-	return s.hydrateAssemblyNames(ctx, groupAssemblies(boms)), total, nil
+	assemblies, err := s.groupAssemblies(ctx, boms)
+	if err != nil {
+		return nil, 0, err
+	}
+	return s.hydrateAssemblyNames(ctx, assemblies), total, nil
 }
 
 func (s *ProductionService) GetAssemblyByModelCode(ctx context.Context, modelCode string) (*models.AssemblyResponse, error) {
@@ -356,36 +364,42 @@ func (s *ProductionService) resolveAssemblyName(ctx context.Context, modelCode s
 	return modelCode
 }
 
-func (s *ProductionService) hydrateAssemblyNames(ctx context.Context, assemblies []models.AssemblyResponse) []models.AssemblyResponse {
+func (s *ProductionService) resolveComponentPartID(ctx context.Context, sku string) (uuid.UUID, error) {
+	sku = strings.TrimSpace(sku)
+	if sku == "" {
+		return uuid.Nil, fmt.Errorf("component sku is required")
+	}
+	if _, err := uuid.Parse(sku); err == nil {
+		return uuid.Nil, fmt.Errorf("sku must be a part number, not a UUID")
+	}
 	if s == nil || s.scmClient == nil {
-		return assemblies
+		return uuid.Nil, fmt.Errorf("component sku %s could not be resolved without SCM client", sku)
 	}
-	resolved := make(map[string]string, len(assemblies))
-	for i := range assemblies {
-		code := assemblies[i].ModelCode
-		if name, ok := resolved[code]; ok {
-			assemblies[i].Name = name
-			continue
-		}
-		name := s.resolveAssemblyName(ctx, code)
-		resolved[code] = name
-		assemblies[i].Name = name
+	part, err := s.scmClient.GetPartCatalogBySKU(ctx, sku)
+	if err != nil {
+		return uuid.Nil, err
 	}
-	return assemblies
+	if part == nil || part.ID == uuid.Nil {
+		return uuid.Nil, fmt.Errorf("component sku %s not found", sku)
+	}
+	return part.ID, nil
 }
 
-func (s *ProductionService) resolveAssemblyName(ctx context.Context, modelCode string) string {
+func (s *ProductionService) resolveComponentSKU(ctx context.Context, partID uuid.UUID) (string, error) {
+	if partID == uuid.Nil {
+		return "", fmt.Errorf("component part id is required")
+	}
 	if s == nil || s.scmClient == nil {
-		return modelCode
+		return partID.String(), nil
 	}
-	model, err := s.scmClient.GetProductModelByCode(ctx, modelCode)
-	if err != nil || model == nil {
-		return modelCode
+	part, err := s.scmClient.GetPartCatalogByID(ctx, partID)
+	if err != nil {
+		return "", err
 	}
-	if name := strings.TrimSpace(model.ModelName); name != "" {
-		return name
+	if part == nil || strings.TrimSpace(part.SKU) == "" {
+		return "", fmt.Errorf("component part %s not found", partID.String())
 	}
-	return modelCode
+	return part.SKU, nil
 }
 
 func catalogFromBOMs(boms []models.BomEntry) []any {
@@ -422,45 +436,4 @@ func uniquePartIDs(entries []models.BomEntry) []uuid.UUID {
 		result = append(result, entry.ComponentPartID)
 	}
 	return result
-}
-
-func (s *ProductionService) resolveComponentPartID(ctx context.Context, sku string) (uuid.UUID, error) {
-	sku = strings.TrimSpace(sku)
-	if sku == "" {
-		return uuid.Nil, fmt.Errorf("sku cannot be empty")
-	}
-	if _, err := uuid.Parse(sku); err == nil {
-		return uuid.Nil, fmt.Errorf("sku must be a part number, not a UUID")
-	}
-	if s.scmClient == nil {
-		return uuid.Nil, fmt.Errorf("SCM client is required to resolve part numbers")
-	}
-	part, err := s.scmClient.GetPartCatalogBySKU(ctx, sku)
-	if err != nil {
-		return uuid.Nil, err
-	}
-	if part == nil || part.ID == uuid.Nil {
-		return uuid.Nil, fmt.Errorf("component with SKU %s not found", sku)
-	}
-	return part.ID, nil
-}
-
-func (s *ProductionService) resolveComponentSKU(ctx context.Context, partID uuid.UUID) (string, error) {
-	if partID == uuid.Nil {
-		return "", fmt.Errorf("component part id is required")
-	}
-	if s.scmClient == nil {
-		return partID.String(), nil
-	}
-	part, err := s.scmClient.GetPartCatalogByID(ctx, partID)
-	if err != nil {
-		return "", err
-	}
-	if part == nil || strings.TrimSpace(part.SKU) == "" {
-		return "", fmt.Errorf("component %s not found in SCM", partID.String())
-	}
-	if _, err := uuid.Parse(part.SKU); err == nil {
-		return "", fmt.Errorf("SCM returned UUID-shaped sku for component %s", partID.String())
-	}
-	return part.SKU, nil
 }
