@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"os"
 
 	"zeus-scm-service/internal/repository/sqlite"
 	"zeus-scm-service/seeder"
@@ -14,6 +15,10 @@ func main() {
 	partsDataPath := flag.String("parts-data", "reference/seeder/parts.json", "path to the parts seed data JSON")
 	manifestOutPath := flag.String("manifest-out", "seeder/resources/scm-manifest.json", "path to write the generated seed manifest JSON")
 	flag.Parse()
+
+	if err := clearSeederArtifacts(*dbPath, *manifestOutPath); err != nil {
+		log.Fatalf("failed to clear previous seed artifacts: %v", err)
+	}
 
 	db, err := sqlite.NewDB(*dbPath)
 	if err != nil {
@@ -30,4 +35,34 @@ func main() {
 	}
 
 	log.Println("Process complete.")
+}
+
+func clearSeederArtifacts(dbPath string, manifestOutPath string) error {
+	paths := []string{dbPath}
+	if dbPath != "" && dbPath != ":memory:" && dbPath != "file::memory:" {
+		paths = append(paths, dbPath+"-wal", dbPath+"-shm")
+	}
+	if manifestOutPath != "" {
+		paths = append(paths, manifestOutPath)
+	}
+
+	for _, path := range paths {
+		if err := removeIfExists(path); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func removeIfExists(path string) error {
+	if path == "" {
+		return nil
+	}
+
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
 }

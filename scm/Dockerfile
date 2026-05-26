@@ -38,6 +38,7 @@ COPY --from=builder /src/reference/seeder/parts.json ./reference/seeder/parts.js
 RUN chown -R scm:scm /app
 
 USER scm
+
 RUN mkdir -p /app/contracts
 
 EXPOSE 8081
