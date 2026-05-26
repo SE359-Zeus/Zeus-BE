@@ -14,6 +14,7 @@ type AuditPublisher interface {
 type SCMClient interface {
 	GetPartCatalogBySKU(ctx context.Context, sku string) (*models.Part, error)
 	GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error)
+	GetProductModelByCode(ctx context.Context, code string) (*models.ProductModel, error)
 	ListStocks(ctx context.Context, page, limit int, sortBy, sortDir, q string) ([]models.ComponentStock, bool, error)
 	CreateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error)
 	UpdateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error)

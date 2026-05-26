@@ -171,6 +171,14 @@ func (m *MockSCMClient) GetStockBySKU(ctx context.Context, sku string) (*models.
 	return nil, args.Error(1)
 }
 
+func (m *MockSCMClient) GetProductModelByCode(ctx context.Context, code string) (*models.ProductModel, error) {
+	args := m.Called(ctx, code)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.ProductModel), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockSCMClient) ListStocks(ctx context.Context, page, limit int, sortBy, sortDir, q string) ([]models.ComponentStock, bool, error) {
 	args := m.Called(ctx, page, limit, sortBy, sortDir, q)
 	if args.Get(0) != nil {

@@ -74,6 +74,36 @@ func (c *Client) GetStockBySKU(ctx context.Context, sku string) (*models.Compone
 	return &envelope.Data, nil
 }
 
+func (c *Client) GetProductModelByCode(ctx context.Context, code string) (*models.ProductModel, error) {
+	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/product-models/%s", c.baseURL, url.PathEscape(code))
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("SCM API returned status %d", resp.StatusCode)
+	}
+
+	var envelope struct {
+		Data models.ProductModel `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, err
+	}
+	return &envelope.Data, nil
+}
+
 func (c *Client) ListStocks(ctx context.Context, page, limit int, sortBy, sortDir, q string) ([]models.ComponentStock, bool, error) {
 	query := url.Values{}
 	if page > 0 {
