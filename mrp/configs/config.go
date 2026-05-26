@@ -19,6 +19,10 @@ type Config struct {
 	ReadTimeout      time.Duration
 	WriteTimeout     time.Duration
 	ShutdownTimeout  time.Duration
+	// Observability
+	AlloyURL      string
+	AlloyUsername string
+	AlloyPassword string
 }
 
 func Load() *Config {
@@ -35,6 +39,9 @@ func Load() *Config {
 		ReadTimeout:      time.Duration(getEnvInt("MRP_READ_TIMEOUT_SEC", 15)) * time.Second,
 		WriteTimeout:     time.Duration(getEnvInt("MRP_WRITE_TIMEOUT_SEC", 15)) * time.Second,
 		ShutdownTimeout:  time.Duration(getEnvInt("MRP_SHUTDOWN_TIMEOUT_SEC", 10)) * time.Second,
+		AlloyURL:         getEnv("ALLOY_URL", ""),
+		AlloyUsername:    getEnv("ALLOY_USERNAME", ""),
+		AlloyPassword:    getEnv("ALLOY_PASSWORD", ""),
 	}
 }
 

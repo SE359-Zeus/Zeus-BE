@@ -12,7 +12,9 @@ import (
 	"zeus-mrp-service/configs"
 	"zeus-mrp-service/internal/controllers"
 	"zeus-mrp-service/internal/infrastructure/cache"
+	"zeus-mrp-service/internal/infrastructure/cronjob"
 	messaginginfra "zeus-mrp-service/internal/infrastructure/messaging"
+	"zeus-mrp-service/internal/infrastructure/observability"
 	scminfra "zeus-mrp-service/internal/infrastructure/scm"
 	"zeus-mrp-service/internal/middlewares"
 	reposqlite "zeus-mrp-service/internal/repository/sqlite"
@@ -25,8 +27,29 @@ import (
 )
 
 func main() {
-	setupLogger()
 	cfg := configs.Load()
+
+	// ── Observability: logger + metrics (must be first) ───────────────────────
+	env := cfg.Env
+	if env == "" {
+		env = os.Getenv("APP_ENV")
+	}
+	obs, shutdownObs := observability.Setup(observability.Config{
+		ServiceName:   "mrp",
+		Env:           env,
+		AlloyURL:      cfg.AlloyURL,
+		AlloyUsername: cfg.AlloyUsername,
+		AlloyPassword: cfg.AlloyPassword,
+	})
+	defer shutdownObs()
+	slog.SetDefault(obs.Logger)
+
+	// ── Periodic metrics collector ────────────────────────────────────────────
+	scheduler := cronjob.NewScheduler()
+	scheduler.Register("metrics", 30*time.Second, cronjob.MetricsCollectorJob(obs.Metrics))
+	scheduler.Start(context.Background())
+	defer scheduler.Stop()
+
 	valkeyConn := cache.DialValkey(cfg.ValkeyAddr)
 	logStartupValkey(valkeyConn, cfg.ValkeyAddr)
 	rabbitmq := messaginginfra.NewRabbitMQ(cfg.RabbitMQURL)
@@ -55,6 +78,7 @@ func main() {
 	mux := controllers.NewMux(svc, authVerifier)
 
 	r := gin.New()
+	r.Use(observability.Tracing("mrp")) // inject trace_id / span_id
 	r.Use(gin.CustomRecovery(func(c *gin.Context, recovered any) {
 		slog.Error("gin recovery triggered",
 			slog.String("service", "mrp"),
@@ -65,6 +89,10 @@ func main() {
 		c.AbortWithStatus(http.StatusInternalServerError)
 	}))
 	r.Use(middlewares.AllowAllCORS())
+
+	// Internal metrics endpoint — Alloy scrapes this.
+	r.GET("/metrics", gin.WrapF(observability.MetricsHTTPHandler(obs.Metrics)))
+
 
 	specPath := findOpenAPISpec()
 	specURL := runtimeServerURL(cfg.Port)
@@ -105,14 +133,11 @@ func main() {
 	slog.Info("mrp service started", slog.String("service", "mrp"), slog.String("port", cfg.Port))
 	if err := r.Run(":" + cfg.Port); err != nil {
 		slog.Error("server error", slog.String("service", "mrp"), slog.String("error", err.Error()))
+		shutdownObs()
 		os.Exit(1)
 	}
 }
 
-func setupLogger() {
-	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
-	slog.SetDefault(slog.New(handler))
-}
 
 func findOpenAPISpec() string {
 	paths := []string{
