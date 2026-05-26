@@ -18,7 +18,7 @@ type AuthLoginResult struct {
 }
 
 // AuthResponse is the JSON body returned for login and refresh endpoints.
-// The refresh token is intentionally omitted — it is set as an HttpOnly cookie.
+// The refresh token is intentionally omitted — it is returned via cookie.
 type AuthResponse struct {
 	AccessToken string       `json:"access_token"`
 	TokenType   string       `json:"token_type"`
@@ -31,7 +31,7 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-// RefreshRequest is kept for the service layer; the handler reads refresh tokens from the cookie.
+// RefreshRequest is kept for the service layer; the handler accepts refresh tokens from body or cookie.
 type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
@@ -40,6 +40,6 @@ const (
 	AccessTokenDuration  = 15 * time.Minute
 	RefreshTokenDuration = 7 * 24 * time.Hour
 
-	// RefreshTokenCookieName is the HttpOnly cookie name used to transport the refresh token.
+	// RefreshTokenCookieName is the cookie name used to transport the refresh token.
 	RefreshTokenCookieName = "refresh_token"
 )

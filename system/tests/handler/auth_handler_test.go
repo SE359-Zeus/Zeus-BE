@@ -80,7 +80,6 @@ func TestAuthHandler_Login_200(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	// Refresh token must be in Set-Cookie, not in the body.
 	assert.Contains(t, w.Header().Get("Set-Cookie"), models.RefreshTokenCookieName)
-	assert.Contains(t, w.Header().Get("Set-Cookie"), "HttpOnly")
 
 	var env struct {
 		StatusCode int             `json:"statusCode"`
@@ -246,7 +245,6 @@ func TestAuthHandler_Refresh_200(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Header().Get("Set-Cookie"), models.RefreshTokenCookieName)
-	assert.Contains(t, w.Header().Get("Set-Cookie"), "HttpOnly")
 
 	var env struct {
 		StatusCode int             `json:"statusCode"`
@@ -275,6 +273,45 @@ func TestAuthHandler_Refresh_401_MissingCookie(t *testing.T) {
 	r.ServeHTTP(w, reqHTTP)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestAuthHandler_Refresh_200_FromBody(t *testing.T) {
+	r, mockSvc := setupAuthTest()
+
+	userID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+	result := &models.AuthLoginResult{
+		Tokens: &models.TokenPair{
+			AccessToken:  "new-access-token",
+			RefreshToken: "new-refresh-token",
+			TokenType:    "Bearer",
+			ExpiresIn:    900,
+		},
+		User: &models.User{
+			ID:     userID,
+			Email:  "admin@zeus.com",
+			Role:   "admin",
+			Status: models.AccountStatusActive,
+		},
+	}
+
+	mockSvc.On("Refresh", mock.Anything, mock.AnythingOfType("models.RefreshRequest")).Return(result, nil)
+
+	w := httptest.NewRecorder()
+	reqHTTP, _ := http.NewRequest("POST", "/auth/refresh", bytes.NewReader([]byte(`{"refresh_token":"valid-refresh-token"}`)))
+	reqHTTP.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, reqHTTP)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Header().Get("Set-Cookie"), models.RefreshTokenCookieName)
+
+	var env struct {
+		StatusCode int             `json:"statusCode"`
+		Data       json.RawMessage `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &env)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, env.StatusCode)
 	mockSvc.AssertExpectations(t)
 }
 

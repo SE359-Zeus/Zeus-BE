@@ -2,7 +2,6 @@ package handler
 
 import (
 	"log"
-	"net/http"
 	"strings"
 	"time"
 
@@ -26,23 +25,21 @@ func NewAuthHandler(authSvc service.AuthService, auditSvc ...service.AuditServic
 	return h
 }
 
-// setRefreshCookie writes the refresh token as an HttpOnly cookie.
+// setRefreshCookie writes the refresh token as a regular cookie.
 func setRefreshCookie(c *gin.Context, token string) {
-	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie(
 		models.RefreshTokenCookieName,
 		token,
 		int(models.RefreshTokenDuration/time.Second),
 		"/",
-		"",   // domain — empty = same host
-		true, // Secure (HTTPS only)
-		true, // HttpOnly
+		"",    // domain — empty = same host
+		true,  // Secure (HTTPS only)
+		false, // HttpOnly
 	)
 }
 
 // clearRefreshCookie removes the refresh token cookie on logout.
 func clearRefreshCookie(c *gin.Context) {
-	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie(
 		models.RefreshTokenCookieName,
 		"",
@@ -50,7 +47,7 @@ func clearRefreshCookie(c *gin.Context) {
 		"/",
 		"",
 		true,
-		true,
+		false,
 	)
 }
 
@@ -99,8 +96,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	refreshToken, err := c.Cookie(models.RefreshTokenCookieName)
-	if err != nil || refreshToken == "" {
+	refreshToken := resolveRefreshToken(c)
+	if refreshToken == "" {
 		WriteAppError(c, exception.ErrInvalidBody)
 		return
 	}
@@ -125,6 +122,25 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		ExpiresIn:   result.Tokens.ExpiresIn,
 		User:        models.ToUserResponse(result.User),
 	})
+}
+
+func resolveRefreshToken(c *gin.Context) string {
+	var body models.RefreshRequest
+	if c.Request != nil && c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&body); err == nil {
+			if token := strings.TrimSpace(body.RefreshToken); token != "" {
+				return token
+			}
+		} else if token, err := c.Cookie(models.RefreshTokenCookieName); err == nil && token != "" {
+			return token
+		}
+	}
+
+	if token, err := c.Cookie(models.RefreshTokenCookieName); err == nil {
+		return strings.TrimSpace(token)
+	}
+
+	return ""
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
