@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"zeus-scm-service/internal/infrastructure/messaging"
@@ -100,7 +100,12 @@ func (s *poService) AddLineItemWithLock(ctx context.Context, poID string, sku st
 
 	conn, err := messaging.Dial(s.mqURL)
 	if err != nil {
-		log.Printf("Warning: RabbitMQ unavailable in degraded mode: %v. Proceeding without deficit reservation.", err)
+		slog.Warn("rabbitmq unavailable in degraded mode; proceeding without deficit reservation",
+			slog.String("service", "scm"),
+			slog.String("component", "purchase_order"),
+			slog.String("event", "dependency_unavailable"),
+			slog.Any("error", err),
+		)
 	} else {
 		defer conn.Close()
 

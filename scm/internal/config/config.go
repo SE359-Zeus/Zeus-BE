@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 
@@ -19,7 +19,10 @@ type Config struct {
 
 func Load() *Config {
 	if err := godotenv.Load(); err != nil {
-		log.Printf(".env file not found, using OS env vars and defaults")
+		slog.Info(".env file not found, using OS env vars and defaults",
+			slog.String("service", "scm"),
+			slog.String("event", "config_fallback"),
+		)
 	}
 	return &Config{
 		ServerPort:          getEnv("SERVER_PORT", "8080"),

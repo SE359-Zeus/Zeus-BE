@@ -2,7 +2,7 @@ package seeder
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 
 	"zeus-scm-service/internal/models"
 
@@ -34,10 +34,20 @@ func seedAPIKeys(db *gorm.DB) string {
 			Active:    true,
 		}
 		if err := db.Create(&apiKey).Error; err != nil {
-			log.Printf("warning: failed to seed api key: %v", err)
+			slog.Warn("failed to seed api key",
+				slog.String("service", "scm"),
+				slog.String("event", "seed_failed"),
+				slog.String("component", "api_key"),
+				slog.Any("error", err),
+			)
 		}
 	case err != nil:
-		log.Printf("warning: failed to load api key for seeding: %v", err)
+		slog.Warn("failed to load api key for seeding",
+			slog.String("service", "scm"),
+			slog.String("event", "seed_failed"),
+			slog.String("component", "api_key"),
+			slog.Any("error", err),
+		)
 	default:
 		updates := map[string]any{
 			"name":         defaultAPIKeyName,
@@ -49,7 +59,12 @@ func seedAPIKeys(db *gorm.DB) string {
 			"deleted_at":   nil,
 		}
 		if err := db.Unscoped().Model(&apiKey).Updates(updates).Error; err != nil {
-			log.Printf("warning: failed to update api key seed: %v", err)
+			slog.Warn("failed to update api key seed",
+				slog.String("service", "scm"),
+				slog.String("event", "seed_failed"),
+				slog.String("component", "api_key"),
+				slog.Any("error", err),
+			)
 		}
 	}
 	return defaultAPIKeyPlaintext

@@ -2,7 +2,7 @@ package cache
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/valkey-io/valkey-go"
@@ -26,7 +26,12 @@ func (c *ValkeyCache) Set(ctx context.Context, key string, data []byte) error {
 		return nil, client.Do(ctx, client.B().Set().Key(key).Value(string(data)).Build()).Error()
 	})
 	if err != nil {
-		log.Printf("Warning: Valkey Set failed (degraded cache mode): %v", err)
+		slog.Warn("valkey set failed in degraded cache mode",
+			slog.String("service", "scm"),
+			slog.String("component", "valkey_cache"),
+			slog.String("operation", "set"),
+			slog.Any("error", err),
+		)
 	}
 	return nil
 }
@@ -36,7 +41,12 @@ func (c *ValkeyCache) Delete(ctx context.Context, key string) error {
 		return nil, client.Do(ctx, client.B().Del().Key(key).Build()).Error()
 	})
 	if err != nil {
-		log.Printf("Warning: Valkey Delete failed (degraded cache mode): %v", err)
+		slog.Warn("valkey delete failed in degraded cache mode",
+			slog.String("service", "scm"),
+			slog.String("component", "valkey_cache"),
+			slog.String("operation", "delete"),
+			slog.Any("error", err),
+		)
 	}
 	return nil
 }
@@ -46,7 +56,12 @@ func (c *ValkeyCache) Flush(ctx context.Context) error {
 		return nil, client.Do(ctx, client.B().Flushall().Build()).Error()
 	})
 	if err != nil {
-		log.Printf("Warning: Valkey Flush failed (degraded cache mode): %v", err)
+		slog.Warn("valkey flush failed in degraded cache mode",
+			slog.String("service", "scm"),
+			slog.String("component", "valkey_cache"),
+			slog.String("operation", "flush"),
+			slog.Any("error", err),
+		)
 	}
 	return nil
 }
@@ -63,7 +78,12 @@ func (c *ValkeyCache) withClient(ctx context.Context, fn func(valkey.Client) ([]
 		InitAddress: []string{c.addr},
 	})
 	if err != nil {
-		log.Printf("Warning: Valkey client creation failed (degraded cache mode): %v", err)
+		slog.Warn("valkey client creation failed in degraded cache mode",
+			slog.String("service", "scm"),
+			slog.String("component", "valkey_cache"),
+			slog.String("operation", "client_create"),
+			slog.Any("error", err),
+		)
 		return nil, nil
 	}
 	defer client.Close()
@@ -71,13 +91,23 @@ func (c *ValkeyCache) withClient(ctx context.Context, fn func(valkey.Client) ([]
 	pingCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 	if err := client.Do(pingCtx, client.B().Ping().Build()).Error(); err != nil {
-		log.Printf("Warning: Valkey ping failed (degraded cache mode): %v", err)
+		slog.Warn("valkey ping failed in degraded cache mode",
+			slog.String("service", "scm"),
+			slog.String("component", "valkey_cache"),
+			slog.String("operation", "ping"),
+			slog.Any("error", err),
+		)
 		return nil, nil
 	}
 
 	res, err := fn(client)
 	if err != nil {
-		log.Printf("Warning: Valkey operation failed (degraded cache mode): %v", err)
+		slog.Warn("valkey operation failed in degraded cache mode",
+			slog.String("service", "scm"),
+			slog.String("component", "valkey_cache"),
+			slog.String("operation", "run"),
+			slog.Any("error", err),
+		)
 		return nil, nil
 	}
 	return res, nil
