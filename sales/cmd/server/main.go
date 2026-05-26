@@ -15,7 +15,7 @@ import (
 	"zeus-sales-service/internal/infrastructure/cronjob"
 	infraMessaging "zeus-sales-service/internal/infrastructure/messaging"
 	"zeus-sales-service/internal/infrastructure/observability"
-	infraSCM "zeus-sales-service/internal/infrastructure/scm"
+	infraClient "zeus-sales-service/internal/infrastructure/client"
 	"zeus-sales-service/internal/middlewares"
 	"zeus-sales-service/internal/repository/sqlite"
 	"zeus-sales-service/internal/repository/valkey"
@@ -73,13 +73,21 @@ func main() {
 		slog.Info("rabbitmq connection successful", slog.String("service", "sales"), slog.String("component", "rabbitmq"))
 		publisher = rabbitmq
 	}
-	scmClient := infraSCM.NewClient(cfg.SCMServiceURL, cfg.ScmAPIKey)
+	scmClient := infraClient.NewSCMClient(cfg.SCMServiceURL, cfg.ScmAPIKey)
 	if err := scmClient.Ping(context.Background()); err != nil {
 		slog.Warn("scm connection failed", slog.String("service", "sales"), slog.String("component", "scm"), slog.String("url", cfg.SCMServiceURL), slog.String("error", err.Error()))
 	} else {
 		slog.Info("scm connection successful", slog.String("service", "sales"), slog.String("component", "scm"), slog.String("url", cfg.SCMServiceURL))
 	}
-	infra := service.NewInfrastructure(salesCache, publisher, scmClient)
+
+	mrpClient := infraClient.NewMRPClient(cfg.MRPServiceURL, cfg.MrpAPIKey)
+	if err := mrpClient.Ping(context.Background()); err != nil {
+		slog.Warn("mrp connection failed", slog.String("service", "sales"), slog.String("component", "mrp"), slog.String("url", cfg.MRPServiceURL), slog.String("error", err.Error()))
+	} else {
+		slog.Info("mrp connection successful", slog.String("service", "sales"), slog.String("component", "mrp"), slog.String("url", cfg.MRPServiceURL))
+	}
+
+	infra := service.NewInfrastructure(salesCache, publisher, scmClient, mrpClient)
 
 	services := service.NewServices(sqliteRepo, valkeyRepo, infra)
 	authVerifier, err := middlewares.NewJWTVerifierFromFile(cfg.JwtPublicKeyPath)

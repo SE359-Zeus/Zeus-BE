@@ -1,4 +1,4 @@
-package scm
+package client
 
 import (
 	"context"
@@ -8,20 +8,20 @@ import (
 	"time"
 )
 
-type Client struct {
+type SCMClient struct {
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
 }
 
-func NewClient(baseURL, apiKey string) *Client {
+func NewSCMClient(baseURL, apiKey string) *SCMClient {
 	if baseURL == "" {
 		baseURL = "http://localhost:8083"
 	}
 	if apiKey == "" {
 		apiKey = "scmkey01-admin-20260524"
 	}
-	return &Client{
+	return &SCMClient{
 		baseURL:    baseURL,
 		apiKey:     apiKey,
 		httpClient: &http.Client{Timeout: 5 * time.Second},
@@ -29,7 +29,7 @@ func NewClient(baseURL, apiKey string) *Client {
 }
 
 // CheckSKU queries SCM to verify if a SKU exists either as a part catalog item or as a product model code.
-func (c *Client) CheckSKU(ctx context.Context, sku string) (bool, error) {
+func (c *SCMClient) CheckSKU(ctx context.Context, sku string) (bool, error) {
 	// 1. Try checking part-catalog by SKU
 	partURL := fmt.Sprintf("%s/api/v1/scm/inventory/part-catalog/sku/%s", c.baseURL, url.PathEscape(sku))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, partURL, nil)
@@ -68,7 +68,7 @@ func (c *Client) CheckSKU(ctx context.Context, sku string) (bool, error) {
 }
 
 // Ping checks the health endpoint of the SCM service to verify connectivity.
-func (c *Client) Ping(ctx context.Context) error {
+func (c *SCMClient) Ping(ctx context.Context) error {
 	healthURL := fmt.Sprintf("%s/health", c.baseURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL, nil)
 	if err != nil {
@@ -84,4 +84,3 @@ func (c *Client) Ping(ctx context.Context) error {
 	}
 	return nil
 }
-

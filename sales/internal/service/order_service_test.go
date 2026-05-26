@@ -264,6 +264,52 @@ func TestOrderService_CreateOrder_AcceptsCamelCaseDatePayload(t *testing.T) {
 	assert.Equal(t, models.SalesOrderStatusPendingCode, response.Order.Status.Code)
 }
 
+func TestOrderService_CreateOrder_CallsSCMandMRPClients(t *testing.T) {
+	db := setupMockDbRepo()
+	cache := setupMockCacheRepo()
+
+	mockSCM := new(MockSCMClient)
+	mockMRP := new(MockMRPClient)
+
+	infra := &Infrastructure{
+		SCMClient: mockSCM,
+		MRPClient: mockMRP,
+	}
+
+	svc := NewServices(db, cache, infra).Orders
+
+	pendingStatus := defaultPendingStatus()
+	db.On("ExistsClientByName", mock.Anything, "Acme").Return(false, nil)
+	db.On("CreateClient", mock.Anything, mock.AnythingOfType("*models.Client")).Return(nil)
+	db.On("GetOrderStatusByCode", mock.Anything, models.SalesOrderStatusPendingCode).Return(pendingStatus, nil)
+	db.On("CreateOrder", mock.Anything, mock.AnythingOfType("*models.SalesOrder")).Return(nil)
+	db.On("CreateOrderItem", mock.Anything, mock.AnythingOfType("*models.SalesOrderItem")).Return(nil)
+	db.On("UpdateClient", mock.Anything, mock.AnythingOfType("*models.Client")).Return(nil)
+	db.On("GetClient", mock.Anything, mock.Anything).Return(&models.Client{ID: uuid.New(), Name: "Acme", Tier: models.ClientTierB2B}, nil)
+	cache.On("EnqueueOrder", mock.Anything, mock.AnythingOfType("models.AllocationQueueEntry")).Return(nil)
+
+	// Set expectations on SCM check and MRP demand creation
+	mockSCM.On("CheckSKU", mock.Anything, "SKU-MRP-TEST").Return(true, nil)
+	mockMRP.On("CreateProductionOrder", mock.Anything, mock.MatchedBy(func(req MRPCreateOrderReq) bool {
+		return req.ProductModelCode == "SKU-MRP-TEST" && req.TargetQuantity == 5
+	})).Return(nil)
+
+	response, err := svc.CreateOrder(context.Background(), models.CreateOrderRequest{
+		ClientName:   "Acme",
+		RequiredDate: time.Date(2026, time.January, 1, 10, 0, 0, 0, time.UTC),
+		Items: []models.OrderItemRequest{{
+			SKU:          "SKU-MRP-TEST",
+			RequestedQty: 5,
+			UnitPrice:    12.5,
+		}},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	mockSCM.AssertExpectations(t)
+	mockMRP.AssertExpectations(t)
+}
+
 func ptrString(value string) *string {
 	return &value
 }

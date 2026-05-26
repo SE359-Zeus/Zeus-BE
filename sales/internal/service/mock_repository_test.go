@@ -218,3 +218,25 @@ func defaultCancelledStatus() *models.SalesOrderStatusLUT {
 
 var _ rootrepo.DbRepository = (*MockDbRepository)(nil)
 var _ rootrepo.CacheRepository = (*MockCacheRepository)(nil)
+
+type MockSCMClient struct {
+	mock.Mock
+}
+
+func (m *MockSCMClient) CheckSKU(ctx context.Context, sku string) (bool, error) {
+	args := m.Called(ctx, sku)
+	return args.Bool(0), args.Error(1)
+}
+
+type MockMRPClient struct {
+	mock.Mock
+}
+
+func (m *MockMRPClient) CreateProductionOrder(ctx context.Context, req MRPCreateOrderReq) error {
+	args := m.Called(ctx, req)
+	return args.Error(0)
+}
+
+var _ SCMClient = (*MockSCMClient)(nil)
+var _ MRPClient = (*MockMRPClient)(nil)
+

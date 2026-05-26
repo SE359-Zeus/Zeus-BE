@@ -140,6 +140,21 @@ func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrder
 			return nil, err
 		}
 	}
+
+	// Notify MRP to plan production (create demand) for each line item
+	if svc.infra != nil && svc.infra.MRPClient != nil {
+		for _, item := range items {
+			mrpReq := MRPCreateOrderReq{
+				ProductModelCode: item.SKU,
+				TargetQuantity:   item.RequestedQty,
+				ScheduledAt:      order.RequiredDate,
+			}
+			if err := svc.infra.MRPClient.CreateProductionOrder(ctx, mrpReq); err != nil {
+				return nil, fmt.Errorf("failed to submit production demand to MRP for SKU %s: %w", item.SKU, err)
+			}
+		}
+	}
+
 	client.TotalLifetimeOrders++
 	if err := svc.clients.repo.UpdateClient(ctx, client); err != nil {
 		return nil, err
@@ -362,6 +377,18 @@ func (svc *OrderService) UpdateOrder(ctx context.Context, id uuid.UUID, req mode
 				return nil, fmt.Errorf("%w: duplicate sku %s", middlewares.ErrValidation, sku)
 			}
 			seen[key] = struct{}{}
+
+			// Validate SKU against SCM
+			if svc.infra != nil && svc.infra.SCMClient != nil {
+				valid, err := svc.infra.SCMClient.CheckSKU(ctx, sku)
+				if err != nil {
+					return nil, fmt.Errorf("failed to validate SKU %s with SCM: %w", sku, err)
+				}
+				if !valid {
+					return nil, fmt.Errorf("%w: SKU %s is not an active, orderable finished good in SCM", middlewares.ErrValidation, sku)
+				}
+			}
+
 			total += float64(item.RequestedQty) * item.UnitPrice
 			items = append(items, models.SalesOrderItem{
 				ID:           uuid.New(),
@@ -373,6 +400,21 @@ func (svc *OrderService) UpdateOrder(ctx context.Context, id uuid.UUID, req mode
 			})
 		}
 		order.TotalValue = total
+
+		// Notify MRP to plan production (create demand) for each updated line item
+		if svc.infra != nil && svc.infra.MRPClient != nil {
+			for _, item := range items {
+				mrpReq := MRPCreateOrderReq{
+					ProductModelCode: item.SKU,
+					TargetQuantity:   item.RequestedQty,
+					ScheduledAt:      order.RequiredDate,
+				}
+				if err := svc.infra.MRPClient.CreateProductionOrder(ctx, mrpReq); err != nil {
+					return nil, fmt.Errorf("failed to submit production demand to MRP for SKU %s: %w", item.SKU, err)
+				}
+			}
+		}
+
 		if err := svc.repo.ReplaceOrderItems(ctx, order.ID, items); err != nil {
 			return nil, err
 		}
