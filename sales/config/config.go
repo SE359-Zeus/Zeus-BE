@@ -28,6 +28,12 @@ type Config struct {
 
 	// Logging
 	LogLevel string
+
+	// Observability
+	Env           string
+	AlloyURL      string
+	AlloyUsername string
+	AlloyPassword string
 }
 
 var loadEnvOnce sync.Once
@@ -45,6 +51,10 @@ func Load() *Config {
 		MRPServiceURL:    getenvAny("http://localhost:8082", "MRP_URL"),
 		SCMServiceURL:    getenvAny("http://localhost:8083", "SCM_URL"),
 		LogLevel:         getenvAny("info", "LOG_LEVEL"),
+		Env:              getenvAny("development", "SALES_ENV", "APP_ENV"),
+		AlloyURL:         getenvAny("", "ALLOY_URL"),
+		AlloyUsername:    getenvAny("", "ALLOY_USERNAME"),
+		AlloyPassword:    getenvAny("", "ALLOY_PASSWORD"),
 	}
 }
 
