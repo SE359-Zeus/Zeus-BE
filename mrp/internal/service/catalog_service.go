@@ -37,7 +37,11 @@ func (s *ProductionService) GetAssembliesPage(ctx context.Context, page, per int
 	if err != nil {
 		return nil, 0, err
 	}
-	return groupAssemblies(boms), total, nil
+	assemblies, err := s.groupAssemblies(ctx, boms)
+	if err != nil {
+		return nil, 0, err
+	}
+	return assemblies, total, nil
 }
 
 func (s *ProductionService) GetAssemblyByModelCode(ctx context.Context, modelCode string) (*models.AssemblyResponse, error) {

@@ -17,6 +17,8 @@ FROM alpine:3.22
 
 RUN apk add --no-cache ca-certificates
 
+RUN addgroup -S mrp && adduser -S mrp -G mrp
+
 WORKDIR /app
 
 ARG VERSION=dev
@@ -28,6 +30,10 @@ COPY --from=builder /out/migrate ./migrate
 COPY --from=builder /out/seeder ./seeder
 COPY --from=builder /app/docs ./docs
 COPY --from=builder /app/migrations ./migrations
+
+RUN chown -R mrp:mrp /app
+
+USER mrp
 
 EXPOSE 8083
 
