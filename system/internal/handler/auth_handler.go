@@ -2,6 +2,7 @@ package handler
 
 import (
 	"log"
+	"net/http"
 	"strings"
 	"time"
 
@@ -27,13 +28,14 @@ func NewAuthHandler(authSvc service.AuthService, auditSvc ...service.AuditServic
 
 // setRefreshCookie writes the refresh token as a regular cookie.
 func setRefreshCookie(c *gin.Context, token string) {
+	c.SetSameSite(http.SameSiteNoneMode)
 	c.SetCookie(
 		models.RefreshTokenCookieName,
 		token,
 		int(models.RefreshTokenDuration/time.Second),
 		"/",
 		"",    // domain — empty = same host
-		true,  // Secure (HTTPS only)
+		false, // Secure (HTTPS only)
 		false, // HttpOnly
 	)
 }
