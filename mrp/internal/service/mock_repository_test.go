@@ -163,6 +163,14 @@ func (m *MockSCMClient) GetPartCatalogBySKU(ctx context.Context, sku string) (*m
 	return nil, args.Error(1)
 }
 
+func (m *MockSCMClient) GetPartCatalogByID(ctx context.Context, id uuid.UUID) (*models.Part, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Part), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockSCMClient) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
 	args := m.Called(ctx, sku)
 	if args.Get(0) != nil {

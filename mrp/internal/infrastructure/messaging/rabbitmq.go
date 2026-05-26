@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"sync"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -23,18 +23,18 @@ type RabbitMQ struct {
 func NewRabbitMQ(url string) *RabbitMQ {
 	r := &RabbitMQ{url: url}
 	if url == "" {
-		log.Println("RabbitMQ disabled: no URL configured")
+		slog.Info("rabbitmq disabled", slog.String("service", "mrp"), slog.String("component", "rabbitmq"), slog.String("reason", "no_url_configured"))
 		return r
 	}
 
 	conn, err := amqp.Dial(url)
 	if err != nil {
-		log.Printf("Warning: RabbitMQ connection failed at %s: %v", url, err)
+		slog.Warn("rabbitmq connection failed", slog.String("service", "mrp"), slog.String("component", "rabbitmq"), slog.String("url", url), slog.String("error", err.Error()))
 		return r
 	}
 	_ = conn.Close()
 
-	log.Printf("RabbitMQ connection successful at %s", url)
+	slog.Info("rabbitmq connection successful", slog.String("service", "mrp"), slog.String("component", "rabbitmq"), slog.String("url", url))
 	r.available = true
 	return r
 }

@@ -3,7 +3,7 @@ package cache
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -34,25 +34,25 @@ type valkeyConn struct {
 func DialValkey(addr string) ValkeyConn {
 	conn := &valkeyConn{}
 	if addr == "" {
-		log.Println("Valkey cache disabled: no address configured")
+		slog.Info("valkey cache disabled", slog.String("service", "mrp"), slog.String("component", "valkey"), slog.String("reason", "no_address_configured"))
 		return conn
 	}
 
 	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{addr}})
 	if err != nil {
-		log.Printf("Warning: Valkey client creation failed at %s: %v", addr, err)
+		slog.Warn("valkey client creation failed", slog.String("service", "mrp"), slog.String("component", "valkey"), slog.String("addr", addr), slog.String("error", err.Error()))
 		return conn
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	if err := client.Do(ctx, client.B().Ping().Build()).Error(); err != nil {
-		log.Printf("Warning: Valkey connection failed at %s: %v", addr, err)
+		slog.Warn("valkey connection failed", slog.String("service", "mrp"), slog.String("component", "valkey"), slog.String("addr", addr), slog.String("error", err.Error()))
 		client.Close()
 		return conn
 	}
 
-	log.Printf("Valkey connection successful at %s", addr)
+	slog.Info("valkey connection successful", slog.String("service", "mrp"), slog.String("component", "valkey"), slog.String("addr", addr))
 	conn.client = client
 	conn.available = true
 	return conn
