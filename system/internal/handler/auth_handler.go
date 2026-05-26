@@ -34,9 +34,9 @@ func setRefreshCookie(c *gin.Context, token string) {
 		token,
 		int(models.RefreshTokenDuration/time.Second),
 		"/",
-		"",    // domain — empty = same host
-		false, // Secure (HTTPS only)
-		false, // HttpOnly
+		"localhost", // domain — empty = same host
+		false,       // Secure (HTTPS only)
+		false,       // HttpOnly
 	)
 }
 
