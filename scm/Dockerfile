@@ -20,7 +20,7 @@ FROM alpine:3.22
 
 RUN apk add --no-cache ca-certificates sqlite-libs
 
-RUN addgroup -S scm && adduser -S scm -G scm
+RUN addgroup -S -g 1001 scm && adduser -S -u 1001 -G scm scm
 
 WORKDIR /app
 
