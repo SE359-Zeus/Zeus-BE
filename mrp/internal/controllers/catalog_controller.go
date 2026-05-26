@@ -16,17 +16,18 @@ func (c *ProductionController) GetAssemblies(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	res, err := c.svc.GetAssemblies(r.Context())
+	res, total, err := c.svc.GetAssembliesPage(r.Context(), page, per)
 	if err != nil {
 		writeErrorJSON(w, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
-	items := make([]any, 0, len(res))
-	for _, v := range res {
-		items = append(items, v)
+	meta := map[string]any{
+		"page":        page,
+		"per_page":    per,
+		"total":       total,
+		"total_pages": (total + per - 1) / per,
 	}
-	pageItems, meta := paginateAny(items, page, per)
-	writeEnvelope(w, http.StatusOK, http.StatusText(http.StatusOK), meta, pageItems)
+	writeEnvelope(w, http.StatusOK, http.StatusText(http.StatusOK), meta, res)
 }
 
 // POST /api/v1/mrp/assemblies
@@ -212,4 +213,3 @@ func (c *ProductionController) DeleteCatalogPart(w http.ResponseWriter, r *http.
 
 	writeJSON(w, http.StatusNoContent, nil)
 }
-
