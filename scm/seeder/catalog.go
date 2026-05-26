@@ -2,7 +2,7 @@ package seeder
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 	"zeus-scm-service/internal/models"
 
@@ -29,7 +29,12 @@ func seedCatalogs(db *gorm.DB, data *PartsFile) (map[string]int32, map[string]mo
 			catMap[key] = c
 		}
 		if err := ensurePartsByModelTable(db); err != nil {
-			log.Printf("warning: failed to ensure parts_by_model table: %v", err)
+			slog.Warn("failed to ensure parts_by_model table",
+				slog.String("service", "scm"),
+				slog.String("event", "seed_warning"),
+				slog.String("component", "parts_by_model"),
+				slog.Any("error", err),
+			)
 		}
 		return typeMap, catMap
 	}
@@ -63,7 +68,12 @@ func seedCatalogs(db *gorm.DB, data *PartsFile) (map[string]int32, map[string]mo
 		catMap[key] = cat
 	}
 	if err := ensurePartsByModelTable(db); err != nil {
-		log.Printf("warning: failed to ensure parts_by_model table: %v", err)
+		slog.Warn("failed to ensure parts_by_model table",
+			slog.String("service", "scm"),
+			slog.String("event", "seed_warning"),
+			slog.String("component", "parts_by_model"),
+			slog.Any("error", err),
+		)
 	}
 	return typeMap, catMap
 }

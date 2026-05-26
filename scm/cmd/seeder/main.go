@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"log"
+	"log/slog"
 	"os"
 
 	"zeus-scm-service/internal/repository/sqlite"
@@ -10,6 +10,8 @@ import (
 )
 
 func main() {
+	setupLogger()
+
 	dbPath := flag.String("db", "scm.db", "path to the SQLite database file")
 	migrationsPath := flag.String("migrations", "migrations", "path to SQL migrations")
 	partsDataPath := flag.String("parts-data", "reference/seeder/parts.json", "path to the parts seed data JSON")
@@ -17,24 +19,52 @@ func main() {
 	flag.Parse()
 
 	if err := clearSeederArtifacts(*dbPath, *manifestOutPath); err != nil {
-		log.Fatalf("failed to clear previous seed artifacts: %v", err)
+		slog.Error("failed to clear previous seed artifacts",
+			slog.String("service", "scm"),
+			slog.String("event", "startup_failed"),
+			slog.String("component", "seeder_artifacts"),
+			slog.Any("error", err),
+		)
+		os.Exit(1)
 	}
 
 	db, err := sqlite.NewDB(*dbPath)
 	if err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
+		slog.Error("failed to connect to database",
+			slog.String("service", "scm"),
+			slog.String("event", "startup_failed"),
+			slog.String("component", "database"),
+			slog.Any("error", err),
+		)
+		os.Exit(1)
 	}
 
-	log.Println("Running SQL Migrations...")
+	slog.Info("running SQL migrations",
+		slog.String("service", "scm"),
+		slog.String("event", "migration_started"),
+		slog.String("path", *migrationsPath),
+	)
 	if err := sqlite.RunMigrations(db, *migrationsPath); err != nil {
-		log.Printf("Migration warning (might already be up to date): %v", err)
+		slog.Warn("migration warning (might already be up to date)",
+			slog.String("service", "scm"),
+			slog.String("event", "migration_warning"),
+			slog.Any("error", err),
+		)
 	}
 
 	if err := seeder.SeedAll(db, *partsDataPath, *manifestOutPath); err != nil {
-		log.Fatalf("Seeding failed: %v", err)
+		slog.Error("seeding failed",
+			slog.String("service", "scm"),
+			slog.String("event", "seed_failed"),
+			slog.Any("error", err),
+		)
+		os.Exit(1)
 	}
 
-	log.Println("Process complete.")
+	slog.Info("seeder process complete",
+		slog.String("service", "scm"),
+		slog.String("event", "seed_completed"),
+	)
 }
 
 func clearSeederArtifacts(dbPath string, manifestOutPath string) error {
@@ -65,4 +95,9 @@ func removeIfExists(path string) error {
 	}
 
 	return nil
+}
+
+func setupLogger() {
+	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+	slog.SetDefault(slog.New(handler))
 }

@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/repository"
@@ -55,7 +55,12 @@ func (s *cachedVendorService) UpdateSupplierMetrics(ctx context.Context, supplie
 				_ = s.vendorCache.DeleteOptimalSupplier(ctx, m.SKU)
 			}
 		} else {
-			log.Printf("warning: failed to find SKU mappings for supplier %s to invalidate cache: %v", supplierID.String(), err)
+			slog.Warn("failed to find SKU mappings for supplier to invalidate cache",
+				slog.String("service", "scm"),
+				slog.String("component", "vendor_cache"),
+				slog.String("supplier_id", supplierID.String()),
+				slog.Any("error", err),
+			)
 		}
 	}
 	return nil

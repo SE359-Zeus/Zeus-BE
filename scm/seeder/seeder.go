@@ -2,19 +2,24 @@ package seeder
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/brianvoe/gofakeit/v6"
 	"gorm.io/gorm"
 )
 
 func SeedAll(db *gorm.DB, partsDataPath string, manifestOutPath string) error {
-	log.Println("Starting SCM Seeder...")
+	slog.Info("starting scm seeder", slog.String("service", "scm"), slog.String("event", "seed_start"))
 	gofakeit.Seed(0)
 
 	seedLookupTables(db)
-	apiKey := seedAPIKeys(db)
-	log.Printf("Seeded SCM API key: %s", apiKey)
+	_ = seedAPIKeys(db)
+	slog.Info("seeded scm api key",
+		slog.String("service", "scm"),
+		slog.String("event", "seeded_api_key"),
+		slog.String("api_key_name", defaultAPIKeyName),
+		slog.String("api_key_prefix", defaultAPIKeyPrefix),
+	)
 	suppliers := seedSuppliers(db, 5)
 
 	data, err := loadPartsData(partsDataPath)
@@ -30,9 +35,14 @@ func SeedAll(db *gorm.DB, partsDataPath string, manifestOutPath string) error {
 	seedProductsAndParts(db, modelsList, catMap)
 
 	if err := writeSeedManifest(db, manifestOutPath); err != nil {
-		log.Printf("warning: failed to write seed manifest %q: %v", manifestOutPath, err)
+		slog.Warn("failed to write seed manifest",
+			slog.String("service", "scm"),
+			slog.String("event", "manifest_write_failed"),
+			slog.String("path", manifestOutPath),
+			slog.Any("error", err),
+		)
 	}
 
-	log.Println("SCM Seeder finished successfully.")
+	slog.Info("scm seeder finished successfully", slog.String("service", "scm"), slog.String("event", "seed_complete"))
 	return nil
 }
