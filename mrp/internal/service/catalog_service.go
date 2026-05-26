@@ -29,6 +29,17 @@ func (s *ProductionService) GetAssemblies(ctx context.Context) ([]models.Assembl
 	return s.groupAssemblies(ctx, boms)
 }
 
+func (s *ProductionService) GetAssembliesPage(ctx context.Context, page, per int) ([]models.AssemblyResponse, int, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, 0, err
+	}
+	boms, total, err := s.repo.GetPagedBOMsByAssembly(ctx, page, per)
+	if err != nil {
+		return nil, 0, err
+	}
+	return groupAssemblies(boms), total, nil
+}
+
 func (s *ProductionService) GetAssemblyByModelCode(ctx context.Context, modelCode string) (*models.AssemblyResponse, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

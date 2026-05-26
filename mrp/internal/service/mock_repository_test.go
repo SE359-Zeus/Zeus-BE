@@ -65,6 +65,18 @@ func (m *MockMRPRepository) GetAllBOMs(ctx context.Context) ([]models.BomEntry, 
 	return nil, args.Error(1)
 }
 
+func (m *MockMRPRepository) GetPagedBOMsByAssembly(ctx context.Context, page, per int) ([]models.BomEntry, int, error) {
+	args := m.Called(ctx, page, per)
+	var total int
+	if t := args.Get(1); t != nil {
+		total = t.(int)
+	}
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.BomEntry), total, args.Error(2)
+	}
+	return nil, total, args.Error(2)
+}
+
 func (m *MockMRPRepository) GetWhereUsedByPartID(ctx context.Context, partID uuid.UUID) ([]models.BomEntry, error) {
 	args := m.Called(ctx, partID)
 	if args.Get(0) != nil {
@@ -125,6 +137,7 @@ func setupMockRepo() *MockMRPRepository {
 	m.On("CreateProductionOrder", mock.Anything, mock.Anything).Return(nil)
 	m.On("GetBOMByModelCode", mock.Anything, mock.Anything).Return([]models.BomEntry{}, nil)
 	m.On("GetAllBOMs", mock.Anything).Return([]models.BomEntry{}, nil)
+	m.On("GetPagedBOMsByAssembly", mock.Anything, mock.Anything, mock.Anything).Return([]models.BomEntry{}, 0, nil)
 	m.On("GetWhereUsedByPartID", mock.Anything, mock.Anything).Return([]models.BomEntry{}, nil)
 	m.On("CreateBOMEntries", mock.Anything, mock.Anything).Return(nil)
 	m.On("DeleteBOMEntriesByModelCode", mock.Anything, mock.Anything).Return(nil)

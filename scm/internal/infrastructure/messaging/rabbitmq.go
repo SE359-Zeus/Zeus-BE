@@ -178,6 +178,21 @@ func (r *RabbitMQ) PublishToReserved(msg DeficitMessage) error {
 	})
 }
 
+func (r *RabbitMQ) PublishToAudit(msg any) error {
+	return r.withChannel(func(channel *amqp.Channel) error {
+		body, err := json.Marshal(msg)
+		if err != nil {
+			return err
+		}
+		return channel.PublishWithContext(context.Background(), "", AuditQueue, true, false, amqp.Publishing{
+			ContentType:  "application/json",
+			Body:         body,
+			DeliveryMode: amqp.Persistent,
+		})
+	})
+}
+
+
 func (r *RabbitMQ) ConsumeReserved() (<-chan amqp.Delivery, error) {
 	return r.consume(ReservedQueue, false, false)
 }

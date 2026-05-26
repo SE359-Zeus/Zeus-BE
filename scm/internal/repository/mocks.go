@@ -30,6 +30,14 @@ func (m *MockVendorRepository) FindSkuMappingsBySKU(ctx context.Context, sku str
 	return nil, args.Error(1)
 }
 
+func (m *MockVendorRepository) FindSkuMappingsBySupplierID(ctx context.Context, supplierID uuid.UUID) ([]models.SkuMapping, error) {
+	args := m.Called(ctx, supplierID)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.SkuMapping), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockVendorRepository) UpdateSupplier(ctx context.Context, id uuid.UUID, updates map[string]interface{}) error {
 	args := m.Called(ctx, id, updates)
 	return args.Error(0)

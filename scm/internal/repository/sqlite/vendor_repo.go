@@ -66,3 +66,11 @@ func (r *vendorRepository) FindGRLineItemsByGRID(ctx context.Context, grID strin
 	}
 	return items, nil
 }
+
+func (r *vendorRepository) FindSkuMappingsBySupplierID(ctx context.Context, supplierID uuid.UUID) ([]models.SkuMapping, error) {
+	var mappings []models.SkuMapping
+	if err := r.db.WithContext(ctx).Where("supplier_id = ?", supplierID).Find(&mappings).Error; err != nil {
+		return nil, err
+	}
+	return mappings, nil
+}

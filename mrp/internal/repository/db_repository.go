@@ -20,6 +20,7 @@ type DbRepository interface {
 	DeleteBOMEntriesByModelCode(ctx context.Context, modelCode string) error
 	GetBOMByModelCode(ctx context.Context, modelCode string) ([]models.BomEntry, error)
 	GetAllBOMs(ctx context.Context) ([]models.BomEntry, error)
+	GetPagedBOMsByAssembly(ctx context.Context, page, per int) ([]models.BomEntry, int, error)
 	GetWhereUsedByPartID(ctx context.Context, partID uuid.UUID) ([]models.BomEntry, error)
 
 	// Shortages & Demand
