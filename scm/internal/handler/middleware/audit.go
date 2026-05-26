@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -100,7 +101,15 @@ func Audit(mq AuditPublisher) gin.HandlerFunc {
 
 		// Publish to audit queue asynchronously to avoid blocking the client response
 		go func() {
-			_ = mq.PublishToAudit(msg)
+			if err := mq.PublishToAudit(msg); err != nil {
+				slog.Warn("audit publish failed",
+					slog.String("service", "scm"),
+					slog.String("event", "audit_publish_failed"),
+					slog.String("method", method),
+					slog.String("path", c.Request.URL.Path),
+					slog.Any("error", err),
+				)
+			}
 		}()
 	}
 }

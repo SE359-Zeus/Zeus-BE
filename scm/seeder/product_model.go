@@ -2,7 +2,7 @@ package seeder
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"zeus-scm-service/internal/models"
 
 	"time"
@@ -12,7 +12,12 @@ import (
 
 func seedProductModels(db *gorm.DB, installs map[string][]PartInstallationData, catMap map[string]models.PartCatalog) []models.ProductModel {
 	if err := ensurePartsByModelTable(db); err != nil {
-		log.Printf("warning: failed to ensure parts_by_model table: %v", err)
+		slog.Warn("failed to ensure parts_by_model table",
+			slog.String("service", "scm"),
+			slog.String("event", "seed_warning"),
+			slog.String("component", "parts_by_model"),
+			slog.Any("error", err),
+		)
 	}
 
 	var existingCount int64

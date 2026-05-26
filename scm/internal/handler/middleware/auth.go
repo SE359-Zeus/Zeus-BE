@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log/slog"
 	"strings"
 	"time"
 
@@ -29,6 +30,14 @@ func Authenticate(jwtSvc *service.JWTService, db *gorm.DB) gin.HandlerFunc {
 
 		if apiKey != "" {
 			if len(apiKey) < 8 {
+				slog.Warn("api key rejected",
+					slog.String("service", "scm"),
+					slog.String("event", "auth_rejected"),
+					slog.String("auth_method", "api_key"),
+					slog.String("reason", "invalid_length"),
+					slog.String("method", c.Request.Method),
+					slog.String("path", c.Request.URL.Path),
+				)
 				exception.WriteError(c, exception.ErrAPIKeyInvalid)
 				return
 			}
@@ -36,16 +45,41 @@ func Authenticate(jwtSvc *service.JWTService, db *gorm.DB) gin.HandlerFunc {
 
 			var key models.ApiKey
 			if err := db.Where("key_prefix = ? AND active = ? AND deleted_at IS NULL", prefix, true).First(&key).Error; err != nil {
+				slog.Warn("api key rejected",
+					slog.String("service", "scm"),
+					slog.String("event", "auth_rejected"),
+					slog.String("auth_method", "api_key"),
+					slog.String("reason", "lookup_failed"),
+					slog.String("method", c.Request.Method),
+					slog.String("path", c.Request.URL.Path),
+					slog.Any("error", err),
+				)
 				exception.WriteError(c, exception.ErrAPIKeyInvalid)
 				return
 			}
 
 			if key.ExpiresAt != nil && time.Now().After(*key.ExpiresAt) {
+				slog.Warn("api key rejected",
+					slog.String("service", "scm"),
+					slog.String("event", "auth_rejected"),
+					slog.String("auth_method", "api_key"),
+					slog.String("reason", "expired"),
+					slog.String("method", c.Request.Method),
+					slog.String("path", c.Request.URL.Path),
+				)
 				exception.WriteError(c, exception.ErrAPIKeyExpired)
 				return
 			}
 
 			if err := bcrypt.CompareHashAndPassword([]byte(key.KeyHash), []byte(apiKey)); err != nil {
+				slog.Warn("api key rejected",
+					slog.String("service", "scm"),
+					slog.String("event", "auth_rejected"),
+					slog.String("auth_method", "api_key"),
+					slog.String("reason", "hash_mismatch"),
+					slog.String("method", c.Request.Method),
+					slog.String("path", c.Request.URL.Path),
+				)
 				exception.WriteError(c, exception.ErrAPIKeyInvalid)
 				return
 			}
@@ -65,12 +99,29 @@ func Authenticate(jwtSvc *service.JWTService, db *gorm.DB) gin.HandlerFunc {
 		if authHeader != "" {
 			parts := strings.SplitN(authHeader, " ", 2)
 			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+				slog.Warn("bearer token rejected",
+					slog.String("service", "scm"),
+					slog.String("event", "auth_rejected"),
+					slog.String("auth_method", "jwt"),
+					slog.String("reason", "invalid_header"),
+					slog.String("method", c.Request.Method),
+					slog.String("path", c.Request.URL.Path),
+				)
 				exception.WriteError(c, exception.ErrInvalidAuthHeader)
 				return
 			}
 
 			claims, err := jwtSvc.VerifyAccessToken(parts[1])
 			if err != nil {
+				slog.Warn("bearer token rejected",
+					slog.String("service", "scm"),
+					slog.String("event", "auth_rejected"),
+					slog.String("auth_method", "jwt"),
+					slog.String("reason", "invalid_token"),
+					slog.String("method", c.Request.Method),
+					slog.String("path", c.Request.URL.Path),
+					slog.Any("error", err),
+				)
 				exception.WriteError(c, exception.ErrInvalidToken)
 				return
 			}
@@ -85,6 +136,13 @@ func Authenticate(jwtSvc *service.JWTService, db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		slog.Warn("missing authentication",
+			slog.String("service", "scm"),
+			slog.String("event", "auth_rejected"),
+			slog.String("reason", "missing_credentials"),
+			slog.String("method", c.Request.Method),
+			slog.String("path", c.Request.URL.Path),
+		)
 		exception.WriteError(c, exception.ErrMissingAuth)
 	}
 }
