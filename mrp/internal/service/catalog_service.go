@@ -26,7 +26,7 @@ func (s *ProductionService) GetAssemblies(ctx context.Context) ([]models.Assembl
 		return nil, err
 	}
 
-	return s.groupAssemblies(ctx, boms)
+	return s.hydrateAssemblyNames(ctx, groupAssemblies(boms)), nil
 }
 
 func (s *ProductionService) GetAssembliesPage(ctx context.Context, page, per int) ([]models.AssemblyResponse, int, error) {
@@ -37,11 +37,7 @@ func (s *ProductionService) GetAssembliesPage(ctx context.Context, page, per int
 	if err != nil {
 		return nil, 0, err
 	}
-	assemblies, err := s.groupAssemblies(ctx, boms)
-	if err != nil {
-		return nil, 0, err
-	}
-	return assemblies, total, nil
+	return s.hydrateAssemblyNames(ctx, groupAssemblies(boms)), total, nil
 }
 
 func (s *ProductionService) GetAssemblyByModelCode(ctx context.Context, modelCode string) (*models.AssemblyResponse, error) {
@@ -79,7 +75,7 @@ func (s *ProductionService) GetAssemblyByModelCode(ctx context.Context, modelCod
 	}
 	return &models.AssemblyResponse{
 		ModelCode:  modelCode,
-		Name:       modelCode,
+		Name:       s.resolveAssemblyName(ctx, modelCode),
 		TotalParts: len(comps),
 		Components: comps,
 	}, nil
@@ -326,6 +322,70 @@ func (s *ProductionService) groupAssemblies(ctx context.Context, boms []models.B
 		})
 	}
 	return result, nil
+}
+
+func (s *ProductionService) hydrateAssemblyNames(ctx context.Context, assemblies []models.AssemblyResponse) []models.AssemblyResponse {
+	if s == nil || s.scmClient == nil {
+		return assemblies
+	}
+	resolved := make(map[string]string, len(assemblies))
+	for i := range assemblies {
+		code := assemblies[i].ModelCode
+		if name, ok := resolved[code]; ok {
+			assemblies[i].Name = name
+			continue
+		}
+		name := s.resolveAssemblyName(ctx, code)
+		resolved[code] = name
+		assemblies[i].Name = name
+	}
+	return assemblies
+}
+
+func (s *ProductionService) resolveAssemblyName(ctx context.Context, modelCode string) string {
+	if s == nil || s.scmClient == nil {
+		return modelCode
+	}
+	model, err := s.scmClient.GetProductModelByCode(ctx, modelCode)
+	if err != nil || model == nil {
+		return modelCode
+	}
+	if name := strings.TrimSpace(model.ModelName); name != "" {
+		return name
+	}
+	return modelCode
+}
+
+func (s *ProductionService) hydrateAssemblyNames(ctx context.Context, assemblies []models.AssemblyResponse) []models.AssemblyResponse {
+	if s == nil || s.scmClient == nil {
+		return assemblies
+	}
+	resolved := make(map[string]string, len(assemblies))
+	for i := range assemblies {
+		code := assemblies[i].ModelCode
+		if name, ok := resolved[code]; ok {
+			assemblies[i].Name = name
+			continue
+		}
+		name := s.resolveAssemblyName(ctx, code)
+		resolved[code] = name
+		assemblies[i].Name = name
+	}
+	return assemblies
+}
+
+func (s *ProductionService) resolveAssemblyName(ctx context.Context, modelCode string) string {
+	if s == nil || s.scmClient == nil {
+		return modelCode
+	}
+	model, err := s.scmClient.GetProductModelByCode(ctx, modelCode)
+	if err != nil || model == nil {
+		return modelCode
+	}
+	if name := strings.TrimSpace(model.ModelName); name != "" {
+		return name
+	}
+	return modelCode
 }
 
 func catalogFromBOMs(boms []models.BomEntry) []any {
