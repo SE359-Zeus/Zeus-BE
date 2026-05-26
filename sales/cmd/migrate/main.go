@@ -19,10 +19,32 @@ func main() {
 }
 
 func run(dbPath string) error {
+	if err := clearArtifacts(dbPath); err != nil {
+		return err
+	}
+
 	repo, err := sqlite.Open(dbPath)
 	if err != nil {
 		return err
 	}
 	defer repo.Close()
+	return nil
+}
+
+func clearArtifacts(dbPath string) error {
+	paths := []string{dbPath}
+	if dbPath != "" && dbPath != ":memory:" && dbPath != "file::memory:" {
+		paths = append(paths, dbPath+"-wal", dbPath+"-shm")
+	}
+
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+
 	return nil
 }

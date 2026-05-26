@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -23,11 +23,13 @@ import (
 )
 
 func main() {
+	setupLogger()
 	cfg := config.Load()
 
 	sqliteRepo, err := sqlite.Open(cfg.SQLiteDBPath)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("failed to open sqlite database", slog.String("service", "sales"), slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 	defer sqliteRepo.Close()
 
@@ -35,16 +37,16 @@ func main() {
 	salesCache := infraCache.NewStore(cfg.ValkeyAddr)
 	var publisher infraMessaging.Publisher
 	if err := infraCache.New(cfg.ValkeyAddr).Ping(context.Background()); err != nil {
-		log.Printf("warning: valkey connection failed: %v", err)
+		slog.Warn("valkey connection failed", slog.String("service", "sales"), slog.String("component", "valkey"), slog.String("error", err.Error()))
 	} else {
-		log.Printf("valkey connection successful")
+		slog.Info("valkey connection successful", slog.String("service", "sales"), slog.String("component", "valkey"))
 	}
 	if rabbitmq, err := infraMessaging.NewRabbitMQ(cfg.RabbitMQURL); err != nil {
-		log.Printf("warning: sales messaging disabled: %v", err)
+		slog.Warn("sales messaging disabled", slog.String("service", "sales"), slog.String("component", "rabbitmq"), slog.String("error", err.Error()))
 	} else if err := rabbitmq.Ping(context.Background()); err != nil {
-		log.Printf("warning: rabbitmq connection failed: %v", err)
+		slog.Warn("rabbitmq connection failed", slog.String("service", "sales"), slog.String("component", "rabbitmq"), slog.String("error", err.Error()))
 	} else {
-		log.Printf("rabbitmq connection successful")
+		slog.Info("rabbitmq connection successful", slog.String("service", "sales"), slog.String("component", "rabbitmq"))
 		publisher = rabbitmq
 	}
 	infra := service.NewInfrastructure(salesCache, publisher)
@@ -52,12 +54,21 @@ func main() {
 	services := service.NewServices(sqliteRepo, valkeyRepo, infra)
 	authVerifier, err := middlewares.NewJWTVerifierFromFile(cfg.JwtPublicKeyPath)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("failed to initialize access-token verifier", slog.String("service", "sales"), slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 	mux := controllers.NewMux(services, authVerifier)
 
-	// Create main gin engine
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.CustomRecovery(func(c *gin.Context, recovered any) {
+		slog.Error("gin recovery triggered",
+			slog.String("service", "sales"),
+			slog.String("event", "panic"),
+			slog.String("path", c.Request.URL.Path),
+			slog.Any("error", recovered),
+		)
+		c.AbortWithStatus(http.StatusInternalServerError)
+	}))
 	r.Use(middlewares.AllowAllCORS())
 
 	// Load OpenAPI spec
@@ -65,7 +76,7 @@ func main() {
 	specURL := runtimeServerURL(cfg.BaseURL, cfg.Port)
 	spec, err := loadOpenAPISpec(specPath, specURL)
 	if err != nil {
-		log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
+		slog.Warn("could not load openapi spec", slog.String("service", "sales"), slog.String("spec_path", specPath), slog.String("error", err.Error()))
 	}
 
 	// Serve OpenAPI UI at /docs/*any
@@ -77,12 +88,12 @@ func main() {
 				// Fallback: try to load on-demand if it wasn't loaded at startup
 				data, err := os.ReadFile(specPath)
 				if err != nil {
-					log.Printf("error reading openapi.yaml: %v", err)
+					slog.Error("error reading openapi.yaml", slog.String("service", "sales"), slog.String("spec_path", specPath), slog.String("error", err.Error()))
 					return nil, err
 				}
 				var parsed any
 				if err := yaml.Unmarshal(data, &parsed); err != nil {
-					log.Printf("error parsing openapi.yaml: %v", err)
+					slog.Error("error parsing openapi.yaml", slog.String("service", "sales"), slog.String("spec_path", specPath), slog.String("error", err.Error()))
 					return nil, err
 				}
 				if specMap, ok := parsed.(map[string]any); ok {
@@ -102,10 +113,16 @@ func main() {
 		middlewares.ErrorHandler(mux).ServeHTTP(w, r)
 	}))
 
-	log.Printf("Zeus Sales Service running on :%s", cfg.Port)
+	slog.Info("sales service started", slog.String("service", "sales"), slog.String("port", cfg.Port))
 	if err := r.Run(":" + cfg.Port); err != nil {
-		log.Fatal(err)
+		slog.Error("server error", slog.String("service", "sales"), slog.String("error", err.Error()))
+		os.Exit(1)
 	}
+}
+
+func setupLogger() {
+	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+	slog.SetDefault(slog.New(handler))
 }
 
 // findOpenAPISpec locates the openapi.yaml file by trying multiple paths

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -32,8 +33,10 @@ type RabbitMQ struct {
 
 func NewRabbitMQ(url string) (*RabbitMQ, error) {
 	if url == "" {
+		slog.Info("rabbitmq disabled", slog.String("service", "sales"), slog.String("component", "rabbitmq"), slog.String("reason", "no_url_configured"))
 		return nil, ErrUnavailable
 	}
+	slog.Info("rabbitmq client initialized", slog.String("service", "sales"), slog.String("component", "rabbitmq"))
 	return &RabbitMQ{url: url}, nil
 }
 
@@ -43,13 +46,16 @@ func (r *RabbitMQ) Ping(ctx context.Context) error {
 	}
 	conn, channel, err := dialChannel(r.url)
 	if err != nil {
+		slog.Warn("rabbitmq connection failed", slog.String("service", "sales"), slog.String("component", "rabbitmq"), slog.String("url", r.url), slog.String("error", err.Error()))
 		return err
 	}
 	defer conn.Close()
 	defer channel.Close()
 	if err := declareQueues(channel); err != nil {
+		slog.Warn("rabbitmq queue declaration failed", slog.String("service", "sales"), slog.String("component", "rabbitmq"), slog.String("url", r.url), slog.String("error", err.Error()))
 		return err
 	}
+	slog.Info("rabbitmq connection successful", slog.String("service", "sales"), slog.String("component", "rabbitmq"), slog.String("url", r.url))
 	return nil
 }
 
