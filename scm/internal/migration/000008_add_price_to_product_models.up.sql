@@ -1,0 +1,1 @@
+ALTER TABLE product_models ADD COLUMN unit_price REAL NOT NULL DEFAULT 0.0;
