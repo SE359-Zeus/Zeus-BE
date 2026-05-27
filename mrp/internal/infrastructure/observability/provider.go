@@ -10,6 +10,7 @@ package observability
 //	slog.SetDefault(obs.Logger)
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"time"
@@ -51,6 +52,28 @@ type Provider struct {
 	stopLog func() // non-nil only when Alloy log-push is active
 }
 
+type contextInjectHandler struct {
+	slog.Handler
+}
+
+func (h contextInjectHandler) Handle(ctx context.Context, r slog.Record) error {
+	if traceID := TraceIDFromContext(ctx); traceID != "" {
+		r.AddAttrs(slog.String("trace_id", traceID))
+	}
+	if spanID := SpanIDFromContext(ctx); spanID != "" {
+		r.AddAttrs(slog.String("span_id", spanID))
+	}
+	return h.Handler.Handle(ctx, r)
+}
+
+func (h contextInjectHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return contextInjectHandler{Handler: h.Handler.WithAttrs(attrs)}
+}
+
+func (h contextInjectHandler) WithGroup(name string) slog.Handler {
+	return contextInjectHandler{Handler: h.Handler.WithGroup(name)}
+}
+
 // Setup initialises the observability stack and returns a Provider plus a
 // shutdown function. Always call shutdown() before the process exits.
 func Setup(cfg Config) (p *Provider, shutdown func()) {
@@ -70,7 +93,7 @@ func Setup(cfg Config) (p *Provider, shutdown func()) {
 
 	// ── Alloy log-push handler (optional) ────────────────────────────────────
 	var stopLog func()
-	var activeHandler slog.Handler = stdoutH
+	var activeHandler slog.Handler = contextInjectHandler{Handler: stdoutH}
 
 	if cfg.AlloyURL != "" {
 		logH, stop := NewLogHandler(LogHandlerOptions{
@@ -86,7 +109,7 @@ func Setup(cfg Config) (p *Provider, shutdown func()) {
 			FlushInterval: 5 * time.Second,
 		})
 		stopLog = stop
-		activeHandler = slogmulti.Fanout(stdoutH, logH)
+		activeHandler = slogmulti.Fanout(contextInjectHandler{Handler: stdoutH}, logH)
 	}
 
 	logger := slog.New(activeHandler)
