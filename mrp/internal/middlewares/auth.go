@@ -119,6 +119,28 @@ func (v *JWTVerifier) VerifyAccessToken(tokenString string) (*JWTClaims, error) 
 func Authenticate(verifier TokenVerifier) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			apiKey := r.Header.Get("X-API-KEY")
+			if apiKey == "" {
+				apiKey = r.Header.Get("X-API-Key")
+			}
+
+			expectedKey := os.Getenv("MRP_API_KEY")
+			if expectedKey != "" && apiKey == expectedKey {
+				ctx := context.WithValue(r.Context(), ContextKeyRole, "apikey")
+				ctx = context.WithValue(ctx, ContextKeyUserID, "none")
+				ctx = context.WithValue(ctx, ContextKeyEmail, "apikey@zeus.mrp")
+				slog.Info("authentication accepted via API Key",
+					slog.String("service", "mrp"),
+					slog.String("event", "auth_accepted"),
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.String("user_id", "none"),
+					slog.String("role", "apikey"),
+				)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
 			authHeader := r.Header.Get("Authorization")
 			parts := strings.SplitN(authHeader, " ", 2)
 			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
@@ -231,6 +253,9 @@ type jwtAccessClaims struct {
 
 func roleAllowed(role string, allowed []string) bool {
 	if strings.EqualFold(role, "admin") {
+		return true
+	}
+	if strings.EqualFold(role, "apikey") {
 		return true
 	}
 	for _, candidate := range allowed {

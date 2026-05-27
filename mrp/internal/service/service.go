@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"zeus-mrp-service/internal/infrastructure/messaging"
 	"zeus-mrp-service/internal/middlewares"
 	"zeus-mrp-service/internal/models"
 	"zeus-mrp-service/internal/repository"
@@ -56,7 +57,7 @@ func (s *ProductionService) publishAudit(ctx context.Context, actionType, target
 	if userID == "" || userEmail == "" {
 		return
 	}
-	_ = s.audit.PublishJSON("system.audit.log", map[string]any{
+	_ = s.audit.PublishJSON(messaging.AuditQueue, map[string]any{
 		"user_id":         userID,
 		"user_email":      userEmail,
 		"action_type":     normalizeAuditActionType(actionType),

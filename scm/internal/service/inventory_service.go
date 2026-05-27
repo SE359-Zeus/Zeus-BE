@@ -366,6 +366,23 @@ func (s *inventoryService) GetProductModel(ctx context.Context, code string) (*m
 	if err := s.db.WithContext(ctx).First(&m, "model_code = ?", code).Error; err != nil {
 		return nil, ErrNotFound
 	}
+
+	// Calculate unit price dynamically based on BOM components
+	var boms []models.PartsByModel
+	if err := s.db.WithContext(ctx).Where("product_model_code = ?", code).Find(&boms).Error; err == nil {
+		var totalPrice float64
+		for _, bom := range boms {
+			var pc models.PartCatalog
+			if err := s.db.WithContext(ctx).First(&pc, "id = ?", bom.PartCatalogID).Error; err == nil {
+				var stock models.ComponentStock
+				if err := s.db.WithContext(ctx).First(&stock, "sku = ?", pc.PartNumber).Error; err == nil {
+					totalPrice += float64(bom.Quantity) * stock.UnitCost
+				}
+			}
+		}
+		m.UnitPrice = totalPrice
+	}
+
 	if s.cache != nil {
 		key := fmt.Sprintf("product_model:%s", code)
 		if b, err := json.Marshal(&m); err == nil {

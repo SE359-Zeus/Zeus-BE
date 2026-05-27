@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"zeus-mrp-service/configs"
+	"zeus-mrp-service/internal/consumer"
 	"zeus-mrp-service/internal/controllers"
 	"zeus-mrp-service/internal/infrastructure/cache"
 	"zeus-mrp-service/internal/infrastructure/cronjob"
@@ -70,6 +71,14 @@ func main() {
 	repo := reposqlite.NewSqliteMRPRepository(db)
 	cacheRepo := repoValkey.NewWithClient(valkeyConn)
 	svc := service.NewProductionService(repo, scmClient, cacheRepo, rabbitmq)
+
+	orderConsumer := consumer.NewOrderConsumer(cfg.RabbitMQURL, svc)
+	if err := orderConsumer.Start(context.Background()); err != nil {
+		slog.Error("failed to start sales order consumer", slog.String("service", "mrp"), slog.String("error", err.Error()))
+	} else {
+		defer orderConsumer.Close()
+	}
+
 	authVerifier, err := middlewares.NewJWTVerifierFromFile(cfg.JwtPublicKeyPath)
 	if err != nil {
 		slog.Error("failed to initialize access-token verifier", slog.String("service", "mrp"), slog.String("error", err.Error()))
@@ -92,7 +101,6 @@ func main() {
 
 	// Internal metrics endpoint — Alloy scrapes this.
 	r.GET("/metrics", gin.WrapF(observability.MetricsHTTPHandler(obs.Metrics)))
-
 
 	specPath := findOpenAPISpec()
 	specURL := runtimeServerURL(cfg.Port)
@@ -137,7 +145,6 @@ func main() {
 		os.Exit(1)
 	}
 }
-
 
 func findOpenAPISpec() string {
 	paths := []string{
@@ -214,9 +221,23 @@ func logStartupRabbitMQ(url string, rabbitmq *messaginginfra.RabbitMQ) {
 		slog.Error("rabbitmq connection failed", slog.String("service", "mrp"), slog.String("component", "rabbitmq"), slog.String("url", url), slog.String("error", "client is nil"))
 		return
 	}
-	if err := rabbitmq.DeclareQueue(messaginginfra.AuditQueue, true); err != nil {
-		slog.Error("rabbitmq connection failed", slog.String("service", "mrp"), slog.String("component", "rabbitmq"), slog.String("url", url), slog.String("error", err.Error()))
-		return
+	queues := []string{
+		messaginginfra.AuditQueue,
+		messaginginfra.DeficitPoolQueue,
+		messaginginfra.SalesOrderCreatedQueue,
+		messaginginfra.SalesOrderUpdatedQueue,
+	}
+	for _, queue := range queues {
+		if err := rabbitmq.DeclareQueue(queue, true); err != nil {
+			slog.Error("rabbitmq connection failed",
+				slog.String("service", "mrp"),
+				slog.String("component", "rabbitmq"),
+				slog.String("url", url),
+				slog.String("queue", queue),
+				slog.String("error", err.Error()),
+			)
+			return
+		}
 	}
 	slog.Info("rabbitmq connection successful", slog.String("service", "mrp"), slog.String("component", "rabbitmq"), slog.String("url", url))
 }
