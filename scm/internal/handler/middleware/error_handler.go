@@ -61,7 +61,7 @@ func RequestLogger() gin.HandlerFunc {
 		if v, ok := c.Get(ContextKeyAuthMethod); ok {
 			attrs = append(attrs, slog.Any("auth_method", v))
 		}
-		slog.Info("request complete", attrs...)
+		slog.InfoContext(c.Request.Context(), "request complete", attrs...)
 	}
 }
 
@@ -69,7 +69,7 @@ func Recovery() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic recovered",
+				slog.ErrorContext(c.Request.Context(), "panic recovered",
 					slog.String("service", "scm"),
 					slog.String("event", "panic_recovered"),
 					slog.String("method", c.Request.Method),
