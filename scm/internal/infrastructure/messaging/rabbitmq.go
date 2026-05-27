@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+	"zeus-scm-service/internal/infrastructure/observability"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -451,6 +452,23 @@ func (c *Connection) GetFromPool(autoAck bool) (amqp.Delivery, bool, error) {
 	return msg, ok, nil
 }
 
+func injectTraceHeaders(ctx context.Context, headers amqp.Table) amqp.Table {
+	if headers == nil {
+		headers = amqp.Table{}
+	}
+	traceID := observability.TraceIDFromContext(ctx)
+	if traceID != "" {
+		spanID := observability.SpanIDFromContext(ctx)
+		if spanID == "" {
+			spanID = observability.NewSpanID()
+		}
+		headers["traceparent"] = "00-" + traceID + "-" + spanID + "-01"
+		headers["trace_id"] = traceID
+		headers["span_id"] = spanID
+	}
+	return headers
+}
+
 func (c *Connection) PublishToPool(ctx context.Context, msg DeficitMessage) error {
 	if c == nil || c.channel == nil {
 		return ErrUnavailable
@@ -466,7 +484,11 @@ func (c *Connection) PublishToPool(ctx context.Context, msg DeficitMessage) erro
 		)
 		return err
 	}
-	err = c.channel.PublishWithContext(ctx, "", PoolQueue, true, false, amqp.Publishing{ContentType: "application/json", Body: body})
+	err = c.channel.PublishWithContext(ctx, "", PoolQueue, true, false, amqp.Publishing{
+		ContentType: "application/json",
+		Body:        body,
+		Headers:     injectTraceHeaders(ctx, nil),
+	})
 	if err != nil {
 		slog.Error("rabbitmq publish failed",
 			slog.String("service", "scm"),
@@ -502,7 +524,13 @@ func (c *Connection) PublishToReserved(ctx context.Context, msg DeficitMessage) 
 		)
 		return err
 	}
-	err = c.channel.PublishWithContext(ctx, "", ReservedQueue, true, false, amqp.Publishing{ContentType: "application/json", Body: body, Expiration: fmt.Sprintf("%d", 30*60*1000), DeliveryMode: amqp.Persistent})
+	err = c.channel.PublishWithContext(ctx, "", ReservedQueue, true, false, amqp.Publishing{
+		ContentType:  "application/json",
+		Body:         body,
+		Expiration:   fmt.Sprintf("%d", 30*60*1000),
+		DeliveryMode: amqp.Persistent,
+		Headers:      injectTraceHeaders(ctx, nil),
+	})
 	if err != nil {
 		slog.Error("rabbitmq publish failed",
 			slog.String("service", "scm"),
@@ -561,6 +589,7 @@ func (c *Connection) PublishToAudit(ctx context.Context, msg any) error {
 		ContentType:  "application/json",
 		Body:         body,
 		DeliveryMode: amqp.Persistent,
+		Headers:      injectTraceHeaders(ctx, nil),
 	})
 	if err != nil {
 		slog.Error("rabbitmq publish failed",
