@@ -12,10 +12,10 @@ import (
 	"zeus-sales-service/config"
 	"zeus-sales-service/internal/controllers"
 	infraCache "zeus-sales-service/internal/infrastructure/cache"
+	infraClient "zeus-sales-service/internal/infrastructure/client"
 	"zeus-sales-service/internal/infrastructure/cronjob"
 	infraMessaging "zeus-sales-service/internal/infrastructure/messaging"
 	"zeus-sales-service/internal/infrastructure/observability"
-	infraClient "zeus-sales-service/internal/infrastructure/client"
 	"zeus-sales-service/internal/middlewares"
 	"zeus-sales-service/internal/repository/sqlite"
 	"zeus-sales-service/internal/repository/valkey"
@@ -65,14 +65,8 @@ func main() {
 	} else {
 		slog.Info("valkey connection successful", slog.String("service", "sales"), slog.String("component", "valkey"))
 	}
-	if rabbitmq, err := infraMessaging.NewRabbitMQ(cfg.RabbitMQURL); err != nil {
-		slog.Warn("sales messaging disabled", slog.String("service", "sales"), slog.String("component", "rabbitmq"), slog.String("error", err.Error()))
-	} else if err := rabbitmq.Ping(context.Background()); err != nil {
-		slog.Warn("rabbitmq connection failed", slog.String("service", "sales"), slog.String("component", "rabbitmq"), slog.String("error", err.Error()))
-	} else {
-		slog.Info("rabbitmq connection successful", slog.String("service", "sales"), slog.String("component", "rabbitmq"))
-		publisher = rabbitmq
-	}
+	rabbitmq := infraMessaging.NewRabbitMQ(cfg.RabbitMQURL)
+	publisher = rabbitmq
 	scmClient := infraClient.NewSCMClient(cfg.SCMServiceURL, cfg.ScmAPIKey)
 	if err := scmClient.Ping(context.Background()); err != nil {
 		slog.Warn("scm connection failed", slog.String("service", "sales"), slog.String("component", "scm"), slog.String("url", cfg.SCMServiceURL), slog.String("error", err.Error()))
@@ -112,7 +106,6 @@ func main() {
 
 	// Internal metrics endpoint — Alloy scrapes this.
 	r.GET("/metrics", gin.WrapF(observability.MetricsHTTPHandler(obs.Metrics)))
-
 
 	// Load OpenAPI spec
 	specPath := findOpenAPISpec()
@@ -163,7 +156,6 @@ func main() {
 		os.Exit(1)
 	}
 }
-
 
 // findOpenAPISpec locates the openapi.yaml file by trying multiple paths
 func findOpenAPISpec() string {
