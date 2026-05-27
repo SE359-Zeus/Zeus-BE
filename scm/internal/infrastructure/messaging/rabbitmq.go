@@ -5,17 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
-)
-
-const (
-	PoolQueue     = "system.deficit.pool"
-	ReservedQueue = "system.deficit.reserved"
-	DLXExchange   = "system.dlx"
-	DLXQueue      = "system.deficit.dlx"
-	AuditQueue    = "system.audit.log"
 )
 
 var ErrUnavailable = errors.New("rabbitmq unavailable")
@@ -42,12 +35,31 @@ type Connection struct {
 }
 
 func NewRabbitMQ(url string) (*RabbitMQ, error) {
+	if url == "" {
+		slog.Warn("rabbitmq unavailable",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.String("reason", "empty_url"),
+		)
+		return nil, ErrUnavailable
+	}
 	conn, channel, err := dialChannel(url)
 	if err != nil {
+		slog.Warn("rabbitmq connection failed",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.String("url", url),
+			slog.String("error", err.Error()),
+		)
 		return nil, err
 	}
 	_ = channel.Close()
 	_ = conn.Close()
+	slog.Info("rabbitmq connected",
+		slog.String("service", "scm"),
+		slog.String("component", "rabbitmq"),
+		slog.String("url", url),
+	)
 	return &RabbitMQ{url: url}, nil
 }
 
@@ -77,42 +89,22 @@ func dialChannel(url string) (*amqp.Connection, *amqp.Channel, error) {
 	return conn, channel, nil
 }
 
-func setupQueues(channel *amqp.Channel) error {
-	if channel == nil {
-		return ErrUnavailable
-	}
-	if _, err := channel.QueueDeclare(PoolQueue, true, false, false, false, nil); err != nil {
-		return fmt.Errorf("failed to declare pool queue: %w", err)
-	}
-	if _, err := channel.QueueDeclare(DLXQueue, true, false, false, false, nil); err != nil {
-		return fmt.Errorf("failed to declare DLX queue: %w", err)
-	}
-	if _, err := channel.QueueDeclare(AuditQueue, true, false, false, false, nil); err != nil {
-		return fmt.Errorf("failed to declare audit queue: %w", err)
-	}
-	if _, err := channel.QueueDeclare(
-		ReservedQueue,
-		true,
-		false,
-		false,
-		false,
-		amqp.Table{
-			"x-dead-letter-exchange":    DLXExchange,
-			"x-dead-letter-routing-key": DLXQueue,
-			"x-message-ttl":             int32(30 * 60 * 1000),
-		},
-	); err != nil {
-		return fmt.Errorf("failed to declare reserved queue: %w", err)
-	}
-	return nil
-}
-
 func (r *RabbitMQ) withChannel(fn func(*amqp.Channel) error) error {
 	if r == nil || r.url == "" {
+		slog.Warn("rabbitmq unavailable",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.String("reason", "empty_client_or_url"),
+		)
 		return ErrUnavailable
 	}
 	conn, channel, err := dialChannel(r.url)
 	if err != nil {
+		slog.Error("rabbitmq dial failed",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
 	defer conn.Close()
@@ -134,12 +126,28 @@ func (r *RabbitMQ) consume(queue string, autoAck bool, exclusive bool) (<-chan a
 		_ = conn.Close()
 		return nil, err
 	}
+	slog.Info("rabbitmq consumer subscribed",
+		slog.String("service", "scm"),
+		slog.String("component", "rabbitmq"),
+		slog.String("event", "consume_subscribed"),
+		slog.String("queue", queue),
+		slog.Bool("auto_ack", autoAck),
+		slog.Bool("exclusive", exclusive),
+	)
 	out := make(chan amqp.Delivery)
 	go func() {
 		defer close(out)
 		defer channel.Close()
 		defer conn.Close()
 		for msg := range msgs {
+			slog.Info("rabbitmq message received",
+				slog.String("service", "scm"),
+				slog.String("component", "rabbitmq"),
+				slog.String("event", "consume_received"),
+				slog.String("queue", queue),
+				slog.Uint64("delivery_tag", msg.DeliveryTag),
+				slog.Int("payload_bytes", len(msg.Body)),
+			)
 			out <- msg
 		}
 	}()
@@ -150,12 +158,37 @@ func (r *RabbitMQ) PublishToPool(msg DeficitMessage) error {
 	return r.withChannel(func(channel *amqp.Channel) error {
 		body, err := json.Marshal(msg)
 		if err != nil {
+			slog.Error("rabbitmq publish marshal failed",
+				slog.String("service", "scm"),
+				slog.String("component", "rabbitmq"),
+				slog.String("event", "publish"),
+				slog.String("queue", PoolQueue),
+				slog.String("error", err.Error()),
+			)
 			return err
 		}
-		return channel.PublishWithContext(context.Background(), "", PoolQueue, true, false, amqp.Publishing{
+		err = channel.PublishWithContext(context.Background(), "", PoolQueue, true, false, amqp.Publishing{
 			ContentType: "application/json",
 			Body:        body,
 		})
+		if err != nil {
+			slog.Error("rabbitmq publish failed",
+				slog.String("service", "scm"),
+				slog.String("component", "rabbitmq"),
+				slog.String("event", "publish"),
+				slog.String("queue", PoolQueue),
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
+		slog.Info("rabbitmq publish success",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.String("event", "publish"),
+			slog.String("queue", PoolQueue),
+			slog.Int("payload_bytes", len(body)),
+		)
+		return nil
 	})
 }
 
@@ -167,14 +200,39 @@ func (r *RabbitMQ) PublishToReserved(msg DeficitMessage) error {
 	return r.withChannel(func(channel *amqp.Channel) error {
 		body, err := json.Marshal(msg)
 		if err != nil {
+			slog.Error("rabbitmq publish marshal failed",
+				slog.String("service", "scm"),
+				slog.String("component", "rabbitmq"),
+				slog.String("event", "publish"),
+				slog.String("queue", ReservedQueue),
+				slog.String("error", err.Error()),
+			)
 			return err
 		}
-		return channel.PublishWithContext(context.Background(), "", ReservedQueue, true, false, amqp.Publishing{
+		err = channel.PublishWithContext(context.Background(), "", ReservedQueue, true, false, amqp.Publishing{
 			ContentType:  "application/json",
 			Body:         body,
 			Expiration:   fmt.Sprintf("%d", 30*60*1000),
 			DeliveryMode: amqp.Persistent,
 		})
+		if err != nil {
+			slog.Error("rabbitmq publish failed",
+				slog.String("service", "scm"),
+				slog.String("component", "rabbitmq"),
+				slog.String("event", "publish"),
+				slog.String("queue", ReservedQueue),
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
+		slog.Info("rabbitmq publish success",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.String("event", "publish"),
+			slog.String("queue", ReservedQueue),
+			slog.Int("payload_bytes", len(body)),
+		)
+		return nil
 	})
 }
 
@@ -182,16 +240,40 @@ func (r *RabbitMQ) PublishToAudit(msg any) error {
 	return r.withChannel(func(channel *amqp.Channel) error {
 		body, err := json.Marshal(msg)
 		if err != nil {
+			slog.Error("rabbitmq publish marshal failed",
+				slog.String("service", "scm"),
+				slog.String("component", "rabbitmq"),
+				slog.String("event", "publish"),
+				slog.String("queue", AuditQueue),
+				slog.String("error", err.Error()),
+			)
 			return err
 		}
-		return channel.PublishWithContext(context.Background(), "", AuditQueue, true, false, amqp.Publishing{
+		err = channel.PublishWithContext(context.Background(), "", AuditQueue, true, false, amqp.Publishing{
 			ContentType:  "application/json",
 			Body:         body,
 			DeliveryMode: amqp.Persistent,
 		})
+		if err != nil {
+			slog.Error("rabbitmq publish failed",
+				slog.String("service", "scm"),
+				slog.String("component", "rabbitmq"),
+				slog.String("event", "publish"),
+				slog.String("queue", AuditQueue),
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
+		slog.Info("rabbitmq publish success",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.String("event", "publish"),
+			slog.String("queue", AuditQueue),
+			slog.Int("payload_bytes", len(body)),
+		)
+		return nil
 	})
 }
-
 
 func (r *RabbitMQ) ConsumeReserved() (<-chan amqp.Delivery, error) {
 	return r.consume(ReservedQueue, false, false)
@@ -199,13 +281,45 @@ func (r *RabbitMQ) ConsumeReserved() (<-chan amqp.Delivery, error) {
 
 func (r *RabbitMQ) Ack(tag uint64) error {
 	return r.withChannel(func(channel *amqp.Channel) error {
-		return channel.Ack(tag, false)
+		err := channel.Ack(tag, false)
+		if err != nil {
+			slog.Error("rabbitmq ack failed",
+				slog.String("service", "scm"),
+				slog.String("component", "rabbitmq"),
+				slog.Uint64("delivery_tag", tag),
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
+		slog.Info("rabbitmq ack success",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.Uint64("delivery_tag", tag),
+		)
+		return nil
 	})
 }
 
 func (r *RabbitMQ) Nack(tag uint64, requeue bool) error {
 	return r.withChannel(func(channel *amqp.Channel) error {
-		return channel.Nack(tag, false, requeue)
+		err := channel.Nack(tag, false, requeue)
+		if err != nil {
+			slog.Error("rabbitmq nack failed",
+				slog.String("service", "scm"),
+				slog.String("component", "rabbitmq"),
+				slog.Uint64("delivery_tag", tag),
+				slog.Bool("requeue", requeue),
+				slog.String("error", err.Error()),
+			)
+			return err
+		}
+		slog.Info("rabbitmq nack success",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.Uint64("delivery_tag", tag),
+			slog.Bool("requeue", requeue),
+		)
+		return nil
 	})
 }
 
@@ -313,7 +427,28 @@ func (c *Connection) GetFromPool(autoAck bool) (amqp.Delivery, bool, error) {
 	if c == nil || c.channel == nil {
 		return amqp.Delivery{}, false, ErrUnavailable
 	}
-	return c.channel.Get(PoolQueue, autoAck)
+	msg, ok, err := c.channel.Get(PoolQueue, autoAck)
+	if err != nil {
+		slog.Error("rabbitmq consume failed",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.String("event", "consume_get"),
+			slog.String("queue", PoolQueue),
+			slog.String("error", err.Error()),
+		)
+		return amqp.Delivery{}, false, err
+	}
+	if ok {
+		slog.Info("rabbitmq message received",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.String("event", "consume_get"),
+			slog.String("queue", PoolQueue),
+			slog.Uint64("delivery_tag", msg.DeliveryTag),
+			slog.Int("payload_bytes", len(msg.Body)),
+		)
+	}
+	return msg, ok, nil
 }
 
 func (c *Connection) PublishToPool(ctx context.Context, msg DeficitMessage) error {
@@ -322,9 +457,34 @@ func (c *Connection) PublishToPool(ctx context.Context, msg DeficitMessage) erro
 	}
 	body, err := json.Marshal(msg)
 	if err != nil {
+		slog.Error("rabbitmq publish marshal failed",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.String("event", "publish"),
+			slog.String("queue", PoolQueue),
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
-	return c.channel.PublishWithContext(ctx, "", PoolQueue, true, false, amqp.Publishing{ContentType: "application/json", Body: body})
+	err = c.channel.PublishWithContext(ctx, "", PoolQueue, true, false, amqp.Publishing{ContentType: "application/json", Body: body})
+	if err != nil {
+		slog.Error("rabbitmq publish failed",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.String("event", "publish"),
+			slog.String("queue", PoolQueue),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+	slog.Info("rabbitmq publish success",
+		slog.String("service", "scm"),
+		slog.String("component", "rabbitmq"),
+		slog.String("event", "publish"),
+		slog.String("queue", PoolQueue),
+		slog.Int("payload_bytes", len(body)),
+	)
+	return nil
 }
 
 func (c *Connection) PublishToReserved(ctx context.Context, msg DeficitMessage) error {
@@ -333,9 +493,34 @@ func (c *Connection) PublishToReserved(ctx context.Context, msg DeficitMessage) 
 	}
 	body, err := json.Marshal(msg)
 	if err != nil {
+		slog.Error("rabbitmq publish marshal failed",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.String("event", "publish"),
+			slog.String("queue", ReservedQueue),
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
-	return c.channel.PublishWithContext(ctx, "", ReservedQueue, true, false, amqp.Publishing{ContentType: "application/json", Body: body, Expiration: fmt.Sprintf("%d", 30*60*1000), DeliveryMode: amqp.Persistent})
+	err = c.channel.PublishWithContext(ctx, "", ReservedQueue, true, false, amqp.Publishing{ContentType: "application/json", Body: body, Expiration: fmt.Sprintf("%d", 30*60*1000), DeliveryMode: amqp.Persistent})
+	if err != nil {
+		slog.Error("rabbitmq publish failed",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.String("event", "publish"),
+			slog.String("queue", ReservedQueue),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+	slog.Info("rabbitmq publish success",
+		slog.String("service", "scm"),
+		slog.String("component", "rabbitmq"),
+		slog.String("event", "publish"),
+		slog.String("queue", ReservedQueue),
+		slog.Int("payload_bytes", len(body)),
+	)
+	return nil
 }
 
 func (r *RabbitMQ) ConsumeAudit() (<-chan amqp.Delivery, error) {
@@ -346,6 +531,14 @@ func (c *Connection) ConsumeAudit() (<-chan amqp.Delivery, error) {
 	if c == nil || c.channel == nil {
 		return nil, ErrUnavailable
 	}
+	slog.Info("rabbitmq consumer subscribed",
+		slog.String("service", "scm"),
+		slog.String("component", "rabbitmq"),
+		slog.String("event", "consume_subscribed"),
+		slog.String("queue", AuditQueue),
+		slog.Bool("auto_ack", false),
+		slog.Bool("exclusive", false),
+	)
 	return c.channel.Consume(AuditQueue, "", false, false, false, false, nil)
 }
 
@@ -355,27 +548,84 @@ func (c *Connection) PublishToAudit(ctx context.Context, msg any) error {
 	}
 	body, err := json.Marshal(msg)
 	if err != nil {
+		slog.Error("rabbitmq publish marshal failed",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.String("event", "publish"),
+			slog.String("queue", AuditQueue),
+			slog.String("error", err.Error()),
+		)
 		return err
 	}
-	return c.channel.PublishWithContext(ctx, "", AuditQueue, true, false, amqp.Publishing{
+	err = c.channel.PublishWithContext(ctx, "", AuditQueue, true, false, amqp.Publishing{
 		ContentType:  "application/json",
 		Body:         body,
 		DeliveryMode: amqp.Persistent,
 	})
+	if err != nil {
+		slog.Error("rabbitmq publish failed",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.String("event", "publish"),
+			slog.String("queue", AuditQueue),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+	slog.Info("rabbitmq publish success",
+		slog.String("service", "scm"),
+		slog.String("component", "rabbitmq"),
+		slog.String("event", "publish"),
+		slog.String("queue", AuditQueue),
+		slog.Int("payload_bytes", len(body)),
+	)
+	return nil
 }
 
 func (c *Connection) Ack(tag uint64) error {
 	if c == nil || c.channel == nil {
 		return ErrUnavailable
 	}
-	return c.channel.Ack(tag, false)
+	err := c.channel.Ack(tag, false)
+	if err != nil {
+		slog.Error("rabbitmq ack failed",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.Uint64("delivery_tag", tag),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+	slog.Info("rabbitmq ack success",
+		slog.String("service", "scm"),
+		slog.String("component", "rabbitmq"),
+		slog.Uint64("delivery_tag", tag),
+	)
+	return nil
 }
 
 func (c *Connection) Nack(tag uint64, requeue bool) error {
 	if c == nil || c.channel == nil {
 		return ErrUnavailable
 	}
-	return c.channel.Nack(tag, false, requeue)
+	err := c.channel.Nack(tag, false, requeue)
+	if err != nil {
+		slog.Error("rabbitmq nack failed",
+			slog.String("service", "scm"),
+			slog.String("component", "rabbitmq"),
+			slog.Uint64("delivery_tag", tag),
+			slog.Bool("requeue", requeue),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+	slog.Info("rabbitmq nack success",
+		slog.String("service", "scm"),
+		slog.String("component", "rabbitmq"),
+		slog.Uint64("delivery_tag", tag),
+		slog.Bool("requeue", requeue),
+	)
+	return nil
 }
 
 func (c *Connection) Close() {
@@ -389,4 +639,3 @@ func (c *Connection) Close() {
 		_ = c.conn.Close()
 	}
 }
-

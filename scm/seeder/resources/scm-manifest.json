@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "scm",
-  "generated_at": "2026-05-25T10:44:07.1357262Z",
+  "generated_at": "2026-05-27T04:12:11.1401496Z",
   "shared_actors": {
     "scm_operator_id": "3adb99ce-c159-3d60-ab52-87f92c04501c"
   },
@@ -149,644 +149,644 @@
   ],
   "part_catalogs": [
     {
-      "id": "6c5a6275-97c9-496e-b1a7-d0c3512f5eb7",
+      "id": "e9836c73-05b6-4118-ab21-aca1f18dbb3d",
       "part_number": "00HM686",
       "mfg_number": "SBB1G28004",
       "commodity_type": "AC ADAPTERS",
       "description": "Lenovo AC_ADAPTOR Rectangle 135W 3P Black"
     },
     {
-      "id": "067d6d23-246f-4706-92fb-cfb9d9ba5051",
+      "id": "9848add2-d21a-4408-9e92-77538ada7081",
       "part_number": "00HM688",
       "mfg_number": "SA10E75866",
       "commodity_type": "AC ADAPTERS",
       "description": "Lenovo AC_ADAPTOR Rectangle 135W 3P Black"
     },
     {
-      "id": "492ae3df-51a5-4823-9922-f88c42b4aeef",
+      "id": "5899b07b-7821-4e07-a589-da18fff4bb4e",
       "part_number": "00XL063",
       "mfg_number": "SL60K75078",
       "commodity_type": "Cable, External, power cord, USB cable, and CRU-able internal cables",
       "description": "Lenovo Power Cord,Euro/Korean,1m,3P"
     },
     {
-      "id": "09ff2936-1289-4811-9d82-58cc6939e379",
+      "id": "9cced277-5708-4d49-a028-dcc2b4672bdf",
       "part_number": "00XL065",
       "mfg_number": "SBB1G28004",
       "commodity_type": "Cable, External, power cord, USB cable, and CRU-able internal cables",
       "description": "Lenovo Power Cord,EU/KR,1m,3P"
     },
     {
-      "id": "0291f603-f0e9-4614-9d40-f7989991bd2f",
+      "id": "dccc8a76-ef7f-467e-bd71-a0048605d0de",
       "part_number": "00XL065",
       "mfg_number": "SBB1Q94740",
       "commodity_type": "Cable, External, power cord, USB cable, and CRU-able internal cables",
       "description": "Lenovo Power Cord,EU/KR,1m,3P"
     },
     {
-      "id": "fa1fe9bc-43c2-4b8b-9d04-5ddf2bcf03b5",
+      "id": "aa652603-5085-4855-99f8-f3ebab865c3f",
       "part_number": "00XL065",
       "mfg_number": "SL60K75080",
       "commodity_type": "Cable, External, power cord, USB cable, and CRU-able internal cables",
       "description": "Lenovo Power Cord,EU/KR,1m,3P"
     },
     {
-      "id": "5c4a5ff3-fb15-4fb2-bda1-be638f213bca",
+      "id": "5d1eef45-bcb5-4d10-9742-b529a4e9e2b1",
       "part_number": "5A11Q29119",
       "mfg_number": "SA11Q29109",
       "commodity_type": "AC ADAPTERS",
       "description": "Lenovo AC_ADAPTER, RECTANGLE, 245W, 3P, BLACK"
     },
     {
-      "id": "29575221-89d5-401a-9ad3-c5de5441635a",
+      "id": "17c540b0-8119-4c22-bdb0-34ae78feed0b",
       "part_number": "5A11Q29119",
       "mfg_number": "SBB1Q94740",
       "commodity_type": "AC ADAPTERS",
       "description": "Lenovo AC_ADAPTER, RECTANGLE, 245W, 3P, BLACK"
     },
     {
-      "id": "79d35c7d-e89b-4590-a3c8-178dddec3609",
+      "id": "1f4e1852-818f-48b5-8a54-5884a4bae9a9",
       "part_number": "5B11B66552",
       "mfg_number": "SB11B66551",
       "commodity_type": "Rechargeable Batteries , internal",
       "description": "Lenovo BATTERY, 15.36V, 75 Wh, 4cell"
     },
     {
-      "id": "bcef5a3a-c4a1-427a-b134-b10fb1a3b7fe",
+      "id": "2917434a-4445-4f64-8e09-67f5ec96e1da",
       "part_number": "5B11B66552",
       "mfg_number": "SBB1G27986",
       "commodity_type": "Rechargeable Batteries , internal",
       "description": "Lenovo BATTERY, 15.36V, 75 Wh, 4cell"
     },
     {
-      "id": "85e4d7a3-4faa-42f4-91ea-c5364457f663",
+      "id": "a91da00a-0eef-43a9-8b77-6d5788c14c8b",
       "part_number": "5B11Q30691",
       "mfg_number": "SB11Q30686",
       "commodity_type": "Rechargeable Batteries , internal",
       "description": "Lenovo BATTERY, 15.52V, 80Wh, 4cell"
     },
     {
-      "id": "e21892ee-d144-4e7e-a47a-08ae6c900abf",
+      "id": "ea6fe523-0297-4a00-a792-a7308f822d34",
       "part_number": "5B11Q30691",
       "mfg_number": "SBB1Q94720",
       "commodity_type": "Rechargeable Batteries , internal",
       "description": "Lenovo BATTERY, 15.52V, 80Wh, 4cell"
     },
     {
-      "id": "3d1abdf4-d3a0-4623-bb9d-bb2f07d8a434",
+      "id": "52f05ca2-a955-4476-bbfd-d31ac590f629",
       "part_number": "5B11S13430",
       "mfg_number": "SBB1R98798",
       "commodity_type": "CMOS BATTERIES",
       "description": "CMOS BATTERY L 83F5 DB"
     },
     {
-      "id": "3bed0cbd-5b67-4242-a53e-f466ae379760",
+      "id": "2a07c217-7999-4161-bc7b-c28d176b6f4c",
       "part_number": "5B21H82164",
       "mfg_number": "5B21H82164",
       "commodity_type": "SYSTEM BOARDS",
       "description": "Lenovo BDPLANAR MB R5HSCE_RTX3050_4G_16G_WINRM"
     },
     {
-      "id": "015f7498-5541-4200-a88d-e71149dd4f85",
+      "id": "6379ad0f-a90e-4bcc-914d-b17284618081",
       "part_number": "5B21H82164",
       "mfg_number": "SBB1H36076",
       "commodity_type": "SYSTEM BOARDS",
       "description": "Lenovo BDPLANAR MB R5HSCE_RTX3050_4G_16G_WINRM"
     },
     {
-      "id": "bdf3fc2e-981f-428e-ae91-17e5e4c07f68",
+      "id": "34820c18-ab13-42d4-9d19-ee8dd2a3831d",
       "part_number": "5B21R90841",
       "mfg_number": "5B21R90841",
       "commodity_type": "SYSTEM BOARDS",
       "description": "L83LYI713650HX_5060WH165LWyABRM"
     },
     {
-      "id": "96b5f4a7-617b-476e-a023-efd2c3e7960c",
+      "id": "0032581e-f580-4d03-b70f-7ed765ab67c6",
       "part_number": "5B21R90841",
       "mfg_number": "SBB1S01482",
       "commodity_type": "SYSTEM BOARDS",
       "description": "L83LYI713650HX_5060WH165LWyABRM"
     },
     {
-      "id": "549c2dc3-d4a1-4ddf-93b9-475c5343fd84",
+      "id": "9e30a094-4578-4e6b-a307-47587bd9d86a",
       "part_number": "5B30S19062",
       "mfg_number": "SBB1G54973",
       "commodity_type": "LCD PARTS",
       "description": "BEZEL LCD Bezel H 82SK w/lens_Ant"
     },
     {
-      "id": "e4a9733a-f79e-480b-9017-ad909b5c0a11",
+      "id": "c0130311-8e96-41cc-a99f-9d2e4dc392ab",
       "part_number": "5B30S19249",
       "mfg_number": "SBB1R05077",
       "commodity_type": "Consumptive Bezels",
       "description": "L83LY IPS W/TAPE\u0026Position Rubber*4"
     },
     {
-      "id": "e9b9cc4f-5fc1-47a9-b424-7fdb3b290bae",
+      "id": "4260028f-bbc7-4a1a-9c65-fb9080ee9a4b",
       "part_number": "5B40S22075",
       "mfg_number": "SBB1G54977",
       "commodity_type": "MISC INTERNAL",
       "description": "IO Bracket H 82L5 _Down"
     },
     {
-      "id": "e4516d06-0065-4e3d-94e9-3f6172f54d6d",
+      "id": "f06065a4-964b-41bc-8975-5ad6ffd0d11b",
       "part_number": "5B40S22118",
       "mfg_number": "SBB1R98798",
       "commodity_type": "MISC INTERNAL",
       "description": "Bracket L 82RF MB_HOOK"
     },
     {
-      "id": "708f7e16-9a74-4f85-956d-38d72cf1616b",
+      "id": "d6dbd3df-6057-48f2-be79-b2994c142e72",
       "part_number": "5B40S22135",
       "mfg_number": "SBB1G27983",
       "commodity_type": "MISC INTERNAL",
       "description": "Bracket H 82QQ 2242 SSD"
     },
     {
-      "id": "a4e48b04-b229-4d0a-9306-bf6a36e646d9",
+      "id": "9d4c772a-c87e-48cf-901d-9b02ccc1e6e5",
       "part_number": "5B40S22354",
       "mfg_number": "SBB1R98798",
       "commodity_type": "MISC INTERNAL",
       "description": "BRACKET L 83LY DC_IN"
     },
     {
-      "id": "9cbbdb36-b32a-415c-bf77-15de7433bfa7",
+      "id": "6449406c-c6eb-4839-8256-eac3c05af8cb",
       "part_number": "5B40S22355",
       "mfg_number": "SBB1R98798",
       "commodity_type": "MISC INTERNAL",
       "description": "BRACKET L 83LY TYPE_C"
     },
     {
-      "id": "ab874af8-6c16-4a3f-ac85-587b7d18b8bf",
+      "id": "1cb52e65-3546-4d59-a0d7-67b749f6b3f1",
       "part_number": "5B40S22357",
       "mfg_number": "SBB1R05077",
       "commodity_type": "MISC INTERNAL",
       "description": "Bracket L 83LY CAMERA_BRK"
     },
     {
-      "id": "0a41b949-5998-4266-a601-892e33b418a5",
+      "id": "8debf07b-2dab-4ed7-98b8-c76070ee5e8d",
       "part_number": "5C10S30251",
       "mfg_number": "SBB1G54973",
       "commodity_type": "CABLES INTERNAL",
       "description": "Camera Cable  H 82L5"
     },
     {
-      "id": "bf038608-900d-4889-ac72-9d82a40bc0fe",
+      "id": "95ad430e-d4d2-49a9-b02a-53f8347d9665",
       "part_number": "5C10S30253",
       "mfg_number": "SBB1G54977",
       "commodity_type": "CABLES INTERNAL",
       "description": "CABLE TP Board Cable H 82L5"
     },
     {
-      "id": "0a06d66b-4242-4ed1-bc9b-8e1783096655",
+      "id": "b3a1f8c8-9031-4cf3-8db3-3930173954e3",
       "part_number": "5C10S30254",
       "mfg_number": "SBB1G54977",
       "commodity_type": "CABLES INTERNAL",
       "description": "CABLE USB Board Cable H 82L5"
     },
     {
-      "id": "594c4f38-d5b5-4370-8e36-6964d47a3903",
+      "id": "200d17fb-0744-4f4b-bc09-557a5a32fd90",
       "part_number": "5C10S30255",
       "mfg_number": "SBB1G54977",
       "commodity_type": "CABLES INTERNAL",
       "description": "DC-IN Cable H 82L5"
     },
     {
-      "id": "469e9fb8-9ba9-4f5a-ac85-acb1b82c251f",
+      "id": "e039cf1d-cc04-4a93-8540-4d297a226471",
       "part_number": "5C10S30485",
       "mfg_number": "SBB1G54973",
       "commodity_type": "CABLES INTERNAL",
       "description": "EDP cable H 82SK"
     },
     {
-      "id": "97e551e2-4d30-4064-be50-843dc071e7ac",
+      "id": "057dfa02-2444-4965-bf2a-6d81be9ffbc2",
       "part_number": "5C10S30486",
       "mfg_number": "SBB1G54973",
       "commodity_type": "CABLES INTERNAL",
       "description": "D-Mic Cable H 82SK"
     },
     {
-      "id": "d3868057-914b-4da6-aff7-4be2e23eca38",
+      "id": "b859bc53-b370-4b85-bca9-f755b5be1053",
       "part_number": "5C10S31487",
       "mfg_number": "SBB1R98798",
       "commodity_type": "CABLES INTERNAL",
       "description": "CABLE L 83LY CVILUX M/B-IO/B"
     },
     {
-      "id": "c1ec93fc-ec87-4b18-92fa-043cb29ea940",
+      "id": "bd75003f-86ce-4fe9-9ca1-d4f45a27eb75",
       "part_number": "5C10S31490",
       "mfg_number": "SBB1R98798",
       "commodity_type": "CABLES INTERNAL",
       "description": "CABLE L 83LY CVILUX M/B-TP/B"
     },
     {
-      "id": "e8333b90-7e58-4170-8f39-21a0d5aa8648",
+      "id": "81f9884e-e701-43eb-bdf5-f052de26fb67",
       "part_number": "5C10S31493",
       "mfg_number": "SC10R99675",
       "commodity_type": "CABLES INTERNAL",
       "description": "Cable L 83LY HIGH-TEK M/B-EDP"
     },
     {
-      "id": "9f6b8aa1-739b-4037-a940-3a05a95f0116",
+      "id": "7f9db34c-9b1a-44e4-ac11-b233fa3ce6ef",
       "part_number": "5C10S31494",
       "mfg_number": "SBB1R05077",
       "commodity_type": "CABLES INTERNAL",
       "description": "Cable L 83LY LUXSHARE M/B-EDP"
     },
     {
-      "id": "83b68d22-3ffc-4769-bd27-b312d5496dd4",
+      "id": "a0b9de5a-5ef8-4742-8568-95bbb424d7ec",
       "part_number": "5C10S31496",
       "mfg_number": "SBB1R05077",
       "commodity_type": "CABLES INTERNAL",
       "description": "Cable L 83LY M/B-CAMERA cvilux IPS"
     },
     {
-      "id": "ea57984c-905f-4144-9128-dbfa124fbbad",
+      "id": "d22017f5-84c4-4389-aaaf-142efd66ed65",
       "part_number": "5C21D10434",
       "mfg_number": "SBB1G54973",
       "commodity_type": "CAMERAS",
       "description": "CS22 FHD Hybrid Y4 2MIC CCY"
     },
     {
-      "id": "642d639c-a47d-4a96-9c1c-20aac422598b",
+      "id": "5655119b-371a-445a-b238-46294ea0fe8a",
       "part_number": "5C21D10435",
       "mfg_number": "SC21D70376",
       "commodity_type": "CAMERAS",
       "description": "CS22 FHD Hybrid Y4 2MIC LVI"
     },
     {
-      "id": "ca107e55-5bbb-436e-ae7c-c5aff60eea96",
+      "id": "82c8c629-2e82-4841-9e9b-367d49ad5db1",
       "part_number": "5C21P86474",
       "mfg_number": "SBB1R05077",
       "commodity_type": "CAMERAS",
       "description": "CS25 Y4 HD 2MC CCY"
     },
     {
-      "id": "6f111c2e-33db-4c1d-8dad-837a5284bfd3",
+      "id": "e259c393-135e-4e03-b18d-b5e2c69d2c36",
       "part_number": "5C21P86474",
       "mfg_number": "SC21P86456",
       "commodity_type": "CAMERAS",
       "description": "CS25 Y4 HD 2MC CCY"
     },
     {
-      "id": "635082df-333b-4f30-b654-2a5a12dea5f4",
+      "id": "63c54eb2-effe-47b1-8a72-7128de024382",
       "part_number": "5C50S25435",
       "mfg_number": "5C50S25435",
       "commodity_type": "CARDS MISC INTERNAL",
       "description": "USB Board H 82SN  w/mylar_AMD"
     },
     {
-      "id": "db391c0f-05b0-4ff7-b52d-b5e3a522fe0e",
+      "id": "5fab2f7f-6f50-4497-8cc7-5b7f79a75535",
       "part_number": "5C50S25435",
       "mfg_number": "SBB1H03131",
       "commodity_type": "CARDS MISC INTERNAL",
       "description": "USB Board H 82SN  w/mylar_AMD"
     },
     {
-      "id": "f9e05a9c-fd59-44cc-8987-7be41144177f",
+      "id": "42515a55-ecc3-4588-977b-89ace3be997c",
       "part_number": "5C50S25436",
       "mfg_number": "SBB1G54973",
       "commodity_type": "CARDS MISC INTERNAL",
       "description": "Sensor_Board H 82SN AMD"
     },
     {
-      "id": "8b8a29c6-eeda-4d69-b0db-b3c3cfcba86e",
+      "id": "2a265d96-561c-4ac5-90ab-496960df21b1",
       "part_number": "5C50S25873",
       "mfg_number": "SBB1R98798",
       "commodity_type": "CARDS MISC INTERNAL",
       "description": "CARDPOP L 83LY IO/B NSG681"
     },
     {
-      "id": "7c068225-19fb-4ac5-b829-0f01fdc0d9be",
+      "id": "1b36b476-c10b-4435-b94d-1b4a0dfd956f",
       "part_number": "5CB1H95497",
       "mfg_number": "SBB1G54973",
       "commodity_type": "A-cover assembly, LCD cover assembly",
       "description": "LCD Cover H 82SK CLGY"
     },
     {
-      "id": "dfe215d7-4686-4c35-b411-2952f63a15c9",
+      "id": "1633a67c-927e-47f9-a5e2-a5a469ab4975",
       "part_number": "5CB1H95499",
       "mfg_number": "SBB1G54973",
       "commodity_type": "LCD PARTS",
       "description": "Hinge Cover H 82SK CLGY"
     },
     {
-      "id": "b0658e88-9a47-435c-8c85-44983476183b",
+      "id": "16baae55-96c9-46ba-847b-486666400c0c",
       "part_number": "5CB1H95501",
       "mfg_number": "SBB1G54971",
       "commodity_type": "COVERS",
       "description": "Lower Case H 82SK CLGY"
     },
     {
-      "id": "d7da1bdb-9931-458b-90b6-c12eb302673c",
+      "id": "9d773381-6198-4918-8e86-2795fac68b9d",
       "part_number": "5CB1J08754",
       "mfg_number": "SBB1H36105",
       "commodity_type": "C-cover with keyboard",
       "description": "C-Cover with keyboard, English, Cloud Grey, US"
     },
     {
-      "id": "d20447a9-4279-4c35-b621-952ead84f72d",
+      "id": "123f2b77-9d47-4523-9d07-1a0425cd3950",
       "part_number": "5CB1S22981",
       "mfg_number": "SBB1R98798",
       "commodity_type": "Consumptive Bezels",
       "description": "COVER L 83LY STRIP_COVER_IPS"
     },
     {
-      "id": "be4a99c4-af52-4b32-a7ad-fa94ad7020c0",
+      "id": "effc07c7-f34c-4a79-ab95-2c2d099885c1",
       "part_number": "5CB1S22982",
       "mfg_number": "SBB1R05071",
       "commodity_type": "COVERS",
       "description": "D-Cover 83LY"
     },
     {
-      "id": "bae47e93-d65f-403a-ac1b-62a3ad23241d",
+      "id": "b0e9c584-a55c-4053-852d-777e0673898f",
       "part_number": "5CB1S22985",
       "mfg_number": "SBB1R05077",
       "commodity_type": "A-cover assembly, LCD cover assembly",
       "description": "A-Cover, 83LY, 165HZ_HD"
     },
     {
-      "id": "aad9f845-953b-47cf-acb2-653700f2baf9",
+      "id": "f5e1f0a2-7c8c-4e55-9bc1-210260501b57",
       "part_number": "5CB1S31064",
       "mfg_number": "SBB1S01593",
       "commodity_type": "C-cover with keyboard",
       "description": "C-Cover with keyboard, English, Eclipse Black, White Backlight, Painting, US"
     },
     {
-      "id": "df0a02cc-3efd-4508-93e5-eab6cd19e9de",
+      "id": "c413635b-6f6c-46ae-9cf5-aec0546ee178",
       "part_number": "5CB1S89866",
       "mfg_number": "SBB1R05077",
       "commodity_type": "LCD PARTS",
       "description": "Cover, 83LY LCD, Hinge_165"
     },
     {
-      "id": "16335364-f119-4bfa-85fb-6aa867492e0d",
+      "id": "ff55f7b3-e538-4bd2-ac54-c6602d3970c2",
       "part_number": "5D11F56381",
       "mfg_number": "SBB1G54973",
       "commodity_type": "LCD PANELS",
       "description": "Lenovo DISPLAY,16\",WQXGA,Non-Touch,Anti-Glare,IPS,350nit,100%sRGB"
     },
     {
-      "id": "d8c15915-9ff8-4a88-8a85-6f66958fb9e4",
+      "id": "a7642ef6-ba7c-4668-94f5-ed7bd7728aec",
       "part_number": "5D11F56381",
       "mfg_number": "SD11F56383",
       "commodity_type": "LCD PANELS",
       "description": "Lenovo DISPLAY,16\",WQXGA,Non-Touch,Anti-Glare,IPS,350nit,100%sRGB"
     },
     {
-      "id": "0d7e4e97-f234-4f4d-9e5e-57af7a416497",
+      "id": "c1b15a34-df10-47f9-9fab-619dcff7f1bb",
       "part_number": "5D11P88254",
       "mfg_number": "SD11P88252",
       "commodity_type": "LCD PANELS",
       "description": "Lenovo DISPLAY, 15.3\", WUXGA, Non_Touch, Anti-Glare, IPS, 300nit, 100%SRGB"
     },
     {
-      "id": "d245a2ee-69d2-4559-ba96-4f1969de7caf",
+      "id": "bae88ed5-bfcf-4c1d-9e27-2195bb85e3be",
       "part_number": "5D11S91479",
       "mfg_number": "SBB1R05077",
       "commodity_type": "LCD ASSEMBLIES",
       "description": "Lenovo LCD Module, 15.3\", WUXGA, Non_Touch, Anti-Glare, IPS, 300nit, 100%SRGB, Color Calibration"
     },
     {
-      "id": "7f8f2205-091f-42d7-8cdd-cb92de763bbe",
+      "id": "434de4a4-399b-48e1-a8e4-8b04015a4793",
       "part_number": "5F10S13964",
       "mfg_number": "SBB1H03131",
       "commodity_type": "FANS",
       "description": "System FAN 82L5_L+R_DIS"
     },
     {
-      "id": "83ac1049-147c-4674-9f7b-dcc9a719f913",
+      "id": "bcf54a73-e38f-49e8-bf73-9a114f76b122",
       "part_number": "5F10S14296",
       "mfg_number": "SBB1R98798",
       "commodity_type": "FANS",
       "description": "FAN 83LY THM_PRC"
     },
     {
-      "id": "248eb60b-4705-4e2c-a779-451790156ee1",
+      "id": "2baa1380-7d27-4ff7-8af2-9374a692a4c3",
       "part_number": "5F10S14298",
       "mfg_number": "SF11R97346",
       "commodity_type": "FANS",
       "description": "FAN 83LY THM_PRC"
     },
     {
-      "id": "d9d785df-6ba5-4a8f-a5aa-c5d61daf783b",
+      "id": "68756fe3-a2f2-400d-b443-65234f7ba761",
       "part_number": "5H40S20670",
       "mfg_number": "SBB1H03131",
       "commodity_type": "HEAT SINKS",
       "description": "Heatsink H 82SN DIS FCN"
     },
     {
-      "id": "ed2f936f-74db-4989-8366-775b3fa3961e",
+      "id": "3b1e0653-a8f0-4d30-ad02-c7a4fb3757b9",
       "part_number": "5H40S20671",
       "mfg_number": "SH40R83163",
       "commodity_type": "HEAT SINKS",
       "description": "Heatsink H 82SN DIS HY"
     },
     {
-      "id": "b3e07c82-9d8c-49c1-a910-c4812d0f5c6d",
+      "id": "fae4ed36-f19c-48de-8ec1-ee1258cb8c5c",
       "part_number": "5H50S29008",
       "mfg_number": "SBB1G54977",
       "commodity_type": "MECHANICAL ASSEMBLIES",
       "description": "HINGE H 82L5 L+R_DIS"
     },
     {
-      "id": "e3a1a766-e370-490d-bc94-a35e1761af70",
+      "id": "f3d2e475-4433-4fbe-8459-f9de65372b5b",
       "part_number": "5M20S28012",
       "mfg_number": "SBB1R92669",
       "commodity_type": "Tools (special tools, drivers, etc.)",
       "description": "MECHANICAL L 83F5 THM grease"
     },
     {
-      "id": "279bcfea-e6ea-445a-93a0-60b25618bab3",
+      "id": "2336fd26-dcb5-4641-81e7-1c7a8f683696",
       "part_number": "5M20S28014",
       "mfg_number": "SBB1R92673",
       "commodity_type": "Tools (special tools, drivers, etc.)",
       "description": "MECHANICAL L 83F5 Thermal Gel"
     },
     {
-      "id": "990d2a7c-2bc1-40d1-b84d-11208ae30e9c",
+      "id": "82bc16d0-5f10-4ddf-bd82-69fa637eb6b1",
       "part_number": "5M31N59979",
       "mfg_number": "SBB1Q94710",
       "commodity_type": "MEMORY",
       "description": "Lenovo MEMORY,16G,DDR5,5600,SODIMM,SAMSUNG"
     },
     {
-      "id": "7aa93185-c98e-4bbb-9de8-37eb28047220",
+      "id": "4ff6fd83-a7b9-43ec-9aef-d81ff8b79239",
       "part_number": "5M31N59979",
       "mfg_number": "SM31M87283",
       "commodity_type": "MEMORY",
       "description": "Lenovo MEMORY,16G,DDR5,5600,SODIMM,SAMSUNG"
     },
     {
-      "id": "19fc68cf-fbcf-41db-b616-a2f11fda118a",
+      "id": "3c055c0a-2750-415e-9820-dac9c160412f",
       "part_number": "5P20S37716",
       "mfg_number": "SBB1R98798",
       "commodity_type": "Reusable items (Reusable Tapes, Mylar,Sponge,thermal pad, rubber, rubber feet)",
       "description": "PAD L 83LY MAIN_SSD"
     },
     {
-      "id": "e131317e-7619-4503-af61-ae068578a0e0",
+      "id": "b125ed88-afdc-4d09-80c8-01bfbe076664",
       "part_number": "5R31L08532",
       "mfg_number": "SBB1H73877",
       "commodity_type": "RECRDMEDIA",
       "description": "W11_H64_SL-ENG RUSB"
     },
     {
-      "id": "fee9f080-3895-40b9-8a11-d73e3a29d3ef",
+      "id": "e89e96ab-e860-4e21-9086-5c360ed08fda",
       "part_number": "5R31S73528",
       "mfg_number": "SBB1Q60138",
       "commodity_type": "RECRDMEDIA",
       "description": "W11_H64_SL-ENG RUSB"
     },
     {
-      "id": "06920fa9-be06-4dc1-9975-e81e9513871d",
+      "id": "60ca44e5-d817-4060-9bca-b897b4efaab3",
       "part_number": "5R60S37210",
       "mfg_number": "SBB1G54973",
       "commodity_type": "Reusable items (Reusable Tapes, Mylar,Sponge,thermal pad, rubber, rubber feet)",
       "description": "Mic Rubber H 82SK (L+R)*30"
     },
     {
-      "id": "7a0fedc7-3689-42d5-9d66-8389570d1ecd",
+      "id": "6cfd5157-11f3-40af-9038-5074874f923b",
       "part_number": "5S10S35422",
       "mfg_number": "SBB1G54971",
       "commodity_type": "KITS SCREWS AND LABELS",
       "description": "Screw Pack H 82SN"
     },
     {
-      "id": "cf6a0456-1b7e-4d02-8fca-888cf75e64f1",
+      "id": "8d855cc3-320e-48f5-9d27-140edded586b",
       "part_number": "5S10S35619",
       "mfg_number": "SBB1R98798",
       "commodity_type": "KITS SCREWS AND LABELS",
       "description": "Screw L 83DF 2.5D 3.2L 9 5.0D 3.6T"
     },
     {
-      "id": "b9daae66-5094-4d46-9acc-071fe4b56358",
+      "id": "748748fa-9c5e-41c8-95d1-7413d851757d",
       "part_number": "5S10S35780",
       "mfg_number": "SBB1Q94821",
       "commodity_type": "KITS SCREWS AND LABELS",
       "description": "Screw L 83LY Kits"
     },
     {
-      "id": "9c187dcb-631d-4267-8db6-42a5e29b6552",
+      "id": "e316c498-4575-49f0-a031-fab3481629c1",
       "part_number": "5S60S36638",
       "mfg_number": "SBB1R98798",
       "commodity_type": "MISC INTERNAL",
       "description": "SHIELD L 83LY SSD_DDR"
     },
     {
-      "id": "f7caa539-a53b-4d69-930d-62a7f3e85e5d",
+      "id": "9cb93cdb-fa75-4043-b2a5-1559fe768c8e",
       "part_number": "5SB0S31990",
       "mfg_number": "SBB1G54977",
       "commodity_type": "SPEAKERS INTERNAL",
       "description": "Speaker H 82SK L+R"
     },
     {
-      "id": "f1316947-6c69-4136-b43a-2d89a00d3c55",
+      "id": "573b4d43-fad8-403f-a417-b788f08c1afd",
       "part_number": "5SB0S31990",
       "mfg_number": "SSB0S00490",
       "commodity_type": "SPEAKERS INTERNAL",
       "description": "Speaker H 82SK L+R"
     },
     {
-      "id": "07e2c576-300b-4372-a30c-39e52ff7279b",
+      "id": "6e5b7cfb-c15c-46fe-bb9a-b6a8c4ee1b4a",
       "part_number": "5SB0S32096",
       "mfg_number": "SBB1R05085",
       "commodity_type": "SPEAKERS INTERNAL",
       "description": "SPEAKERINT L 83LY (L+R)"
     },
     {
-      "id": "4a24c82c-8f73-4364-96d2-b76021177750",
+      "id": "07285686-9362-47f4-a76e-4ea7db0834b0",
       "part_number": "5SS1C09736",
       "mfg_number": "SSS1C09734",
       "commodity_type": "M.2 Card",
       "description": "Lenovo SSD 512G,M.2,2242,PCIE4X4,STD,SAMSUNG"
     },
     {
-      "id": "a96bf57b-5a6c-440e-91a7-52b1101585d2",
+      "id": "ab478ffc-d2ba-4d38-922c-ecb8fc3d4b6c",
       "part_number": "5SS1D33970",
       "mfg_number": "SBB1G27983",
       "commodity_type": "M.2 Card",
       "description": "Lenovo SSD 512G,M.2,2242,PCIE4X4,STD,KIOXIA"
     },
     {
-      "id": "93baac0d-e1dd-49eb-ab6f-5663b3971ec3",
+      "id": "c71e9095-d12f-4f5f-a158-c77ab6211d3c",
       "part_number": "5SS1Q28866",
       "mfg_number": "SBB1Q94832",
       "commodity_type": "M.2 Card",
       "description": "Lenovo SSD 512G,M.2,2242,PCIE4X4,SAMSUNG"
     },
     {
-      "id": "77f3dc52-9958-426f-90a4-5348495ce72f",
+      "id": "6d5a72fc-f2e4-4a62-b56b-ca30fb1529ac",
       "part_number": "5SS1Q28866",
       "mfg_number": "SSS1Q28863",
       "commodity_type": "M.2 Card",
       "description": "Lenovo SSD 512G,M.2,2242,PCIE4X4,SAMSUNG"
     },
     {
-      "id": "899429ef-a2d3-431f-8dc9-9dd335fe18d0",
+      "id": "a0dc3331-c6d1-490b-a5a6-a8f6c2294450",
       "part_number": "5T10S33235",
       "mfg_number": "SBB1G54973",
       "commodity_type": "Removable tape",
       "description": "Removable Tape H 82L5"
     },
     {
-      "id": "5f9a8798-baaa-449e-9db2-37c6f16df812",
+      "id": "75c6d537-5d86-46e4-ad6d-8772d862739d",
       "part_number": "5T10S33237",
       "mfg_number": "SBB1G54977",
       "commodity_type": "Reusable items (Reusable Tapes, Mylar,Sponge,thermal pad, rubber, rubber feet)",
       "description": "MYLAR H 82L5 D Cover_Zheguang"
     },
     {
-      "id": "1aa5cf84-708c-4e1e-a836-b3b66b121317",
+      "id": "8d1ed1a3-7ba6-4c47-8bc0-c71c8e49f3ab",
       "part_number": "5T10S33238",
       "mfg_number": "SBB1G54977",
       "commodity_type": "Reusable items (Reusable Tapes, Mylar,Sponge,thermal pad, rubber, rubber feet)",
       "description": "TAPE H 82L5 Camera Cable_Colth"
     },
     {
-      "id": "2dc93bcb-54ac-4ef2-9d9d-bc39e24e0cf3",
+      "id": "e82a3b98-fe46-4ff9-9a59-b5beeeee4af8",
       "part_number": "5T10S33264",
       "mfg_number": "SBB1G54977",
       "commodity_type": "Reusable items (Reusable Tapes, Mylar,Sponge,thermal pad, rubber, rubber feet)",
       "description": "TAPE H 82L5 MB_Zhechou_Cloth_R"
     },
     {
-      "id": "db30110b-a2b2-4f3b-aacf-c28671e4ab8f",
+      "id": "2fb19632-37eb-4ad0-9b88-41b8bddb5405",
       "part_number": "5T10S33377",
       "mfg_number": "SBB1G27983",
       "commodity_type": "Reusable items (Reusable Tapes, Mylar,Sponge,thermal pad, rubber, rubber feet)",
       "description": "SSD Mylar H 82QQ 2242"
     },
     {
-      "id": "c349c0d7-cde4-4826-9b8d-fdd405e812df",
+      "id": "f8cf301e-7dbd-453e-adb2-a8bd338f0e71",
       "part_number": "5T10S33677",
       "mfg_number": "SBB1R98798",
       "commodity_type": "Reusable items (Reusable Tapes, Mylar,Sponge,thermal pad, rubber, rubber feet)",
       "description": "TAPE L 82Y5 WLAN_MYLAR"
     },
     {
-      "id": "b8f73f60-5df9-4c6d-80e9-85af6931dcd1",
+      "id": "6aca1057-0858-4b92-a0c0-c47329cab436",
       "part_number": "5T10S33788",
       "mfg_number": "SBB1R05077",
       "commodity_type": "Reusable items (Reusable Tapes, Mylar,Sponge,thermal pad, rubber, rubber feet)",
       "description": "TAPE L 83JJ LCD_NOISE"
     },
     {
-      "id": "9f2e37fc-8acc-43e6-a548-1e61fca50d2c",
+      "id": "22e3da32-5582-475f-8aca-93b85fe47332",
       "part_number": "5W10V25819",
       "mfg_number": "SBB1Q94723",
       "commodity_type": "Wireless LAN adapters",
       "description": "Wireless,CMB,IN,AX203"
     },
     {
-      "id": "207c535c-ba75-4010-ba15-82203606efb9",
+      "id": "8cc5b65f-9592-4e5b-bc89-35724fb613b1",
       "part_number": "5W10V25844",
       "mfg_number": "SBB1G28019",
       "commodity_type": "Wireless LAN adapters",
       "description": "Wireless,WLAN,LTN,8852BE"
     },
     {
-      "id": "a264bf1a-dd96-4fbb-9dbc-afc12a3584fe",
+      "id": "fe2443ae-45c2-46ce-9a49-401a9640c9cc",
       "part_number": "5W10V25844",
       "mfg_number": "SW11A40448",
       "commodity_type": "Wireless LAN adapters",
@@ -798,281 +798,282 @@
       "model_code": "21CB000QUS",
       "model_name": "ThinkPad X1 Carbon Gen 11",
       "description": "Seeded product model",
+      "unit_price": 1499.99,
       "bom": [
         {
-          "part_catalog_id": "015f7498-5541-4200-a88d-e71149dd4f85",
-          "part_number": "5B21H82164",
-          "mfg_number": "SBB1H36076",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "067d6d23-246f-4706-92fb-cfb9d9ba5051",
-          "part_number": "00HM688",
-          "mfg_number": "SA10E75866",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "06920fa9-be06-4dc1-9975-e81e9513871d",
-          "part_number": "5R60S37210",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "09ff2936-1289-4811-9d82-58cc6939e379",
-          "part_number": "00XL065",
-          "mfg_number": "SBB1G28004",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "0a06d66b-4242-4ed1-bc9b-8e1783096655",
-          "part_number": "5C10S30254",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "0a41b949-5998-4266-a601-892e33b418a5",
-          "part_number": "5C10S30251",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "16335364-f119-4bfa-85fb-6aa867492e0d",
-          "part_number": "5D11F56381",
-          "mfg_number": "SBB1G54973",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "1aa5cf84-708c-4e1e-a836-b3b66b121317",
-          "part_number": "5T10S33238",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "207c535c-ba75-4010-ba15-82203606efb9",
-          "part_number": "5W10V25844",
-          "mfg_number": "SBB1G28019",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "2dc93bcb-54ac-4ef2-9d9d-bc39e24e0cf3",
-          "part_number": "5T10S33264",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "3bed0cbd-5b67-4242-a53e-f466ae379760",
-          "part_number": "5B21H82164",
-          "mfg_number": "5B21H82164",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "469e9fb8-9ba9-4f5a-ac85-acb1b82c251f",
-          "part_number": "5C10S30485",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "4a24c82c-8f73-4364-96d2-b76021177750",
-          "part_number": "5SS1C09736",
-          "mfg_number": "SSS1C09734",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "549c2dc3-d4a1-4ddf-93b9-475c5343fd84",
-          "part_number": "5B30S19062",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "594c4f38-d5b5-4370-8e36-6964d47a3903",
-          "part_number": "5C10S30255",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "5f9a8798-baaa-449e-9db2-37c6f16df812",
-          "part_number": "5T10S33237",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "635082df-333b-4f30-b654-2a5a12dea5f4",
-          "part_number": "5C50S25435",
-          "mfg_number": "5C50S25435",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "642d639c-a47d-4a96-9c1c-20aac422598b",
-          "part_number": "5C21D10435",
-          "mfg_number": "SC21D70376",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "6c5a6275-97c9-496e-b1a7-d0c3512f5eb7",
-          "part_number": "00HM686",
-          "mfg_number": "SBB1G28004",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "708f7e16-9a74-4f85-956d-38d72cf1616b",
-          "part_number": "5B40S22135",
-          "mfg_number": "SBB1G27983",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "79d35c7d-e89b-4590-a3c8-178dddec3609",
-          "part_number": "5B11B66552",
-          "mfg_number": "SB11B66551",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "7a0fedc7-3689-42d5-9d66-8389570d1ecd",
-          "part_number": "5S10S35422",
-          "mfg_number": "SBB1G54971",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "7c068225-19fb-4ac5-b829-0f01fdc0d9be",
-          "part_number": "5CB1H95497",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "7f8f2205-091f-42d7-8cdd-cb92de763bbe",
-          "part_number": "5F10S13964",
-          "mfg_number": "SBB1H03131",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "899429ef-a2d3-431f-8dc9-9dd335fe18d0",
-          "part_number": "5T10S33235",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "97e551e2-4d30-4064-be50-843dc071e7ac",
+          "part_catalog_id": "057dfa02-2444-4965-bf2a-6d81be9ffbc2",
           "part_number": "5C10S30486",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "a264bf1a-dd96-4fbb-9dbc-afc12a3584fe",
-          "part_number": "5W10V25844",
-          "mfg_number": "SW11A40448",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "a96bf57b-5a6c-440e-91a7-52b1101585d2",
-          "part_number": "5SS1D33970",
-          "mfg_number": "SBB1G27983",
+          "part_catalog_id": "07285686-9362-47f4-a76e-4ea7db0834b0",
+          "part_number": "5SS1C09736",
+          "mfg_number": "SSS1C09734",
           "quantity": 1
         },
         {
-          "part_catalog_id": "b0658e88-9a47-435c-8c85-44983476183b",
-          "part_number": "5CB1H95501",
-          "mfg_number": "SBB1G54971",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "b3e07c82-9d8c-49c1-a910-c4812d0f5c6d",
-          "part_number": "5H50S29008",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "bcef5a3a-c4a1-427a-b134-b10fb1a3b7fe",
-          "part_number": "5B11B66552",
-          "mfg_number": "SBB1G27986",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "bf038608-900d-4889-ac72-9d82a40bc0fe",
-          "part_number": "5C10S30253",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "d7da1bdb-9931-458b-90b6-c12eb302673c",
-          "part_number": "5CB1J08754",
-          "mfg_number": "SBB1H36105",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "d8c15915-9ff8-4a88-8a85-6f66958fb9e4",
-          "part_number": "5D11F56381",
-          "mfg_number": "SD11F56383",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "d9d785df-6ba5-4a8f-a5aa-c5d61daf783b",
-          "part_number": "5H40S20670",
-          "mfg_number": "SBB1H03131",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "db30110b-a2b2-4f3b-aacf-c28671e4ab8f",
-          "part_number": "5T10S33377",
-          "mfg_number": "SBB1G27983",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "db391c0f-05b0-4ff7-b52d-b5e3a522fe0e",
-          "part_number": "5C50S25435",
-          "mfg_number": "SBB1H03131",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "dfe215d7-4686-4c35-b411-2952f63a15c9",
+          "part_catalog_id": "1633a67c-927e-47f9-a5e2-a5a469ab4975",
           "part_number": "5CB1H95499",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "e131317e-7619-4503-af61-ae068578a0e0",
-          "part_number": "5R31L08532",
-          "mfg_number": "SBB1H73877",
+          "part_catalog_id": "16baae55-96c9-46ba-847b-486666400c0c",
+          "part_number": "5CB1H95501",
+          "mfg_number": "SBB1G54971",
           "quantity": 1
         },
         {
-          "part_catalog_id": "e9b9cc4f-5fc1-47a9-b424-7fdb3b290bae",
-          "part_number": "5B40S22075",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "ea57984c-905f-4144-9128-dbfa124fbbad",
-          "part_number": "5C21D10434",
+          "part_catalog_id": "1b36b476-c10b-4435-b94d-1b4a0dfd956f",
+          "part_number": "5CB1H95497",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "ed2f936f-74db-4989-8366-775b3fa3961e",
+          "part_catalog_id": "1f4e1852-818f-48b5-8a54-5884a4bae9a9",
+          "part_number": "5B11B66552",
+          "mfg_number": "SB11B66551",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "200d17fb-0744-4f4b-bc09-557a5a32fd90",
+          "part_number": "5C10S30255",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "2917434a-4445-4f64-8e09-67f5ec96e1da",
+          "part_number": "5B11B66552",
+          "mfg_number": "SBB1G27986",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "2a07c217-7999-4161-bc7b-c28d176b6f4c",
+          "part_number": "5B21H82164",
+          "mfg_number": "5B21H82164",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "2fb19632-37eb-4ad0-9b88-41b8bddb5405",
+          "part_number": "5T10S33377",
+          "mfg_number": "SBB1G27983",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "3b1e0653-a8f0-4d30-ad02-c7a4fb3757b9",
           "part_number": "5H40S20671",
           "mfg_number": "SH40R83163",
           "quantity": 1
         },
         {
-          "part_catalog_id": "f1316947-6c69-4136-b43a-2d89a00d3c55",
-          "part_number": "5SB0S31990",
-          "mfg_number": "SSB0S00490",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "f7caa539-a53b-4d69-930d-62a7f3e85e5d",
-          "part_number": "5SB0S31990",
-          "mfg_number": "SBB1G54977",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "f9e05a9c-fd59-44cc-8987-7be41144177f",
+          "part_catalog_id": "42515a55-ecc3-4588-977b-89ace3be997c",
           "part_number": "5C50S25436",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "fa1fe9bc-43c2-4b8b-9d04-5ddf2bcf03b5",
+          "part_catalog_id": "4260028f-bbc7-4a1a-9c65-fb9080ee9a4b",
+          "part_number": "5B40S22075",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "434de4a4-399b-48e1-a8e4-8b04015a4793",
+          "part_number": "5F10S13964",
+          "mfg_number": "SBB1H03131",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "5655119b-371a-445a-b238-46294ea0fe8a",
+          "part_number": "5C21D10435",
+          "mfg_number": "SC21D70376",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "573b4d43-fad8-403f-a417-b788f08c1afd",
+          "part_number": "5SB0S31990",
+          "mfg_number": "SSB0S00490",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "5fab2f7f-6f50-4497-8cc7-5b7f79a75535",
+          "part_number": "5C50S25435",
+          "mfg_number": "SBB1H03131",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "60ca44e5-d817-4060-9bca-b897b4efaab3",
+          "part_number": "5R60S37210",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "6379ad0f-a90e-4bcc-914d-b17284618081",
+          "part_number": "5B21H82164",
+          "mfg_number": "SBB1H36076",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "63c54eb2-effe-47b1-8a72-7128de024382",
+          "part_number": "5C50S25435",
+          "mfg_number": "5C50S25435",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "68756fe3-a2f2-400d-b443-65234f7ba761",
+          "part_number": "5H40S20670",
+          "mfg_number": "SBB1H03131",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "6cfd5157-11f3-40af-9038-5074874f923b",
+          "part_number": "5S10S35422",
+          "mfg_number": "SBB1G54971",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "75c6d537-5d86-46e4-ad6d-8772d862739d",
+          "part_number": "5T10S33237",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "8cc5b65f-9592-4e5b-bc89-35724fb613b1",
+          "part_number": "5W10V25844",
+          "mfg_number": "SBB1G28019",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "8d1ed1a3-7ba6-4c47-8bc0-c71c8e49f3ab",
+          "part_number": "5T10S33238",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "8debf07b-2dab-4ed7-98b8-c76070ee5e8d",
+          "part_number": "5C10S30251",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "95ad430e-d4d2-49a9-b02a-53f8347d9665",
+          "part_number": "5C10S30253",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "9848add2-d21a-4408-9e92-77538ada7081",
+          "part_number": "00HM688",
+          "mfg_number": "SA10E75866",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "9cb93cdb-fa75-4043-b2a5-1559fe768c8e",
+          "part_number": "5SB0S31990",
+          "mfg_number": "SBB1G54977",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "9cced277-5708-4d49-a028-dcc2b4672bdf",
+          "part_number": "00XL065",
+          "mfg_number": "SBB1G28004",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "9d773381-6198-4918-8e86-2795fac68b9d",
+          "part_number": "5CB1J08754",
+          "mfg_number": "SBB1H36105",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "9e30a094-4578-4e6b-a307-47587bd9d86a",
+          "part_number": "5B30S19062",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "a0dc3331-c6d1-490b-a5a6-a8f6c2294450",
+          "part_number": "5T10S33235",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "a7642ef6-ba7c-4668-94f5-ed7bd7728aec",
+          "part_number": "5D11F56381",
+          "mfg_number": "SD11F56383",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "aa652603-5085-4855-99f8-f3ebab865c3f",
           "part_number": "00XL065",
           "mfg_number": "SL60K75080",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "ab478ffc-d2ba-4d38-922c-ecb8fc3d4b6c",
+          "part_number": "5SS1D33970",
+          "mfg_number": "SBB1G27983",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "b125ed88-afdc-4d09-80c8-01bfbe076664",
+          "part_number": "5R31L08532",
+          "mfg_number": "SBB1H73877",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "b3a1f8c8-9031-4cf3-8db3-3930173954e3",
+          "part_number": "5C10S30254",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "d22017f5-84c4-4389-aaaf-142efd66ed65",
+          "part_number": "5C21D10434",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "d6dbd3df-6057-48f2-be79-b2994c142e72",
+          "part_number": "5B40S22135",
+          "mfg_number": "SBB1G27983",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "e039cf1d-cc04-4a93-8540-4d297a226471",
+          "part_number": "5C10S30485",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "e82a3b98-fe46-4ff9-9a59-b5beeeee4af8",
+          "part_number": "5T10S33264",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "e9836c73-05b6-4118-ab21-aca1f18dbb3d",
+          "part_number": "00HM686",
+          "mfg_number": "SBB1G28004",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "fae4ed36-f19c-48de-8ec1-ee1258cb8c5c",
+          "part_number": "5H50S29008",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "fe2443ae-45c2-46ce-9a49-401a9640c9cc",
+          "part_number": "5W10V25844",
+          "mfg_number": "SW11A40448",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "ff55f7b3-e538-4bd2-ac54-c6602d3970c2",
+          "part_number": "5D11F56381",
+          "mfg_number": "SBB1G54973",
           "quantity": 2
         }
       ]
@@ -1081,281 +1082,282 @@
       "model_code": "82A3000GUS",
       "model_name": "Yoga Slim 7i",
       "description": "Seeded product model",
+      "unit_price": 1099.99,
       "bom": [
         {
-          "part_catalog_id": "015f7498-5541-4200-a88d-e71149dd4f85",
-          "part_number": "5B21H82164",
-          "mfg_number": "SBB1H36076",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "067d6d23-246f-4706-92fb-cfb9d9ba5051",
-          "part_number": "00HM688",
-          "mfg_number": "SA10E75866",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "06920fa9-be06-4dc1-9975-e81e9513871d",
-          "part_number": "5R60S37210",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "09ff2936-1289-4811-9d82-58cc6939e379",
-          "part_number": "00XL065",
-          "mfg_number": "SBB1G28004",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "0a06d66b-4242-4ed1-bc9b-8e1783096655",
-          "part_number": "5C10S30254",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "0a41b949-5998-4266-a601-892e33b418a5",
-          "part_number": "5C10S30251",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "16335364-f119-4bfa-85fb-6aa867492e0d",
-          "part_number": "5D11F56381",
-          "mfg_number": "SBB1G54973",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "1aa5cf84-708c-4e1e-a836-b3b66b121317",
-          "part_number": "5T10S33238",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "207c535c-ba75-4010-ba15-82203606efb9",
-          "part_number": "5W10V25844",
-          "mfg_number": "SBB1G28019",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "2dc93bcb-54ac-4ef2-9d9d-bc39e24e0cf3",
-          "part_number": "5T10S33264",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "3bed0cbd-5b67-4242-a53e-f466ae379760",
-          "part_number": "5B21H82164",
-          "mfg_number": "5B21H82164",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "469e9fb8-9ba9-4f5a-ac85-acb1b82c251f",
-          "part_number": "5C10S30485",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "4a24c82c-8f73-4364-96d2-b76021177750",
-          "part_number": "5SS1C09736",
-          "mfg_number": "SSS1C09734",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "549c2dc3-d4a1-4ddf-93b9-475c5343fd84",
-          "part_number": "5B30S19062",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "594c4f38-d5b5-4370-8e36-6964d47a3903",
-          "part_number": "5C10S30255",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "5f9a8798-baaa-449e-9db2-37c6f16df812",
-          "part_number": "5T10S33237",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "635082df-333b-4f30-b654-2a5a12dea5f4",
-          "part_number": "5C50S25435",
-          "mfg_number": "5C50S25435",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "642d639c-a47d-4a96-9c1c-20aac422598b",
-          "part_number": "5C21D10435",
-          "mfg_number": "SC21D70376",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "6c5a6275-97c9-496e-b1a7-d0c3512f5eb7",
-          "part_number": "00HM686",
-          "mfg_number": "SBB1G28004",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "708f7e16-9a74-4f85-956d-38d72cf1616b",
-          "part_number": "5B40S22135",
-          "mfg_number": "SBB1G27983",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "79d35c7d-e89b-4590-a3c8-178dddec3609",
-          "part_number": "5B11B66552",
-          "mfg_number": "SB11B66551",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "7a0fedc7-3689-42d5-9d66-8389570d1ecd",
-          "part_number": "5S10S35422",
-          "mfg_number": "SBB1G54971",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "7c068225-19fb-4ac5-b829-0f01fdc0d9be",
-          "part_number": "5CB1H95497",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "7f8f2205-091f-42d7-8cdd-cb92de763bbe",
-          "part_number": "5F10S13964",
-          "mfg_number": "SBB1H03131",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "899429ef-a2d3-431f-8dc9-9dd335fe18d0",
-          "part_number": "5T10S33235",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "97e551e2-4d30-4064-be50-843dc071e7ac",
+          "part_catalog_id": "057dfa02-2444-4965-bf2a-6d81be9ffbc2",
           "part_number": "5C10S30486",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "a264bf1a-dd96-4fbb-9dbc-afc12a3584fe",
-          "part_number": "5W10V25844",
-          "mfg_number": "SW11A40448",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "a96bf57b-5a6c-440e-91a7-52b1101585d2",
-          "part_number": "5SS1D33970",
-          "mfg_number": "SBB1G27983",
+          "part_catalog_id": "07285686-9362-47f4-a76e-4ea7db0834b0",
+          "part_number": "5SS1C09736",
+          "mfg_number": "SSS1C09734",
           "quantity": 1
         },
         {
-          "part_catalog_id": "b0658e88-9a47-435c-8c85-44983476183b",
-          "part_number": "5CB1H95501",
-          "mfg_number": "SBB1G54971",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "b3e07c82-9d8c-49c1-a910-c4812d0f5c6d",
-          "part_number": "5H50S29008",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "bcef5a3a-c4a1-427a-b134-b10fb1a3b7fe",
-          "part_number": "5B11B66552",
-          "mfg_number": "SBB1G27986",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "bf038608-900d-4889-ac72-9d82a40bc0fe",
-          "part_number": "5C10S30253",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "d7da1bdb-9931-458b-90b6-c12eb302673c",
-          "part_number": "5CB1J08754",
-          "mfg_number": "SBB1H36105",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "d8c15915-9ff8-4a88-8a85-6f66958fb9e4",
-          "part_number": "5D11F56381",
-          "mfg_number": "SD11F56383",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "d9d785df-6ba5-4a8f-a5aa-c5d61daf783b",
-          "part_number": "5H40S20670",
-          "mfg_number": "SBB1H03131",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "db30110b-a2b2-4f3b-aacf-c28671e4ab8f",
-          "part_number": "5T10S33377",
-          "mfg_number": "SBB1G27983",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "db391c0f-05b0-4ff7-b52d-b5e3a522fe0e",
-          "part_number": "5C50S25435",
-          "mfg_number": "SBB1H03131",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "dfe215d7-4686-4c35-b411-2952f63a15c9",
+          "part_catalog_id": "1633a67c-927e-47f9-a5e2-a5a469ab4975",
           "part_number": "5CB1H95499",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "e131317e-7619-4503-af61-ae068578a0e0",
-          "part_number": "5R31L08532",
-          "mfg_number": "SBB1H73877",
+          "part_catalog_id": "16baae55-96c9-46ba-847b-486666400c0c",
+          "part_number": "5CB1H95501",
+          "mfg_number": "SBB1G54971",
           "quantity": 1
         },
         {
-          "part_catalog_id": "e9b9cc4f-5fc1-47a9-b424-7fdb3b290bae",
-          "part_number": "5B40S22075",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "ea57984c-905f-4144-9128-dbfa124fbbad",
-          "part_number": "5C21D10434",
+          "part_catalog_id": "1b36b476-c10b-4435-b94d-1b4a0dfd956f",
+          "part_number": "5CB1H95497",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "ed2f936f-74db-4989-8366-775b3fa3961e",
+          "part_catalog_id": "1f4e1852-818f-48b5-8a54-5884a4bae9a9",
+          "part_number": "5B11B66552",
+          "mfg_number": "SB11B66551",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "200d17fb-0744-4f4b-bc09-557a5a32fd90",
+          "part_number": "5C10S30255",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "2917434a-4445-4f64-8e09-67f5ec96e1da",
+          "part_number": "5B11B66552",
+          "mfg_number": "SBB1G27986",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "2a07c217-7999-4161-bc7b-c28d176b6f4c",
+          "part_number": "5B21H82164",
+          "mfg_number": "5B21H82164",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "2fb19632-37eb-4ad0-9b88-41b8bddb5405",
+          "part_number": "5T10S33377",
+          "mfg_number": "SBB1G27983",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "3b1e0653-a8f0-4d30-ad02-c7a4fb3757b9",
           "part_number": "5H40S20671",
           "mfg_number": "SH40R83163",
           "quantity": 1
         },
         {
-          "part_catalog_id": "f1316947-6c69-4136-b43a-2d89a00d3c55",
-          "part_number": "5SB0S31990",
-          "mfg_number": "SSB0S00490",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "f7caa539-a53b-4d69-930d-62a7f3e85e5d",
-          "part_number": "5SB0S31990",
-          "mfg_number": "SBB1G54977",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "f9e05a9c-fd59-44cc-8987-7be41144177f",
+          "part_catalog_id": "42515a55-ecc3-4588-977b-89ace3be997c",
           "part_number": "5C50S25436",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "fa1fe9bc-43c2-4b8b-9d04-5ddf2bcf03b5",
+          "part_catalog_id": "4260028f-bbc7-4a1a-9c65-fb9080ee9a4b",
+          "part_number": "5B40S22075",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "434de4a4-399b-48e1-a8e4-8b04015a4793",
+          "part_number": "5F10S13964",
+          "mfg_number": "SBB1H03131",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "5655119b-371a-445a-b238-46294ea0fe8a",
+          "part_number": "5C21D10435",
+          "mfg_number": "SC21D70376",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "573b4d43-fad8-403f-a417-b788f08c1afd",
+          "part_number": "5SB0S31990",
+          "mfg_number": "SSB0S00490",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "5fab2f7f-6f50-4497-8cc7-5b7f79a75535",
+          "part_number": "5C50S25435",
+          "mfg_number": "SBB1H03131",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "60ca44e5-d817-4060-9bca-b897b4efaab3",
+          "part_number": "5R60S37210",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "6379ad0f-a90e-4bcc-914d-b17284618081",
+          "part_number": "5B21H82164",
+          "mfg_number": "SBB1H36076",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "63c54eb2-effe-47b1-8a72-7128de024382",
+          "part_number": "5C50S25435",
+          "mfg_number": "5C50S25435",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "68756fe3-a2f2-400d-b443-65234f7ba761",
+          "part_number": "5H40S20670",
+          "mfg_number": "SBB1H03131",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "6cfd5157-11f3-40af-9038-5074874f923b",
+          "part_number": "5S10S35422",
+          "mfg_number": "SBB1G54971",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "75c6d537-5d86-46e4-ad6d-8772d862739d",
+          "part_number": "5T10S33237",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "8cc5b65f-9592-4e5b-bc89-35724fb613b1",
+          "part_number": "5W10V25844",
+          "mfg_number": "SBB1G28019",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "8d1ed1a3-7ba6-4c47-8bc0-c71c8e49f3ab",
+          "part_number": "5T10S33238",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "8debf07b-2dab-4ed7-98b8-c76070ee5e8d",
+          "part_number": "5C10S30251",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "95ad430e-d4d2-49a9-b02a-53f8347d9665",
+          "part_number": "5C10S30253",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "9848add2-d21a-4408-9e92-77538ada7081",
+          "part_number": "00HM688",
+          "mfg_number": "SA10E75866",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "9cb93cdb-fa75-4043-b2a5-1559fe768c8e",
+          "part_number": "5SB0S31990",
+          "mfg_number": "SBB1G54977",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "9cced277-5708-4d49-a028-dcc2b4672bdf",
+          "part_number": "00XL065",
+          "mfg_number": "SBB1G28004",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "9d773381-6198-4918-8e86-2795fac68b9d",
+          "part_number": "5CB1J08754",
+          "mfg_number": "SBB1H36105",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "9e30a094-4578-4e6b-a307-47587bd9d86a",
+          "part_number": "5B30S19062",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "a0dc3331-c6d1-490b-a5a6-a8f6c2294450",
+          "part_number": "5T10S33235",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "a7642ef6-ba7c-4668-94f5-ed7bd7728aec",
+          "part_number": "5D11F56381",
+          "mfg_number": "SD11F56383",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "aa652603-5085-4855-99f8-f3ebab865c3f",
           "part_number": "00XL065",
           "mfg_number": "SL60K75080",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "ab478ffc-d2ba-4d38-922c-ecb8fc3d4b6c",
+          "part_number": "5SS1D33970",
+          "mfg_number": "SBB1G27983",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "b125ed88-afdc-4d09-80c8-01bfbe076664",
+          "part_number": "5R31L08532",
+          "mfg_number": "SBB1H73877",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "b3a1f8c8-9031-4cf3-8db3-3930173954e3",
+          "part_number": "5C10S30254",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "d22017f5-84c4-4389-aaaf-142efd66ed65",
+          "part_number": "5C21D10434",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "d6dbd3df-6057-48f2-be79-b2994c142e72",
+          "part_number": "5B40S22135",
+          "mfg_number": "SBB1G27983",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "e039cf1d-cc04-4a93-8540-4d297a226471",
+          "part_number": "5C10S30485",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "e82a3b98-fe46-4ff9-9a59-b5beeeee4af8",
+          "part_number": "5T10S33264",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "e9836c73-05b6-4118-ab21-aca1f18dbb3d",
+          "part_number": "00HM686",
+          "mfg_number": "SBB1G28004",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "fae4ed36-f19c-48de-8ec1-ee1258cb8c5c",
+          "part_number": "5H50S29008",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "fe2443ae-45c2-46ce-9a49-401a9640c9cc",
+          "part_number": "5W10V25844",
+          "mfg_number": "SW11A40448",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "ff55f7b3-e538-4bd2-ac54-c6602d3970c2",
+          "part_number": "5D11F56381",
+          "mfg_number": "SBB1G54973",
           "quantity": 2
         }
       ]
@@ -1364,281 +1366,282 @@
       "model_code": "82SN003JVN",
       "model_name": "IdeaPad 5 Pro 16ARH7",
       "description": "Seeded product model",
+      "unit_price": 999.99,
       "bom": [
         {
-          "part_catalog_id": "015f7498-5541-4200-a88d-e71149dd4f85",
-          "part_number": "5B21H82164",
-          "mfg_number": "SBB1H36076",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "067d6d23-246f-4706-92fb-cfb9d9ba5051",
-          "part_number": "00HM688",
-          "mfg_number": "SA10E75866",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "06920fa9-be06-4dc1-9975-e81e9513871d",
-          "part_number": "5R60S37210",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "09ff2936-1289-4811-9d82-58cc6939e379",
-          "part_number": "00XL065",
-          "mfg_number": "SBB1G28004",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "0a06d66b-4242-4ed1-bc9b-8e1783096655",
-          "part_number": "5C10S30254",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "0a41b949-5998-4266-a601-892e33b418a5",
-          "part_number": "5C10S30251",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "16335364-f119-4bfa-85fb-6aa867492e0d",
-          "part_number": "5D11F56381",
-          "mfg_number": "SBB1G54973",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "1aa5cf84-708c-4e1e-a836-b3b66b121317",
-          "part_number": "5T10S33238",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "207c535c-ba75-4010-ba15-82203606efb9",
-          "part_number": "5W10V25844",
-          "mfg_number": "SBB1G28019",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "2dc93bcb-54ac-4ef2-9d9d-bc39e24e0cf3",
-          "part_number": "5T10S33264",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "3bed0cbd-5b67-4242-a53e-f466ae379760",
-          "part_number": "5B21H82164",
-          "mfg_number": "5B21H82164",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "469e9fb8-9ba9-4f5a-ac85-acb1b82c251f",
-          "part_number": "5C10S30485",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "4a24c82c-8f73-4364-96d2-b76021177750",
-          "part_number": "5SS1C09736",
-          "mfg_number": "SSS1C09734",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "549c2dc3-d4a1-4ddf-93b9-475c5343fd84",
-          "part_number": "5B30S19062",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "594c4f38-d5b5-4370-8e36-6964d47a3903",
-          "part_number": "5C10S30255",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "5f9a8798-baaa-449e-9db2-37c6f16df812",
-          "part_number": "5T10S33237",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "635082df-333b-4f30-b654-2a5a12dea5f4",
-          "part_number": "5C50S25435",
-          "mfg_number": "5C50S25435",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "642d639c-a47d-4a96-9c1c-20aac422598b",
-          "part_number": "5C21D10435",
-          "mfg_number": "SC21D70376",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "6c5a6275-97c9-496e-b1a7-d0c3512f5eb7",
-          "part_number": "00HM686",
-          "mfg_number": "SBB1G28004",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "708f7e16-9a74-4f85-956d-38d72cf1616b",
-          "part_number": "5B40S22135",
-          "mfg_number": "SBB1G27983",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "79d35c7d-e89b-4590-a3c8-178dddec3609",
-          "part_number": "5B11B66552",
-          "mfg_number": "SB11B66551",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "7a0fedc7-3689-42d5-9d66-8389570d1ecd",
-          "part_number": "5S10S35422",
-          "mfg_number": "SBB1G54971",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "7c068225-19fb-4ac5-b829-0f01fdc0d9be",
-          "part_number": "5CB1H95497",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "7f8f2205-091f-42d7-8cdd-cb92de763bbe",
-          "part_number": "5F10S13964",
-          "mfg_number": "SBB1H03131",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "899429ef-a2d3-431f-8dc9-9dd335fe18d0",
-          "part_number": "5T10S33235",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "97e551e2-4d30-4064-be50-843dc071e7ac",
+          "part_catalog_id": "057dfa02-2444-4965-bf2a-6d81be9ffbc2",
           "part_number": "5C10S30486",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "a264bf1a-dd96-4fbb-9dbc-afc12a3584fe",
-          "part_number": "5W10V25844",
-          "mfg_number": "SW11A40448",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "a96bf57b-5a6c-440e-91a7-52b1101585d2",
-          "part_number": "5SS1D33970",
-          "mfg_number": "SBB1G27983",
+          "part_catalog_id": "07285686-9362-47f4-a76e-4ea7db0834b0",
+          "part_number": "5SS1C09736",
+          "mfg_number": "SSS1C09734",
           "quantity": 1
         },
         {
-          "part_catalog_id": "b0658e88-9a47-435c-8c85-44983476183b",
-          "part_number": "5CB1H95501",
-          "mfg_number": "SBB1G54971",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "b3e07c82-9d8c-49c1-a910-c4812d0f5c6d",
-          "part_number": "5H50S29008",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "bcef5a3a-c4a1-427a-b134-b10fb1a3b7fe",
-          "part_number": "5B11B66552",
-          "mfg_number": "SBB1G27986",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "bf038608-900d-4889-ac72-9d82a40bc0fe",
-          "part_number": "5C10S30253",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "d7da1bdb-9931-458b-90b6-c12eb302673c",
-          "part_number": "5CB1J08754",
-          "mfg_number": "SBB1H36105",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "d8c15915-9ff8-4a88-8a85-6f66958fb9e4",
-          "part_number": "5D11F56381",
-          "mfg_number": "SD11F56383",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "d9d785df-6ba5-4a8f-a5aa-c5d61daf783b",
-          "part_number": "5H40S20670",
-          "mfg_number": "SBB1H03131",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "db30110b-a2b2-4f3b-aacf-c28671e4ab8f",
-          "part_number": "5T10S33377",
-          "mfg_number": "SBB1G27983",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "db391c0f-05b0-4ff7-b52d-b5e3a522fe0e",
-          "part_number": "5C50S25435",
-          "mfg_number": "SBB1H03131",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "dfe215d7-4686-4c35-b411-2952f63a15c9",
+          "part_catalog_id": "1633a67c-927e-47f9-a5e2-a5a469ab4975",
           "part_number": "5CB1H95499",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "e131317e-7619-4503-af61-ae068578a0e0",
-          "part_number": "5R31L08532",
-          "mfg_number": "SBB1H73877",
+          "part_catalog_id": "16baae55-96c9-46ba-847b-486666400c0c",
+          "part_number": "5CB1H95501",
+          "mfg_number": "SBB1G54971",
           "quantity": 1
         },
         {
-          "part_catalog_id": "e9b9cc4f-5fc1-47a9-b424-7fdb3b290bae",
-          "part_number": "5B40S22075",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "ea57984c-905f-4144-9128-dbfa124fbbad",
-          "part_number": "5C21D10434",
+          "part_catalog_id": "1b36b476-c10b-4435-b94d-1b4a0dfd956f",
+          "part_number": "5CB1H95497",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "ed2f936f-74db-4989-8366-775b3fa3961e",
+          "part_catalog_id": "1f4e1852-818f-48b5-8a54-5884a4bae9a9",
+          "part_number": "5B11B66552",
+          "mfg_number": "SB11B66551",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "200d17fb-0744-4f4b-bc09-557a5a32fd90",
+          "part_number": "5C10S30255",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "2917434a-4445-4f64-8e09-67f5ec96e1da",
+          "part_number": "5B11B66552",
+          "mfg_number": "SBB1G27986",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "2a07c217-7999-4161-bc7b-c28d176b6f4c",
+          "part_number": "5B21H82164",
+          "mfg_number": "5B21H82164",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "2fb19632-37eb-4ad0-9b88-41b8bddb5405",
+          "part_number": "5T10S33377",
+          "mfg_number": "SBB1G27983",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "3b1e0653-a8f0-4d30-ad02-c7a4fb3757b9",
           "part_number": "5H40S20671",
           "mfg_number": "SH40R83163",
           "quantity": 1
         },
         {
-          "part_catalog_id": "f1316947-6c69-4136-b43a-2d89a00d3c55",
-          "part_number": "5SB0S31990",
-          "mfg_number": "SSB0S00490",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "f7caa539-a53b-4d69-930d-62a7f3e85e5d",
-          "part_number": "5SB0S31990",
-          "mfg_number": "SBB1G54977",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "f9e05a9c-fd59-44cc-8987-7be41144177f",
+          "part_catalog_id": "42515a55-ecc3-4588-977b-89ace3be997c",
           "part_number": "5C50S25436",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "fa1fe9bc-43c2-4b8b-9d04-5ddf2bcf03b5",
+          "part_catalog_id": "4260028f-bbc7-4a1a-9c65-fb9080ee9a4b",
+          "part_number": "5B40S22075",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "434de4a4-399b-48e1-a8e4-8b04015a4793",
+          "part_number": "5F10S13964",
+          "mfg_number": "SBB1H03131",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "5655119b-371a-445a-b238-46294ea0fe8a",
+          "part_number": "5C21D10435",
+          "mfg_number": "SC21D70376",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "573b4d43-fad8-403f-a417-b788f08c1afd",
+          "part_number": "5SB0S31990",
+          "mfg_number": "SSB0S00490",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "5fab2f7f-6f50-4497-8cc7-5b7f79a75535",
+          "part_number": "5C50S25435",
+          "mfg_number": "SBB1H03131",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "60ca44e5-d817-4060-9bca-b897b4efaab3",
+          "part_number": "5R60S37210",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "6379ad0f-a90e-4bcc-914d-b17284618081",
+          "part_number": "5B21H82164",
+          "mfg_number": "SBB1H36076",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "63c54eb2-effe-47b1-8a72-7128de024382",
+          "part_number": "5C50S25435",
+          "mfg_number": "5C50S25435",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "68756fe3-a2f2-400d-b443-65234f7ba761",
+          "part_number": "5H40S20670",
+          "mfg_number": "SBB1H03131",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "6cfd5157-11f3-40af-9038-5074874f923b",
+          "part_number": "5S10S35422",
+          "mfg_number": "SBB1G54971",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "75c6d537-5d86-46e4-ad6d-8772d862739d",
+          "part_number": "5T10S33237",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "8cc5b65f-9592-4e5b-bc89-35724fb613b1",
+          "part_number": "5W10V25844",
+          "mfg_number": "SBB1G28019",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "8d1ed1a3-7ba6-4c47-8bc0-c71c8e49f3ab",
+          "part_number": "5T10S33238",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "8debf07b-2dab-4ed7-98b8-c76070ee5e8d",
+          "part_number": "5C10S30251",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "95ad430e-d4d2-49a9-b02a-53f8347d9665",
+          "part_number": "5C10S30253",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "9848add2-d21a-4408-9e92-77538ada7081",
+          "part_number": "00HM688",
+          "mfg_number": "SA10E75866",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "9cb93cdb-fa75-4043-b2a5-1559fe768c8e",
+          "part_number": "5SB0S31990",
+          "mfg_number": "SBB1G54977",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "9cced277-5708-4d49-a028-dcc2b4672bdf",
+          "part_number": "00XL065",
+          "mfg_number": "SBB1G28004",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "9d773381-6198-4918-8e86-2795fac68b9d",
+          "part_number": "5CB1J08754",
+          "mfg_number": "SBB1H36105",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "9e30a094-4578-4e6b-a307-47587bd9d86a",
+          "part_number": "5B30S19062",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "a0dc3331-c6d1-490b-a5a6-a8f6c2294450",
+          "part_number": "5T10S33235",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "a7642ef6-ba7c-4668-94f5-ed7bd7728aec",
+          "part_number": "5D11F56381",
+          "mfg_number": "SD11F56383",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "aa652603-5085-4855-99f8-f3ebab865c3f",
           "part_number": "00XL065",
           "mfg_number": "SL60K75080",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "ab478ffc-d2ba-4d38-922c-ecb8fc3d4b6c",
+          "part_number": "5SS1D33970",
+          "mfg_number": "SBB1G27983",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "b125ed88-afdc-4d09-80c8-01bfbe076664",
+          "part_number": "5R31L08532",
+          "mfg_number": "SBB1H73877",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "b3a1f8c8-9031-4cf3-8db3-3930173954e3",
+          "part_number": "5C10S30254",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "d22017f5-84c4-4389-aaaf-142efd66ed65",
+          "part_number": "5C21D10434",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "d6dbd3df-6057-48f2-be79-b2994c142e72",
+          "part_number": "5B40S22135",
+          "mfg_number": "SBB1G27983",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "e039cf1d-cc04-4a93-8540-4d297a226471",
+          "part_number": "5C10S30485",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "e82a3b98-fe46-4ff9-9a59-b5beeeee4af8",
+          "part_number": "5T10S33264",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "e9836c73-05b6-4118-ab21-aca1f18dbb3d",
+          "part_number": "00HM686",
+          "mfg_number": "SBB1G28004",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "fae4ed36-f19c-48de-8ec1-ee1258cb8c5c",
+          "part_number": "5H50S29008",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "fe2443ae-45c2-46ce-9a49-401a9640c9cc",
+          "part_number": "5W10V25844",
+          "mfg_number": "SW11A40448",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "ff55f7b3-e538-4bd2-ac54-c6602d3970c2",
+          "part_number": "5D11F56381",
+          "mfg_number": "SBB1G54973",
           "quantity": 2
         }
       ]
@@ -1647,281 +1650,282 @@
       "model_code": "82WQ002RUS",
       "model_name": "Legion Pro 7i",
       "description": "Seeded product model",
+      "unit_price": 2199.99,
       "bom": [
         {
-          "part_catalog_id": "015f7498-5541-4200-a88d-e71149dd4f85",
-          "part_number": "5B21H82164",
-          "mfg_number": "SBB1H36076",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "067d6d23-246f-4706-92fb-cfb9d9ba5051",
-          "part_number": "00HM688",
-          "mfg_number": "SA10E75866",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "06920fa9-be06-4dc1-9975-e81e9513871d",
-          "part_number": "5R60S37210",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "09ff2936-1289-4811-9d82-58cc6939e379",
-          "part_number": "00XL065",
-          "mfg_number": "SBB1G28004",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "0a06d66b-4242-4ed1-bc9b-8e1783096655",
-          "part_number": "5C10S30254",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "0a41b949-5998-4266-a601-892e33b418a5",
-          "part_number": "5C10S30251",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "16335364-f119-4bfa-85fb-6aa867492e0d",
-          "part_number": "5D11F56381",
-          "mfg_number": "SBB1G54973",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "1aa5cf84-708c-4e1e-a836-b3b66b121317",
-          "part_number": "5T10S33238",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "207c535c-ba75-4010-ba15-82203606efb9",
-          "part_number": "5W10V25844",
-          "mfg_number": "SBB1G28019",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "2dc93bcb-54ac-4ef2-9d9d-bc39e24e0cf3",
-          "part_number": "5T10S33264",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "3bed0cbd-5b67-4242-a53e-f466ae379760",
-          "part_number": "5B21H82164",
-          "mfg_number": "5B21H82164",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "469e9fb8-9ba9-4f5a-ac85-acb1b82c251f",
-          "part_number": "5C10S30485",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "4a24c82c-8f73-4364-96d2-b76021177750",
-          "part_number": "5SS1C09736",
-          "mfg_number": "SSS1C09734",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "549c2dc3-d4a1-4ddf-93b9-475c5343fd84",
-          "part_number": "5B30S19062",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "594c4f38-d5b5-4370-8e36-6964d47a3903",
-          "part_number": "5C10S30255",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "5f9a8798-baaa-449e-9db2-37c6f16df812",
-          "part_number": "5T10S33237",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "635082df-333b-4f30-b654-2a5a12dea5f4",
-          "part_number": "5C50S25435",
-          "mfg_number": "5C50S25435",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "642d639c-a47d-4a96-9c1c-20aac422598b",
-          "part_number": "5C21D10435",
-          "mfg_number": "SC21D70376",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "6c5a6275-97c9-496e-b1a7-d0c3512f5eb7",
-          "part_number": "00HM686",
-          "mfg_number": "SBB1G28004",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "708f7e16-9a74-4f85-956d-38d72cf1616b",
-          "part_number": "5B40S22135",
-          "mfg_number": "SBB1G27983",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "79d35c7d-e89b-4590-a3c8-178dddec3609",
-          "part_number": "5B11B66552",
-          "mfg_number": "SB11B66551",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "7a0fedc7-3689-42d5-9d66-8389570d1ecd",
-          "part_number": "5S10S35422",
-          "mfg_number": "SBB1G54971",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "7c068225-19fb-4ac5-b829-0f01fdc0d9be",
-          "part_number": "5CB1H95497",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "7f8f2205-091f-42d7-8cdd-cb92de763bbe",
-          "part_number": "5F10S13964",
-          "mfg_number": "SBB1H03131",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "899429ef-a2d3-431f-8dc9-9dd335fe18d0",
-          "part_number": "5T10S33235",
-          "mfg_number": "SBB1G54973",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "97e551e2-4d30-4064-be50-843dc071e7ac",
+          "part_catalog_id": "057dfa02-2444-4965-bf2a-6d81be9ffbc2",
           "part_number": "5C10S30486",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "a264bf1a-dd96-4fbb-9dbc-afc12a3584fe",
-          "part_number": "5W10V25844",
-          "mfg_number": "SW11A40448",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "a96bf57b-5a6c-440e-91a7-52b1101585d2",
-          "part_number": "5SS1D33970",
-          "mfg_number": "SBB1G27983",
+          "part_catalog_id": "07285686-9362-47f4-a76e-4ea7db0834b0",
+          "part_number": "5SS1C09736",
+          "mfg_number": "SSS1C09734",
           "quantity": 1
         },
         {
-          "part_catalog_id": "b0658e88-9a47-435c-8c85-44983476183b",
-          "part_number": "5CB1H95501",
-          "mfg_number": "SBB1G54971",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "b3e07c82-9d8c-49c1-a910-c4812d0f5c6d",
-          "part_number": "5H50S29008",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "bcef5a3a-c4a1-427a-b134-b10fb1a3b7fe",
-          "part_number": "5B11B66552",
-          "mfg_number": "SBB1G27986",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "bf038608-900d-4889-ac72-9d82a40bc0fe",
-          "part_number": "5C10S30253",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "d7da1bdb-9931-458b-90b6-c12eb302673c",
-          "part_number": "5CB1J08754",
-          "mfg_number": "SBB1H36105",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "d8c15915-9ff8-4a88-8a85-6f66958fb9e4",
-          "part_number": "5D11F56381",
-          "mfg_number": "SD11F56383",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "d9d785df-6ba5-4a8f-a5aa-c5d61daf783b",
-          "part_number": "5H40S20670",
-          "mfg_number": "SBB1H03131",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "db30110b-a2b2-4f3b-aacf-c28671e4ab8f",
-          "part_number": "5T10S33377",
-          "mfg_number": "SBB1G27983",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "db391c0f-05b0-4ff7-b52d-b5e3a522fe0e",
-          "part_number": "5C50S25435",
-          "mfg_number": "SBB1H03131",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "dfe215d7-4686-4c35-b411-2952f63a15c9",
+          "part_catalog_id": "1633a67c-927e-47f9-a5e2-a5a469ab4975",
           "part_number": "5CB1H95499",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "e131317e-7619-4503-af61-ae068578a0e0",
-          "part_number": "5R31L08532",
-          "mfg_number": "SBB1H73877",
+          "part_catalog_id": "16baae55-96c9-46ba-847b-486666400c0c",
+          "part_number": "5CB1H95501",
+          "mfg_number": "SBB1G54971",
           "quantity": 1
         },
         {
-          "part_catalog_id": "e9b9cc4f-5fc1-47a9-b424-7fdb3b290bae",
-          "part_number": "5B40S22075",
-          "mfg_number": "SBB1G54977",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "ea57984c-905f-4144-9128-dbfa124fbbad",
-          "part_number": "5C21D10434",
+          "part_catalog_id": "1b36b476-c10b-4435-b94d-1b4a0dfd956f",
+          "part_number": "5CB1H95497",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "ed2f936f-74db-4989-8366-775b3fa3961e",
+          "part_catalog_id": "1f4e1852-818f-48b5-8a54-5884a4bae9a9",
+          "part_number": "5B11B66552",
+          "mfg_number": "SB11B66551",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "200d17fb-0744-4f4b-bc09-557a5a32fd90",
+          "part_number": "5C10S30255",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "2917434a-4445-4f64-8e09-67f5ec96e1da",
+          "part_number": "5B11B66552",
+          "mfg_number": "SBB1G27986",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "2a07c217-7999-4161-bc7b-c28d176b6f4c",
+          "part_number": "5B21H82164",
+          "mfg_number": "5B21H82164",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "2fb19632-37eb-4ad0-9b88-41b8bddb5405",
+          "part_number": "5T10S33377",
+          "mfg_number": "SBB1G27983",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "3b1e0653-a8f0-4d30-ad02-c7a4fb3757b9",
           "part_number": "5H40S20671",
           "mfg_number": "SH40R83163",
           "quantity": 1
         },
         {
-          "part_catalog_id": "f1316947-6c69-4136-b43a-2d89a00d3c55",
-          "part_number": "5SB0S31990",
-          "mfg_number": "SSB0S00490",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "f7caa539-a53b-4d69-930d-62a7f3e85e5d",
-          "part_number": "5SB0S31990",
-          "mfg_number": "SBB1G54977",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "f9e05a9c-fd59-44cc-8987-7be41144177f",
+          "part_catalog_id": "42515a55-ecc3-4588-977b-89ace3be997c",
           "part_number": "5C50S25436",
           "mfg_number": "SBB1G54973",
           "quantity": 1
         },
         {
-          "part_catalog_id": "fa1fe9bc-43c2-4b8b-9d04-5ddf2bcf03b5",
+          "part_catalog_id": "4260028f-bbc7-4a1a-9c65-fb9080ee9a4b",
+          "part_number": "5B40S22075",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "434de4a4-399b-48e1-a8e4-8b04015a4793",
+          "part_number": "5F10S13964",
+          "mfg_number": "SBB1H03131",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "5655119b-371a-445a-b238-46294ea0fe8a",
+          "part_number": "5C21D10435",
+          "mfg_number": "SC21D70376",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "573b4d43-fad8-403f-a417-b788f08c1afd",
+          "part_number": "5SB0S31990",
+          "mfg_number": "SSB0S00490",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "5fab2f7f-6f50-4497-8cc7-5b7f79a75535",
+          "part_number": "5C50S25435",
+          "mfg_number": "SBB1H03131",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "60ca44e5-d817-4060-9bca-b897b4efaab3",
+          "part_number": "5R60S37210",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "6379ad0f-a90e-4bcc-914d-b17284618081",
+          "part_number": "5B21H82164",
+          "mfg_number": "SBB1H36076",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "63c54eb2-effe-47b1-8a72-7128de024382",
+          "part_number": "5C50S25435",
+          "mfg_number": "5C50S25435",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "68756fe3-a2f2-400d-b443-65234f7ba761",
+          "part_number": "5H40S20670",
+          "mfg_number": "SBB1H03131",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "6cfd5157-11f3-40af-9038-5074874f923b",
+          "part_number": "5S10S35422",
+          "mfg_number": "SBB1G54971",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "75c6d537-5d86-46e4-ad6d-8772d862739d",
+          "part_number": "5T10S33237",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "8cc5b65f-9592-4e5b-bc89-35724fb613b1",
+          "part_number": "5W10V25844",
+          "mfg_number": "SBB1G28019",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "8d1ed1a3-7ba6-4c47-8bc0-c71c8e49f3ab",
+          "part_number": "5T10S33238",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "8debf07b-2dab-4ed7-98b8-c76070ee5e8d",
+          "part_number": "5C10S30251",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "95ad430e-d4d2-49a9-b02a-53f8347d9665",
+          "part_number": "5C10S30253",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "9848add2-d21a-4408-9e92-77538ada7081",
+          "part_number": "00HM688",
+          "mfg_number": "SA10E75866",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "9cb93cdb-fa75-4043-b2a5-1559fe768c8e",
+          "part_number": "5SB0S31990",
+          "mfg_number": "SBB1G54977",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "9cced277-5708-4d49-a028-dcc2b4672bdf",
+          "part_number": "00XL065",
+          "mfg_number": "SBB1G28004",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "9d773381-6198-4918-8e86-2795fac68b9d",
+          "part_number": "5CB1J08754",
+          "mfg_number": "SBB1H36105",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "9e30a094-4578-4e6b-a307-47587bd9d86a",
+          "part_number": "5B30S19062",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "a0dc3331-c6d1-490b-a5a6-a8f6c2294450",
+          "part_number": "5T10S33235",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "a7642ef6-ba7c-4668-94f5-ed7bd7728aec",
+          "part_number": "5D11F56381",
+          "mfg_number": "SD11F56383",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "aa652603-5085-4855-99f8-f3ebab865c3f",
           "part_number": "00XL065",
           "mfg_number": "SL60K75080",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "ab478ffc-d2ba-4d38-922c-ecb8fc3d4b6c",
+          "part_number": "5SS1D33970",
+          "mfg_number": "SBB1G27983",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "b125ed88-afdc-4d09-80c8-01bfbe076664",
+          "part_number": "5R31L08532",
+          "mfg_number": "SBB1H73877",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "b3a1f8c8-9031-4cf3-8db3-3930173954e3",
+          "part_number": "5C10S30254",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "d22017f5-84c4-4389-aaaf-142efd66ed65",
+          "part_number": "5C21D10434",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "d6dbd3df-6057-48f2-be79-b2994c142e72",
+          "part_number": "5B40S22135",
+          "mfg_number": "SBB1G27983",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "e039cf1d-cc04-4a93-8540-4d297a226471",
+          "part_number": "5C10S30485",
+          "mfg_number": "SBB1G54973",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "e82a3b98-fe46-4ff9-9a59-b5beeeee4af8",
+          "part_number": "5T10S33264",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "e9836c73-05b6-4118-ab21-aca1f18dbb3d",
+          "part_number": "00HM686",
+          "mfg_number": "SBB1G28004",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "fae4ed36-f19c-48de-8ec1-ee1258cb8c5c",
+          "part_number": "5H50S29008",
+          "mfg_number": "SBB1G54977",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "fe2443ae-45c2-46ce-9a49-401a9640c9cc",
+          "part_number": "5W10V25844",
+          "mfg_number": "SW11A40448",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "ff55f7b3-e538-4bd2-ac54-c6602d3970c2",
+          "part_number": "5D11F56381",
+          "mfg_number": "SBB1G54973",
           "quantity": 2
         }
       ]
@@ -1930,287 +1934,288 @@
       "model_code": "83LY00HQVN",
       "model_name": "Legion 5 15IRX10",
       "description": "Seeded product model",
+      "unit_price": 1299.99,
       "bom": [
         {
-          "part_catalog_id": "0291f603-f0e9-4614-9d40-f7989991bd2f",
-          "part_number": "00XL065",
-          "mfg_number": "SBB1Q94740",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "07e2c576-300b-4372-a30c-39e52ff7279b",
-          "part_number": "5SB0S32096",
-          "mfg_number": "SBB1R05085",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "0d7e4e97-f234-4f4d-9e5e-57af7a416497",
-          "part_number": "5D11P88254",
-          "mfg_number": "SD11P88252",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "19fc68cf-fbcf-41db-b616-a2f11fda118a",
-          "part_number": "5P20S37716",
-          "mfg_number": "SBB1R98798",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "248eb60b-4705-4e2c-a779-451790156ee1",
-          "part_number": "5F10S14298",
-          "mfg_number": "SF11R97346",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "279bcfea-e6ea-445a-93a0-60b25618bab3",
-          "part_number": "5M20S28014",
-          "mfg_number": "SBB1R92673",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "29575221-89d5-401a-9ad3-c5de5441635a",
-          "part_number": "5A11Q29119",
-          "mfg_number": "SBB1Q94740",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "3d1abdf4-d3a0-4623-bb9d-bb2f07d8a434",
-          "part_number": "5B11S13430",
-          "mfg_number": "SBB1R98798",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "492ae3df-51a5-4823-9922-f88c42b4aeef",
-          "part_number": "00XL063",
-          "mfg_number": "SL60K75078",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "5c4a5ff3-fb15-4fb2-bda1-be638f213bca",
-          "part_number": "5A11Q29119",
-          "mfg_number": "SA11Q29109",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "6f111c2e-33db-4c1d-8dad-837a5284bfd3",
-          "part_number": "5C21P86474",
-          "mfg_number": "SC21P86456",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "77f3dc52-9958-426f-90a4-5348495ce72f",
-          "part_number": "5SS1Q28866",
-          "mfg_number": "SSS1Q28863",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "7aa93185-c98e-4bbb-9de8-37eb28047220",
-          "part_number": "5M31N59979",
-          "mfg_number": "SM31M87283",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "83ac1049-147c-4674-9f7b-dcc9a719f913",
-          "part_number": "5F10S14296",
-          "mfg_number": "SBB1R98798",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "83b68d22-3ffc-4769-bd27-b312d5496dd4",
-          "part_number": "5C10S31496",
-          "mfg_number": "SBB1R05077",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "85e4d7a3-4faa-42f4-91ea-c5364457f663",
-          "part_number": "5B11Q30691",
-          "mfg_number": "SB11Q30686",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "8b8a29c6-eeda-4d69-b0db-b3c3cfcba86e",
-          "part_number": "5C50S25873",
-          "mfg_number": "SBB1R98798",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "93baac0d-e1dd-49eb-ab6f-5663b3971ec3",
-          "part_number": "5SS1Q28866",
-          "mfg_number": "SBB1Q94832",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "96b5f4a7-617b-476e-a023-efd2c3e7960c",
+          "part_catalog_id": "0032581e-f580-4d03-b70f-7ed765ab67c6",
           "part_number": "5B21R90841",
           "mfg_number": "SBB1S01482",
           "quantity": 2
         },
         {
-          "part_catalog_id": "990d2a7c-2bc1-40d1-b84d-11208ae30e9c",
-          "part_number": "5M31N59979",
-          "mfg_number": "SBB1Q94710",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "9c187dcb-631d-4267-8db6-42a5e29b6552",
-          "part_number": "5S60S36638",
-          "mfg_number": "SBB1R98798",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "9cbbdb36-b32a-415c-bf77-15de7433bfa7",
-          "part_number": "5B40S22355",
-          "mfg_number": "SBB1R98798",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "9f2e37fc-8acc-43e6-a548-1e61fca50d2c",
-          "part_number": "5W10V25819",
-          "mfg_number": "SBB1Q94723",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "9f6b8aa1-739b-4037-a940-3a05a95f0116",
-          "part_number": "5C10S31494",
-          "mfg_number": "SBB1R05077",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "a264bf1a-dd96-4fbb-9dbc-afc12a3584fe",
-          "part_number": "5W10V25844",
-          "mfg_number": "SW11A40448",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "a4e48b04-b229-4d0a-9306-bf6a36e646d9",
-          "part_number": "5B40S22354",
-          "mfg_number": "SBB1R98798",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "aad9f845-953b-47cf-acb2-653700f2baf9",
-          "part_number": "5CB1S31064",
-          "mfg_number": "SBB1S01593",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "ab874af8-6c16-4a3f-ac85-587b7d18b8bf",
-          "part_number": "5B40S22357",
-          "mfg_number": "SBB1R05077",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "b8f73f60-5df9-4c6d-80e9-85af6931dcd1",
-          "part_number": "5T10S33788",
-          "mfg_number": "SBB1R05077",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "b9daae66-5094-4d46-9acc-071fe4b56358",
-          "part_number": "5S10S35780",
-          "mfg_number": "SBB1Q94821",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "bae47e93-d65f-403a-ac1b-62a3ad23241d",
-          "part_number": "5CB1S22985",
-          "mfg_number": "SBB1R05077",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "bdf3fc2e-981f-428e-ae91-17e5e4c07f68",
-          "part_number": "5B21R90841",
-          "mfg_number": "5B21R90841",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "be4a99c4-af52-4b32-a7ad-fa94ad7020c0",
-          "part_number": "5CB1S22982",
-          "mfg_number": "SBB1R05071",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "c1ec93fc-ec87-4b18-92fa-043cb29ea940",
-          "part_number": "5C10S31490",
-          "mfg_number": "SBB1R98798",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "c349c0d7-cde4-4826-9b8d-fdd405e812df",
-          "part_number": "5T10S33677",
-          "mfg_number": "SBB1R98798",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "ca107e55-5bbb-436e-ae7c-c5aff60eea96",
-          "part_number": "5C21P86474",
-          "mfg_number": "SBB1R05077",
-          "quantity": 2
-        },
-        {
-          "part_catalog_id": "cf6a0456-1b7e-4d02-8fca-888cf75e64f1",
-          "part_number": "5S10S35619",
-          "mfg_number": "SBB1R98798",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "d20447a9-4279-4c35-b621-952ead84f72d",
+          "part_catalog_id": "123f2b77-9d47-4523-9d07-1a0425cd3950",
           "part_number": "5CB1S22981",
           "mfg_number": "SBB1R98798",
           "quantity": 1
         },
         {
-          "part_catalog_id": "d245a2ee-69d2-4559-ba96-4f1969de7caf",
-          "part_number": "5D11S91479",
-          "mfg_number": "SBB1R05077",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "d3868057-914b-4da6-aff7-4be2e23eca38",
-          "part_number": "5C10S31487",
-          "mfg_number": "SBB1R98798",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "df0a02cc-3efd-4508-93e5-eab6cd19e9de",
-          "part_number": "5CB1S89866",
-          "mfg_number": "SBB1R05077",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "e21892ee-d144-4e7e-a47a-08ae6c900abf",
-          "part_number": "5B11Q30691",
-          "mfg_number": "SBB1Q94720",
+          "part_catalog_id": "17c540b0-8119-4c22-bdb0-34ae78feed0b",
+          "part_number": "5A11Q29119",
+          "mfg_number": "SBB1Q94740",
           "quantity": 2
         },
         {
-          "part_catalog_id": "e3a1a766-e370-490d-bc94-a35e1761af70",
-          "part_number": "5M20S28012",
-          "mfg_number": "SBB1R92669",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "e4516d06-0065-4e3d-94e9-3f6172f54d6d",
-          "part_number": "5B40S22118",
-          "mfg_number": "SBB1R98798",
-          "quantity": 1
-        },
-        {
-          "part_catalog_id": "e4a9733a-f79e-480b-9017-ad909b5c0a11",
-          "part_number": "5B30S19249",
+          "part_catalog_id": "1cb52e65-3546-4d59-a0d7-67b749f6b3f1",
+          "part_number": "5B40S22357",
           "mfg_number": "SBB1R05077",
           "quantity": 1
         },
         {
-          "part_catalog_id": "e8333b90-7e58-4170-8f39-21a0d5aa8648",
+          "part_catalog_id": "22e3da32-5582-475f-8aca-93b85fe47332",
+          "part_number": "5W10V25819",
+          "mfg_number": "SBB1Q94723",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "2336fd26-dcb5-4641-81e7-1c7a8f683696",
+          "part_number": "5M20S28014",
+          "mfg_number": "SBB1R92673",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "2a265d96-561c-4ac5-90ab-496960df21b1",
+          "part_number": "5C50S25873",
+          "mfg_number": "SBB1R98798",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "2baa1380-7d27-4ff7-8af2-9374a692a4c3",
+          "part_number": "5F10S14298",
+          "mfg_number": "SF11R97346",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "34820c18-ab13-42d4-9d19-ee8dd2a3831d",
+          "part_number": "5B21R90841",
+          "mfg_number": "5B21R90841",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "3c055c0a-2750-415e-9820-dac9c160412f",
+          "part_number": "5P20S37716",
+          "mfg_number": "SBB1R98798",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "4ff6fd83-a7b9-43ec-9aef-d81ff8b79239",
+          "part_number": "5M31N59979",
+          "mfg_number": "SM31M87283",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "52f05ca2-a955-4476-bbfd-d31ac590f629",
+          "part_number": "5B11S13430",
+          "mfg_number": "SBB1R98798",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "5899b07b-7821-4e07-a589-da18fff4bb4e",
+          "part_number": "00XL063",
+          "mfg_number": "SL60K75078",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "5d1eef45-bcb5-4d10-9742-b529a4e9e2b1",
+          "part_number": "5A11Q29119",
+          "mfg_number": "SA11Q29109",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "6449406c-c6eb-4839-8256-eac3c05af8cb",
+          "part_number": "5B40S22355",
+          "mfg_number": "SBB1R98798",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "6aca1057-0858-4b92-a0c0-c47329cab436",
+          "part_number": "5T10S33788",
+          "mfg_number": "SBB1R05077",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "6d5a72fc-f2e4-4a62-b56b-ca30fb1529ac",
+          "part_number": "5SS1Q28866",
+          "mfg_number": "SSS1Q28863",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "6e5b7cfb-c15c-46fe-bb9a-b6a8c4ee1b4a",
+          "part_number": "5SB0S32096",
+          "mfg_number": "SBB1R05085",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "748748fa-9c5e-41c8-95d1-7413d851757d",
+          "part_number": "5S10S35780",
+          "mfg_number": "SBB1Q94821",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "7f9db34c-9b1a-44e4-ac11-b233fa3ce6ef",
+          "part_number": "5C10S31494",
+          "mfg_number": "SBB1R05077",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "81f9884e-e701-43eb-bdf5-f052de26fb67",
           "part_number": "5C10S31493",
           "mfg_number": "SC10R99675",
           "quantity": 1
         },
         {
-          "part_catalog_id": "fee9f080-3895-40b9-8a11-d73e3a29d3ef",
+          "part_catalog_id": "82bc16d0-5f10-4ddf-bd82-69fa637eb6b1",
+          "part_number": "5M31N59979",
+          "mfg_number": "SBB1Q94710",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "82c8c629-2e82-4841-9e9b-367d49ad5db1",
+          "part_number": "5C21P86474",
+          "mfg_number": "SBB1R05077",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "8d855cc3-320e-48f5-9d27-140edded586b",
+          "part_number": "5S10S35619",
+          "mfg_number": "SBB1R98798",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "9d4c772a-c87e-48cf-901d-9b02ccc1e6e5",
+          "part_number": "5B40S22354",
+          "mfg_number": "SBB1R98798",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "a0b9de5a-5ef8-4742-8568-95bbb424d7ec",
+          "part_number": "5C10S31496",
+          "mfg_number": "SBB1R05077",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "a91da00a-0eef-43a9-8b77-6d5788c14c8b",
+          "part_number": "5B11Q30691",
+          "mfg_number": "SB11Q30686",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "b0e9c584-a55c-4053-852d-777e0673898f",
+          "part_number": "5CB1S22985",
+          "mfg_number": "SBB1R05077",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "b859bc53-b370-4b85-bca9-f755b5be1053",
+          "part_number": "5C10S31487",
+          "mfg_number": "SBB1R98798",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "bae88ed5-bfcf-4c1d-9e27-2195bb85e3be",
+          "part_number": "5D11S91479",
+          "mfg_number": "SBB1R05077",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "bcf54a73-e38f-49e8-bf73-9a114f76b122",
+          "part_number": "5F10S14296",
+          "mfg_number": "SBB1R98798",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "bd75003f-86ce-4fe9-9ca1-d4f45a27eb75",
+          "part_number": "5C10S31490",
+          "mfg_number": "SBB1R98798",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "c0130311-8e96-41cc-a99f-9d2e4dc392ab",
+          "part_number": "5B30S19249",
+          "mfg_number": "SBB1R05077",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "c1b15a34-df10-47f9-9fab-619dcff7f1bb",
+          "part_number": "5D11P88254",
+          "mfg_number": "SD11P88252",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "c413635b-6f6c-46ae-9cf5-aec0546ee178",
+          "part_number": "5CB1S89866",
+          "mfg_number": "SBB1R05077",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "c71e9095-d12f-4f5f-a158-c77ab6211d3c",
+          "part_number": "5SS1Q28866",
+          "mfg_number": "SBB1Q94832",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "dccc8a76-ef7f-467e-bd71-a0048605d0de",
+          "part_number": "00XL065",
+          "mfg_number": "SBB1Q94740",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "e259c393-135e-4e03-b18d-b5e2c69d2c36",
+          "part_number": "5C21P86474",
+          "mfg_number": "SC21P86456",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "e316c498-4575-49f0-a031-fab3481629c1",
+          "part_number": "5S60S36638",
+          "mfg_number": "SBB1R98798",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "e89e96ab-e860-4e21-9086-5c360ed08fda",
           "part_number": "5R31S73528",
           "mfg_number": "SBB1Q60138",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "ea6fe523-0297-4a00-a792-a7308f822d34",
+          "part_number": "5B11Q30691",
+          "mfg_number": "SBB1Q94720",
+          "quantity": 2
+        },
+        {
+          "part_catalog_id": "effc07c7-f34c-4a79-ab95-2c2d099885c1",
+          "part_number": "5CB1S22982",
+          "mfg_number": "SBB1R05071",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "f06065a4-964b-41bc-8975-5ad6ffd0d11b",
+          "part_number": "5B40S22118",
+          "mfg_number": "SBB1R98798",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "f3d2e475-4433-4fbe-8459-f9de65372b5b",
+          "part_number": "5M20S28012",
+          "mfg_number": "SBB1R92669",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "f5e1f0a2-7c8c-4e55-9bc1-210260501b57",
+          "part_number": "5CB1S31064",
+          "mfg_number": "SBB1S01593",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "f8cf301e-7dbd-453e-adb2-a8bd338f0e71",
+          "part_number": "5T10S33677",
+          "mfg_number": "SBB1R98798",
+          "quantity": 1
+        },
+        {
+          "part_catalog_id": "fe2443ae-45c2-46ce-9a49-401a9640c9cc",
+          "part_number": "5W10V25844",
+          "mfg_number": "SW11A40448",
           "quantity": 1
         }
       ]
@@ -2221,70 +2226,70 @@
       "id": "0e24e9a7-328c-3e15-9732-c072d8f4a9f4",
       "product_model_code": "82SN003JVN",
       "customer_id": "1515d24e-d0e6-3c75-89d6-8c322098a7a5",
-      "product_name": "IdeaPad 5 Pro 16ARH7 Build Sxr",
+      "product_name": "IdeaPad 5 Pro 16ARH7 Build VlY",
       "serial_number": "SN-82SN003JVN-01"
     },
     {
       "id": "950a338c-5c9f-38c1-bacf-263eaa34407c",
       "product_model_code": "82SN003JVN",
       "customer_id": "cfca9532-2f87-370f-bc29-2aee8b0ad565",
-      "product_name": "IdeaPad 5 Pro 16ARH7 Build jHS",
+      "product_name": "IdeaPad 5 Pro 16ARH7 Build Sfq",
       "serial_number": "SN-82SN003JVN-02"
     },
     {
       "id": "42fe97b3-de38-39e8-9a8a-4d6cee16a2c2",
       "product_model_code": "83LY00HQVN",
       "customer_id": "ad622fad-6993-3b54-ba47-d5d102547bee",
-      "product_name": "Legion 5 15IRX10 Build FLN",
+      "product_name": "Legion 5 15IRX10 Build jye",
       "serial_number": "SN-83LY00HQVN-01"
     },
     {
       "id": "a1d125bf-a678-331c-8a79-22b0e7e8af48",
       "product_model_code": "83LY00HQVN",
       "customer_id": "f4263919-83d0-3477-80d8-38468907fafa",
-      "product_name": "Legion 5 15IRX10 Build ZQc",
+      "product_name": "Legion 5 15IRX10 Build hTA",
       "serial_number": "SN-83LY00HQVN-02"
     },
     {
       "id": "f7d35e04-f6e0-3cd4-bffe-3c10ad41284c",
       "product_model_code": "21CB000QUS",
       "customer_id": "444a6d19-4867-3447-beff-5df8028ac0e9",
-      "product_name": "ThinkPad X1 Carbon Gen 11 Build yIf",
+      "product_name": "ThinkPad X1 Carbon Gen 11 Build Skn",
       "serial_number": "SN-21CB000QUS-01"
     },
     {
       "id": "867a74b0-df05-3bbc-8ab9-dc60a063b723",
       "product_model_code": "21CB000QUS",
       "customer_id": "8a221ea7-4bd8-339f-bca4-6c52f7778092",
-      "product_name": "ThinkPad X1 Carbon Gen 11 Build IvI",
+      "product_name": "ThinkPad X1 Carbon Gen 11 Build IZl",
       "serial_number": "SN-21CB000QUS-02"
     },
     {
       "id": "61156878-7d8a-3e07-a27c-5ce158b9a1a8",
       "product_model_code": "82A3000GUS",
       "customer_id": "6413cef0-c265-3768-b306-f256b96e3138",
-      "product_name": "Yoga Slim 7i Build FsZ",
+      "product_name": "Yoga Slim 7i Build cRI",
       "serial_number": "SN-82A3000GUS-01"
     },
     {
       "id": "93f00ec7-4d01-362b-b20d-bf95be4e96e3",
       "product_model_code": "82A3000GUS",
       "customer_id": "689b97ad-2bfd-3cd0-89d9-912035e6cacf",
-      "product_name": "Yoga Slim 7i Build QmB",
+      "product_name": "Yoga Slim 7i Build tZc",
       "serial_number": "SN-82A3000GUS-02"
     },
     {
       "id": "e3e9dee4-9bc8-39af-8aee-6404e6312f01",
       "product_model_code": "82WQ002RUS",
       "customer_id": "c144baa2-470e-3115-8274-0321a85a7fb0",
-      "product_name": "Legion Pro 7i Build sqf",
+      "product_name": "Legion Pro 7i Build jbH",
       "serial_number": "SN-82WQ002RUS-01"
     },
     {
       "id": "fad13146-b009-3e3a-a21b-259ce3053f62",
       "product_model_code": "82WQ002RUS",
       "customer_id": "7907d4f0-20ef-3354-a013-595dea3ae470",
-      "product_name": "Legion Pro 7i Build Hwc",
+      "product_name": "Legion Pro 7i Build YOi",
       "serial_number": "SN-82WQ002RUS-02"
     }
   ],

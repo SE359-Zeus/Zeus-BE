@@ -46,6 +46,7 @@ type productModelManifest struct {
 	ModelCode   string               `json:"model_code"`
 	ModelName   string               `json:"model_name"`
 	Description string               `json:"description"`
+	UnitPrice   float64              `json:"unit_price"`
 	Bom         []productBomManifest `json:"bom"`
 }
 
@@ -175,6 +176,7 @@ func buildSeedManifest(db *gorm.DB) (*seedManifest, error) {
 			ModelCode:   pm.ModelCode,
 			ModelName:   pm.ModelName,
 			Description: derefString(pm.Description),
+			UnitPrice:   pm.UnitPrice,
 			Bom:         bomByModel[pm.ModelCode],
 		})
 	}

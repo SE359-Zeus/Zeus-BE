@@ -28,14 +28,14 @@ func seedProductModels(db *gorm.DB, installs map[string][]PartInstallationData, 
 	}
 
 	baseModels := []models.ProductModel{
-		{ModelCode: "82SN003JVN", ModelName: "IdeaPad 5 Pro 16ARH7"},
-		{ModelCode: "83LY00HQVN", ModelName: "Legion 5 15IRX10"},
+		{ModelCode: "82SN003JVN", ModelName: "IdeaPad 5 Pro 16ARH7", UnitPrice: 999.99},
+		{ModelCode: "83LY00HQVN", ModelName: "Legion 5 15IRX10", UnitPrice: 1299.99},
 	}
 
 	newModels := []models.ProductModel{
-		{ModelCode: "21CB000QUS", ModelName: "ThinkPad X1 Carbon Gen 11"},
-		{ModelCode: "82A3000GUS", ModelName: "Yoga Slim 7i"},
-		{ModelCode: "82WQ002RUS", ModelName: "Legion Pro 7i"},
+		{ModelCode: "21CB000QUS", ModelName: "ThinkPad X1 Carbon Gen 11", UnitPrice: 1499.99},
+		{ModelCode: "82A3000GUS", ModelName: "Yoga Slim 7i", UnitPrice: 1099.99},
+		{ModelCode: "82WQ002RUS", ModelName: "Legion Pro 7i", UnitPrice: 2199.99},
 	}
 
 	allModels := append(baseModels, newModels...)
