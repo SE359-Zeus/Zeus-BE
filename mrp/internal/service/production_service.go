@@ -87,7 +87,7 @@ func (s *ProductionService) PlanProduction(ctx context.Context, req models.Creat
 
 				// Emit shortage demand (deficit) to SCM
 				if s.audit != nil {
-					_ = s.audit.PublishJSON(messaging.DeficitPoolQueue, map[string]any{
+					_ = s.audit.PublishJSON(ctx, messaging.DeficitPoolQueue, map[string]any{
 						"sku":      partSKU,
 						"qty":      shortageQty,
 						"order_id": id.String(),

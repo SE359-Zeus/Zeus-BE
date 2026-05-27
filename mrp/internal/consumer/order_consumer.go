@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"zeus-mrp-service/internal/infrastructure/messaging"
+	"zeus-mrp-service/internal/infrastructure/observability"
 	"zeus-mrp-service/internal/models"
 	"zeus-mrp-service/internal/service"
 
@@ -113,37 +115,73 @@ func (c *OrderConsumer) loop(ctx context.Context, msgs <-chan amqp.Delivery, eve
 				return
 			}
 
-			slog.Info("received sales order event", slog.String("service", "mrp"), slog.String("event_type", eventType), slog.String("body", string(msg.Body)))
+			// Extract trace context
+			traceID := ""
+			spanID := ""
+			if msg.Headers != nil {
+				if tpVal, ok := msg.Headers["traceparent"].(string); ok && tpVal != "" {
+					traceID = parseTraceparent(tpVal)
+				}
+				if traceID == "" {
+					if tidVal, ok := msg.Headers["trace_id"].(string); ok && tidVal != "" {
+						traceID = tidVal
+					}
+				}
+				if sidVal, ok := msg.Headers["span_id"].(string); ok && sidVal != "" {
+					spanID = sidVal
+				}
+			}
+
+			if traceID == "" {
+				traceID = observability.NewTraceID()
+			}
+			if spanID == "" {
+				spanID = observability.NewSpanID()
+			}
+
+			msgCtx := observability.WithTraceID(ctx, traceID)
+			msgCtx = observability.WithSpanID(msgCtx, spanID)
+
+			slog.InfoContext(msgCtx, "received sales order event", slog.String("service", "mrp"), slog.String("event_type", eventType), slog.String("body", string(msg.Body)))
 
 			var payload OrderCreatedPayload
 			if err := json.Unmarshal(msg.Body, &payload); err != nil {
-				slog.Error("failed to unmarshal sales order event payload", slog.String("service", "mrp"), slog.String("error", err.Error()))
+				slog.ErrorContext(msgCtx, "failed to unmarshal sales order event payload", slog.String("service", "mrp"), slog.String("error", err.Error()))
 				_ = msg.Nack(false, false) // discard invalid format messages
 				continue
 			}
 
 			if payload.OrderID == "" {
-				slog.Warn("received sales order event with empty order_id, discarding", slog.String("service", "mrp"))
+				slog.WarnContext(msgCtx, "received sales order event with empty order_id, discarding", slog.String("service", "mrp"))
 				_ = msg.Nack(false, false)
 				continue
 			}
 
 			// Process demand creation logic from queue payload only.
-			if err := c.processOrderPayload(ctx, payload); err != nil {
-				slog.Error("failed to process sales order event", slog.String("service", "mrp"), slog.String("order_id", payload.OrderID), slog.String("error", err.Error()))
+			if err := c.processOrderPayload(msgCtx, payload); err != nil {
+				slog.ErrorContext(msgCtx, "failed to process sales order event", slog.String("service", "mrp"), slog.String("order_id", payload.OrderID), slog.String("error", err.Error()))
 				// Requeue for transient errors, e.g. network timeout calling Sales API
 				_ = msg.Nack(false, true)
 			} else {
-				slog.Info("successfully processed sales order event", slog.String("service", "mrp"), slog.String("order_id", payload.OrderID))
+				slog.InfoContext(msgCtx, "successfully processed sales order event", slog.String("service", "mrp"), slog.String("order_id", payload.OrderID))
 				_ = msg.Ack(false)
 			}
 		}
 	}
 }
 
+// parseTraceparent extracts trace ID from a W3C traceparent header: 00-<traceID>-<parentSpanID>-<flags>
+func parseTraceparent(header string) string {
+	parts := strings.Split(header, "-")
+	if len(parts) != 4 || len(parts[1]) != 32 {
+		return ""
+	}
+	return parts[1]
+}
+
 func (c *OrderConsumer) processOrderPayload(ctx context.Context, payload OrderCreatedPayload) error {
 	if len(payload.Items) == 0 {
-		slog.Warn("sales order event has no items, skipping production planning",
+		slog.WarnContext(ctx, "sales order event has no items, skipping production planning",
 			slog.String("service", "mrp"),
 			slog.String("order_id", payload.OrderID),
 		)
@@ -153,7 +191,7 @@ func (c *OrderConsumer) processOrderPayload(ctx context.Context, payload OrderCr
 	for _, item := range payload.Items {
 		requestedQty := item.requestedQuantity()
 		if item.SKU == "" || requestedQty <= 0 {
-			slog.Warn("sales order item is invalid, skipping item",
+			slog.WarnContext(ctx, "sales order item is invalid, skipping item",
 				slog.String("service", "mrp"),
 				slog.String("order_id", payload.OrderID),
 				slog.String("sku", item.SKU),
@@ -162,7 +200,7 @@ func (c *OrderConsumer) processOrderPayload(ctx context.Context, payload OrderCr
 			continue
 		}
 
-		slog.Info("triggering production planning for sales order item",
+		slog.InfoContext(ctx, "triggering production planning for sales order item",
 			slog.String("service", "mrp"),
 			slog.String("order_id", payload.OrderID),
 			slog.String("sku", item.SKU),

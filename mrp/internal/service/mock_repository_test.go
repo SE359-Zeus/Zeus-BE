@@ -219,8 +219,8 @@ type MockAuditPublisher struct {
 	mock.Mock
 }
 
-func (m *MockAuditPublisher) PublishJSON(queue string, payload any) error {
-	args := m.Called(queue, payload)
+func (m *MockAuditPublisher) PublishJSON(ctx context.Context, queue string, payload any) error {
+	args := m.Called(ctx, queue, payload)
 	return args.Error(0)
 }
 

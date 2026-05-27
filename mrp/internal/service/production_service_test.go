@@ -277,7 +277,7 @@ func TestPlanProduction_ShortageCreationAndSCMAlerting(t *testing.T) {
 	})).Return(nil)
 
 	// SCM RabbitMQ alert publication expectation
-	auditPub.On("PublishJSON", messaging.DeficitPoolQueue, mock.MatchedBy(func(payload any) bool {
+	auditPub.On("PublishJSON", mock.Anything, messaging.DeficitPoolQueue, mock.MatchedBy(func(payload any) bool {
 		m, ok := payload.(map[string]any)
 		if !ok {
 			return false
