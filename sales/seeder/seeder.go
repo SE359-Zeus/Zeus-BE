@@ -10,11 +10,13 @@ import (
 	"strings"
 	"time"
 
+	"zeus-sales-service/internal/middlewares"
 	"zeus-sales-service/internal/models"
 	"zeus-sales-service/internal/repository"
 	"zeus-sales-service/internal/service"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func SeedAll(ctx context.Context, sqliteRepo repository.DbRepository, manifestPath string) error {
@@ -50,9 +52,11 @@ func SeedAll(ctx context.Context, sqliteRepo repository.DbRepository, manifestPa
 	now := time.Now().UTC()
 	seedOrders := buildManifestOrders(manifest, seedClients, now)
 
-	for _, req := range seedOrders {
-		if _, err := services.Orders.CreateOrder(ctx, req); err != nil {
-			return fmt.Errorf("seed order for %s: %w", req.ClientName, err)
+	for _, seedData := range seedOrders {
+		orderCtx := context.WithValue(ctx, middlewares.ContextKeyRole, "client")
+		orderCtx = context.WithValue(orderCtx, middlewares.ContextKeyUserID, seedData.ClientID)
+		if _, err := services.Orders.CreateOrder(orderCtx, seedData.Request); err != nil {
+			return fmt.Errorf("seed order for client %s: %w", seedData.ClientID, err)
 		}
 	}
 
@@ -127,6 +131,7 @@ func buildManifestClients(manifest *scmManifest) []manifestClientSeed {
 		"4200 Industry Way, Fremont, CA 94538",
 		"701 Mission Blvd, Los Angeles, CA 90017",
 		"9020 Harbor Point, San Diego, CA 92101",
+		"9020 Harbor Point, San Diego, CA 92101",
 	}
 	for i, product := range manifest.Products {
 		if _, ok := seen[product.CustomerID]; ok {
@@ -166,15 +171,34 @@ func buildManifestClients(manifest *scmManifest) []manifestClientSeed {
 }
 
 func seedClientsToRepository(ctx context.Context, sqliteRepo repository.DbRepository, clients []manifestClientSeed) error {
-	for _, client := range clients {
+	for i, client := range clients {
 		if _, err := sqliteRepo.GetClientByName(ctx, client.Name); err == nil {
 			continue
 		}
+		// Show/Define the raw API keys in the code clearly before hashing and storing.
+		// Format: clnt<index>_p.secretkey<index>_secure_token
+		// Example for SCM Customer 01:
+		// Raw API Key: clnt01_p.secretkey01_secure_token
+		// Prefix:      clnt01_p (first 8 characters)
+		// Secret:      clnt01_p.secretkey01_secure_token (full string used in bcrypt)
+		clientIndex := i + 1
+		prefix := fmt.Sprintf("clnt%02d_p", clientIndex)
+		rawApiKey := fmt.Sprintf("%s.secretkey%02d_secure_token", prefix, clientIndex)
+
+		log.Printf("Seeding client: %s | Prefix: %s | Raw API Key: %s", client.Name, prefix, rawApiKey)
+
+		hashBytes, err := bcrypt.GenerateFromPassword([]byte(rawApiKey), bcrypt.DefaultCost)
+		if err != nil {
+			return fmt.Errorf("failed to hash api key: %w", err)
+		}
+
 		if err := sqliteRepo.CreateClient(ctx, &models.Client{
 			ID:                        client.ID,
 			Name:                      client.Name,
 			Tier:                      client.Tier,
 			DefaultDestinationAddress: client.Address,
+			ApiKeyPrefix:              prefix,
+			ApiKeyHash:                string(hashBytes),
 		}); err != nil {
 			return fmt.Errorf("seed client %s: %w", client.Name, err)
 		}
@@ -182,7 +206,12 @@ func seedClientsToRepository(ctx context.Context, sqliteRepo repository.DbReposi
 	return nil
 }
 
-func buildManifestOrders(manifest *scmManifest, clients []manifestClientSeed, now time.Time) []models.CreateOrderRequest {
+type seedOrderPayload struct {
+	ClientID uuid.UUID
+	Request  models.CreateOrderRequest
+}
+
+func buildManifestOrders(manifest *scmManifest, clients []manifestClientSeed, now time.Time) []seedOrderPayload {
 	if manifest == nil || len(clients) == 0 {
 		return nil
 	}
@@ -190,7 +219,7 @@ func buildManifestOrders(manifest *scmManifest, clients []manifestClientSeed, no
 	if len(skuPool) == 0 {
 		return nil
 	}
-	orders := make([]models.CreateOrderRequest, 0, len(clients)*2)
+	orders := make([]seedOrderPayload, 0, len(clients)*2)
 	for i, client := range clients {
 		orderCount := 1
 		if i%2 == 0 {
@@ -198,12 +227,12 @@ func buildManifestOrders(manifest *scmManifest, clients []manifestClientSeed, no
 		}
 		for j := 0; j < orderCount; j++ {
 			items := buildOrderItemsFromManifest(skuPool, i, j)
-			orders = append(orders, models.CreateOrderRequest{
-				ClientName:         client.Name,
-				ClientTier:         client.Tier,
-				DestinationAddress: client.Address,
-				RequiredDate:       now.Add(time.Duration(36+(i*12)+(j*8)) * time.Hour),
-				Items:              items,
+			orders = append(orders, seedOrderPayload{
+				ClientID: client.ID,
+				Request: models.CreateOrderRequest{
+					RequiredDate: now.Add(time.Duration(36+(i*12)+(j*8)) * time.Hour),
+					Items:        items,
+				},
 			})
 		}
 	}
@@ -241,18 +270,7 @@ func buildOrderItemsFromManifest(skus []string, orderIndex int, batchIndex int) 
 		items = append(items, models.OrderItemRequest{
 			SKU:          sku,
 			RequestedQty: 1 + ((orderIndex + batchIndex + i) % 6),
-			UnitPrice:    manifestPriceForSKU(sku, orderIndex, batchIndex, i),
 		})
 	}
 	return items
-}
-
-func manifestPriceForSKU(sku string, orderIndex int, batchIndex int, itemIndex int) float64 {
-	base := 8.0 + float64((orderIndex+batchIndex+itemIndex)%7)*4.25
-	if strings.Contains(strings.ToUpper(sku), "5B21") {
-		base = 180.0 + float64((orderIndex+itemIndex)%5)*24.5
-	} else if strings.Contains(strings.ToUpper(sku), "00HM") {
-		base = 35.0 + float64((batchIndex+itemIndex)%4)*8.75
-	}
-	return base
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
+	"strings"
 	"time"
 	"zeus-mrp-service/internal/models"
 
@@ -96,6 +97,13 @@ func (s *ProductionService) GetInventoryTransactionByID(ctx context.Context, txn
 }
 
 func (s *ProductionService) GetInventoryBalanceBySKU(ctx context.Context, sku string) (int, error) {
+	sku = strings.TrimSpace(sku)
+	if sku == "" {
+		return 0, fmt.Errorf("sku cannot be empty")
+	}
+	if _, err := uuid.Parse(sku); err == nil {
+		return 0, fmt.Errorf("sku must be a part number, not a UUID")
+	}
 	if s.scmClient != nil {
 		stock, err := s.scmClient.GetStockBySKU(ctx, sku)
 		if err == nil {
@@ -105,11 +113,7 @@ func (s *ProductionService) GetInventoryBalanceBySKU(ctx context.Context, sku st
 			return stock.StockQty, nil
 		}
 	}
-	pid, err := uuid.Parse(sku)
-	if err != nil {
-		return 0, fmt.Errorf("sku must be a UUID")
-	}
-	return s.repo.GetPartInventory(ctx, pid)
+	return 0, fmt.Errorf("SCM client is required to resolve inventory by SKU")
 }
 
 func (s *ProductionService) inventoryLedgerFromSCM(ctx context.Context) ([]models.InventoryTransactionDTO, error) {

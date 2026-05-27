@@ -22,6 +22,10 @@ func main() {
 		log.Fatalf("migrate: migrations directory path is required")
 	}
 
+	if err := clearArtifacts(*dbPath); err != nil {
+		log.Fatalf("migrate: failed to clear previous db artifacts: %v", err)
+	}
+
 	// open gorm DB
 	db, err := reposqlite.OpenDatabase(*dbPath)
 	if err != nil {
@@ -69,4 +73,22 @@ func main() {
 	}
 
 	log.Printf("migrations applied successfully from %s to %s", absPath, *dbPath)
+}
+
+func clearArtifacts(dbPath string) error {
+	paths := []string{dbPath}
+	if dbPath != "" && dbPath != ":memory:" && dbPath != "file::memory:" {
+		paths = append(paths, dbPath+"-wal", dbPath+"-shm")
+	}
+
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+
+	return nil
 }

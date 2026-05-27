@@ -106,11 +106,6 @@ func (m *MockMRPRepository) GetAggregatedShortages(ctx context.Context) ([]model
 	return nil, args.Error(1)
 }
 
-func (m *MockMRPRepository) GetPartInventory(ctx context.Context, partID uuid.UUID) (int, error) {
-	args := m.Called(ctx, partID)
-	return args.Int(0), args.Error(1)
-}
-
 func (m *MockMRPRepository) GetInventoryTransactions(ctx context.Context) ([]models.InventoryTransactionDTO, error) {
 	args := m.Called(ctx)
 	if args.Get(0) != nil {
@@ -144,7 +139,6 @@ func setupMockRepo() *MockMRPRepository {
 	m.On("CreateShortageLog", mock.Anything, mock.Anything).Return(nil)
 	m.On("GetShortagesByOrderID", mock.Anything, mock.Anything).Return([]models.ShortageLog{}, nil)
 	m.On("GetAggregatedShortages", mock.Anything).Return([]models.BOMExplosionResult{}, nil)
-	m.On("GetPartInventory", mock.Anything, mock.Anything).Return(100, nil)
 	m.On("GetInventoryTransactions", mock.Anything).Return([]models.InventoryTransactionDTO{{ID: "TXN-1", SKU: "PART-1", QtyChange: 10, RunningBalance: 10, Timestamp: time.Now()}}, nil)
 	m.On("GetInventoryMetrics", mock.Anything).Return(&models.InventoryMetrics{ActiveSKUs: 154}, nil)
 
@@ -163,10 +157,26 @@ func (m *MockSCMClient) GetPartCatalogBySKU(ctx context.Context, sku string) (*m
 	return nil, args.Error(1)
 }
 
+func (m *MockSCMClient) GetPartCatalogByID(ctx context.Context, id uuid.UUID) (*models.Part, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Part), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockSCMClient) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
 	args := m.Called(ctx, sku)
 	if args.Get(0) != nil {
 		return args.Get(0).(*models.ComponentStock), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockSCMClient) GetProductModelByCode(ctx context.Context, code string) (*models.ProductModel, error) {
+	args := m.Called(ctx, code)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.ProductModel), args.Error(1)
 	}
 	return nil, args.Error(1)
 }
@@ -204,3 +214,13 @@ func setupMockSCMClient() *MockSCMClient {
 	m := new(MockSCMClient)
 	return m
 }
+
+type MockAuditPublisher struct {
+	mock.Mock
+}
+
+func (m *MockAuditPublisher) PublishJSON(queue string, payload any) error {
+	args := m.Called(queue, payload)
+	return args.Error(0)
+}
+

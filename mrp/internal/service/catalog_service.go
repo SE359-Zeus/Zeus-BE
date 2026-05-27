@@ -26,7 +26,11 @@ func (s *ProductionService) GetAssemblies(ctx context.Context) ([]models.Assembl
 		return nil, err
 	}
 
-	return groupAssemblies(boms), nil
+	assemblies, err := s.groupAssemblies(ctx, boms)
+	if err != nil {
+		return nil, err
+	}
+	return s.hydrateAssemblyNames(ctx, assemblies), nil
 }
 
 func (s *ProductionService) GetAssembliesPage(ctx context.Context, page, per int) ([]models.AssemblyResponse, int, error) {
@@ -37,7 +41,11 @@ func (s *ProductionService) GetAssembliesPage(ctx context.Context, page, per int
 	if err != nil {
 		return nil, 0, err
 	}
-	return groupAssemblies(boms), total, nil
+	assemblies, err := s.groupAssemblies(ctx, boms)
+	if err != nil {
+		return nil, 0, err
+	}
+	return s.hydrateAssemblyNames(ctx, assemblies), total, nil
 }
 
 func (s *ProductionService) GetAssemblyByModelCode(ctx context.Context, modelCode string) (*models.AssemblyResponse, error) {
@@ -64,16 +72,27 @@ func (s *ProductionService) GetAssemblyByModelCode(ctx context.Context, modelCod
 	}
 	comps := make([]models.ComponentReference, 0, len(boms))
 	for _, e := range boms {
+		sku, err := s.resolveComponentSKU(ctx, e.ComponentPartID)
+		if err != nil {
+			return nil, err
+		}
 		comps = append(comps, models.ComponentReference{
-			SKU:      e.ComponentPartID.String(),
+			SKU:      sku,
 			Quantity: e.RequiredQuantityPerUnit,
 		})
 	}
+	var unitPrice float64
+	if s.scmClient != nil {
+		if model, err := s.scmClient.GetProductModelByCode(ctx, modelCode); err == nil && model != nil {
+			unitPrice = model.UnitPrice
+		}
+	}
 	return &models.AssemblyResponse{
 		ModelCode:  modelCode,
-		Name:       modelCode,
+		Name:       s.resolveAssemblyName(ctx, modelCode),
 		TotalParts: len(comps),
 		Components: comps,
+		UnitPrice:   unitPrice,
 	}, nil
 }
 
@@ -92,14 +111,14 @@ func (s *ProductionService) CreateAssembly(ctx context.Context, req models.Creat
 		if c.Quantity <= 0 {
 			return nil, fmt.Errorf("component[%d] quantity must be > 0", i)
 		}
-		pid, err := uuid.Parse(c.SKU)
-		if err != nil {
-			return nil, fmt.Errorf("component[%d] sku must be a UUID", i)
-		}
 		if _, dup := seen[c.SKU]; dup {
 			return nil, fmt.Errorf("component[%d] sku %s is duplicated in this request", i, c.SKU)
 		}
 		seen[c.SKU] = struct{}{}
+		pid, err := s.resolveComponentPartID(ctx, c.SKU)
+		if err != nil {
+			return nil, fmt.Errorf("component[%d] %w", i, err)
+		}
 		entries = append(entries, models.BomEntry{
 			ParentModelCode:         req.Name,
 			ComponentPartID:         pid,
@@ -142,9 +161,9 @@ func (s *ProductionService) UpdateAssembly(ctx context.Context, id uuid.UUID, re
 		if c.Quantity <= 0 {
 			return nil, fmt.Errorf("component[%d] quantity must be > 0", i)
 		}
-		pid, err := uuid.Parse(c.SKU)
+		pid, err := s.resolveComponentPartID(ctx, c.SKU)
 		if err != nil {
-			return nil, fmt.Errorf("component[%d] sku must be a UUID", i)
+			return nil, fmt.Errorf("component[%d] %w", i, err)
 		}
 		entries = append(entries, models.BomEntry{
 			ParentModelCode:         modelCode,
@@ -203,16 +222,28 @@ func (s *ProductionService) GetCatalog(ctx context.Context) ([]any, error) {
 		return nil, err
 	}
 
-	return catalogFromBOMs(boms), nil
+	parentSet := map[string]struct{}{}
+	for _, e := range boms {
+		parentSet[e.ParentModelCode] = struct{}{}
+	}
+	res := make([]any, 0, len(parentSet))
+	for p := range parentSet {
+		name := s.resolveAssemblyName(ctx, p)
+		res = append(res, map[string]any{
+			"model_code": p,
+			"model_name": name,
+		})
+	}
+	return res, nil
 }
 
 func (s *ProductionService) GetWhereUsed(ctx context.Context, sku string) ([]any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	pid, err := uuid.Parse(sku)
+	pid, err := s.resolveComponentPartID(ctx, sku)
 	if err != nil {
-		return nil, fmt.Errorf("sku must be a UUID representing part id")
+		return nil, err
 	}
 	var entries []models.BomEntry
 	if s.cache != nil {
@@ -233,6 +264,9 @@ func (s *ProductionService) CreateCatalogPart(ctx context.Context, sku, descript
 	sku = strings.TrimSpace(sku)
 	if sku == "" {
 		return nil, fmt.Errorf("sku cannot be empty")
+	}
+	if _, err := uuid.Parse(sku); err == nil {
+		return nil, fmt.Errorf("sku must be a part number, not a UUID")
 	}
 
 	// Check if already exists
@@ -256,6 +290,9 @@ func (s *ProductionService) UpdateCatalogPart(ctx context.Context, sku, descript
 	if sku == "" {
 		return nil, fmt.Errorf("sku cannot be empty")
 	}
+	if _, err := uuid.Parse(sku); err == nil {
+		return nil, fmt.Errorf("sku must be a part number, not a UUID")
+	}
 
 	part, err := s.scmClient.UpdateCatalogPart(ctx, sku, description, price)
 	if err != nil {
@@ -273,6 +310,9 @@ func (s *ProductionService) DeleteCatalogPart(ctx context.Context, sku string) e
 	if sku == "" {
 		return fmt.Errorf("sku cannot be empty")
 	}
+	if _, err := uuid.Parse(sku); err == nil {
+		return fmt.Errorf("sku must be a part number, not a UUID")
+	}
 
 	if err := s.scmClient.DeleteCatalogPart(ctx, sku); err != nil {
 		return err
@@ -281,15 +321,19 @@ func (s *ProductionService) DeleteCatalogPart(ctx context.Context, sku string) e
 	return nil
 }
 
-func groupAssemblies(boms []models.BomEntry) []models.AssemblyResponse {
+func (s *ProductionService) groupAssemblies(ctx context.Context, boms []models.BomEntry) ([]models.AssemblyResponse, error) {
 	order := []string{}
 	grouped := map[string][]models.ComponentReference{}
 	for _, e := range boms {
 		if _, seen := grouped[e.ParentModelCode]; !seen {
 			order = append(order, e.ParentModelCode)
 		}
+		sku, err := s.resolveComponentSKU(ctx, e.ComponentPartID)
+		if err != nil {
+			return nil, err
+		}
 		grouped[e.ParentModelCode] = append(grouped[e.ParentModelCode], models.ComponentReference{
-			SKU:      e.ComponentPartID.String(),
+			SKU:      sku,
 			Quantity: e.RequiredQuantityPerUnit,
 		})
 	}
@@ -304,20 +348,81 @@ func groupAssemblies(boms []models.BomEntry) []models.AssemblyResponse {
 			Components: comps,
 		})
 	}
-	return result
+	return result, nil
 }
 
-func catalogFromBOMs(boms []models.BomEntry) []any {
-	parentSet := map[string]struct{}{}
-	for _, e := range boms {
-		parentSet[e.ParentModelCode] = struct{}{}
+func (s *ProductionService) hydrateAssemblyNames(ctx context.Context, assemblies []models.AssemblyResponse) []models.AssemblyResponse {
+	if s == nil || s.scmClient == nil {
+		return assemblies
 	}
-	res := make([]any, 0, len(parentSet))
-	for p := range parentSet {
-		res = append(res, map[string]any{"model_code": p})
+	resolved := make(map[string]string, len(assemblies))
+	for i := range assemblies {
+		code := assemblies[i].ModelCode
+		if name, ok := resolved[code]; ok {
+			assemblies[i].Name = name
+			continue
+		}
+		name := s.resolveAssemblyName(ctx, code)
+		resolved[code] = name
+		assemblies[i].Name = name
 	}
-	return res
+	return assemblies
 }
+
+func (s *ProductionService) resolveAssemblyName(ctx context.Context, modelCode string) string {
+	if s == nil || s.scmClient == nil {
+		return modelCode
+	}
+	model, err := s.scmClient.GetProductModelByCode(ctx, modelCode)
+	if err != nil || model == nil {
+		return modelCode
+	}
+	if name := strings.TrimSpace(model.ModelName); name != "" {
+		return name
+	}
+	return modelCode
+}
+
+func (s *ProductionService) resolveComponentPartID(ctx context.Context, sku string) (uuid.UUID, error) {
+	sku = strings.TrimSpace(sku)
+	if sku == "" {
+		return uuid.Nil, fmt.Errorf("component sku is required")
+	}
+	if _, err := uuid.Parse(sku); err == nil {
+		return uuid.Nil, fmt.Errorf("sku must be a part number, not a UUID")
+	}
+	if s == nil || s.scmClient == nil {
+		return uuid.Nil, fmt.Errorf("component sku %s could not be resolved without SCM client", sku)
+	}
+	part, err := s.scmClient.GetPartCatalogBySKU(ctx, sku)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if part == nil || part.ID == uuid.Nil {
+		return uuid.Nil, fmt.Errorf("component sku %s not found", sku)
+	}
+	return part.ID, nil
+}
+
+func (s *ProductionService) resolveComponentSKU(ctx context.Context, partID uuid.UUID) (string, error) {
+	if partID == uuid.Nil {
+		return "", fmt.Errorf("component part id is required")
+	}
+	if s == nil || s.scmClient == nil {
+		return partID.String(), nil
+	}
+	part, err := s.scmClient.GetPartCatalogByID(ctx, partID)
+	if err != nil {
+		return "", err
+	}
+	if part == nil || strings.TrimSpace(part.SKU) == "" {
+		return "", fmt.Errorf("component part %s not found", partID.String())
+	}
+	return part.SKU, nil
+}
+
+
+
 
 func whereUsedFromBOMs(entries []models.BomEntry) []any {
 	res := make([]any, 0, len(entries))

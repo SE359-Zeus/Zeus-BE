@@ -3,8 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"time"
+
+	"zeus-mrp-service/internal/infrastructure/messaging"
 	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
@@ -46,12 +49,70 @@ func (s *ProductionService) PlanProduction(ctx context.Context, req models.Creat
 		return nil, err
 	}
 
+	// Run BOM explosion to check readiness and detect shortages
+	results, err := s.RunBOMExplosion(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to run BOM explosion: %w", err)
+	}
+
+	var shortageLogs []models.ShortageLog
+	status := deriveReadinessStatus(results)
+	if status != models.StatusClearToBuild {
+		for _, result := range results {
+			if result.IsShortage {
+				shortageQty := result.TotalRequiredQty - result.AvailableQty
+				// get human-readable component SKU
+				var partSKU string
+				if s.scmClient != nil {
+					part, err := s.scmClient.GetPartCatalogByID(ctx, result.PartID)
+					if err == nil && part != nil {
+						partSKU = part.SKU
+					}
+				}
+				if partSKU == "" {
+					partSKU = fmt.Sprintf("PART-%s", result.PartID.String()[:8])
+				}
+
+				shortageLog := &models.ShortageLog{
+					ID:                uuid.New(),
+					ProductionOrderID: id,
+					PartID:            result.PartID,
+					ShortageQty:       shortageQty,
+					ResolutionStatus:  models.ResolutionStatusShortage,
+				}
+				if err := s.repo.CreateShortageLog(ctx, shortageLog); err != nil {
+					return nil, fmt.Errorf("failed to create shortage log: %w", err)
+				}
+				shortageLogs = append(shortageLogs, *shortageLog)
+
+				// Emit shortage demand (deficit) to SCM
+				if s.audit != nil {
+					_ = s.audit.PublishJSON(messaging.DeficitPoolQueue, map[string]any{
+						"sku":      partSKU,
+						"qty":      shortageQty,
+						"order_id": id.String(),
+					})
+				}
+			}
+		}
+
+		// Update order status in DB
+		if err := s.repo.UpdateProductionOrderStatus(ctx, id, status); err != nil {
+			return nil, fmt.Errorf("failed to update production order status: %w", err)
+		}
+		order.Status = status
+	}
+
+	if shortageLogs == nil {
+		shortageLogs = []models.ShortageLog{}
+	}
+
 	resp := &models.ProductionOrderResponse{
 		ID:               order.ID,
 		ProductModelCode: order.ProductModelCode,
 		TargetQuantity:   order.TargetQuantity,
 		Status:           order.Status,
-		Shortages:        []models.ShortageLog{},
+		Shortages:        shortageLogs,
 	}
 	s.publishAudit(ctx, "CREATE", "mrp/production-orders/"+order.ID.String(), "Created production order for model "+order.ProductModelCode)
 	return resp, nil

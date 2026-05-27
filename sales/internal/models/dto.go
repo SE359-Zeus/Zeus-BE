@@ -10,15 +10,11 @@ import (
 )
 
 type OrderItemRequest struct {
-	SKU          string  `json:"sku"`
-	RequestedQty int     `json:"requestedQty"`
-	UnitPrice    float64 `json:"unitPrice"`
+	SKU          string `json:"sku"`
+	RequestedQty int    `json:"requestedQty"`
 }
 
 type CreateOrderRequest struct {
-	ClientName         string             `json:"clientName"`
-	DestinationAddress string             `json:"destinationAddress"`
-	ClientTier         ClientTier         `json:"clientTier"`
 	RequiredDate       time.Time          `json:"requiredDate"`
 	Items              []OrderItemRequest `json:"items"`
 }
@@ -76,9 +72,6 @@ type DispatchNotification struct {
 }
 
 type createOrderRequestAlias struct {
-	ClientName         string             `json:"clientName"`
-	DestinationAddress string             `json:"destinationAddress"`
-	ClientTier         ClientTier         `json:"clientTier"`
 	RequiredDate       string             `json:"requiredDate"`
 	Items              []OrderItemRequest `json:"items"`
 }
@@ -99,9 +92,6 @@ func (req *CreateOrderRequest) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("invalid requiredDate: %w", err)
 	}
 	*req = CreateOrderRequest{
-		ClientName:         strings.TrimSpace(payload.ClientName),
-		DestinationAddress: strings.TrimSpace(payload.DestinationAddress),
-		ClientTier:         payload.ClientTier,
 		RequiredDate:       requiredDate,
 		Items:              payload.Items,
 	}

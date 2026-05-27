@@ -59,6 +59,14 @@ func (m *MockDbRepository) DeleteClient(ctx context.Context, id uuid.UUID) error
 	return m.Called(ctx, id).Error(0)
 }
 
+func (m *MockDbRepository) GetClientByAPIKeyPrefix(ctx context.Context, prefix string) (*models.Client, error) {
+	args := m.Called(ctx, prefix)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Client), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockDbRepository) ListOrderStatuses(ctx context.Context) ([]models.SalesOrderStatusLUT, error) {
 	args := m.Called(ctx)
 	if args.Get(0) != nil {
@@ -210,3 +218,40 @@ func defaultCancelledStatus() *models.SalesOrderStatusLUT {
 
 var _ rootrepo.DbRepository = (*MockDbRepository)(nil)
 var _ rootrepo.CacheRepository = (*MockCacheRepository)(nil)
+
+type MockSCMClient struct {
+	mock.Mock
+}
+
+func (m *MockSCMClient) CheckSKU(ctx context.Context, sku string) (bool, error) {
+	args := m.Called(ctx, sku)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockSCMClient) GetProductModelPrice(ctx context.Context, sku string) (float64, error) {
+	args := m.Called(ctx, sku)
+	return args.Get(0).(float64), args.Error(1)
+}
+
+type MockMRPClient struct {
+	mock.Mock
+}
+
+func (m *MockMRPClient) CreateProductionOrder(ctx context.Context, req MRPCreateOrderReq) error {
+	args := m.Called(ctx, req)
+	return args.Error(0)
+}
+
+var _ SCMClient = (*MockSCMClient)(nil)
+var _ MRPClient = (*MockMRPClient)(nil)
+
+type MockPublisher struct {
+	mock.Mock
+}
+
+func (m *MockPublisher) Publish(ctx context.Context, queue string, payload any) error {
+	args := m.Called(ctx, queue, payload)
+	return args.Error(0)
+}
+
+

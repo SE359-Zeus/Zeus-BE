@@ -12,6 +12,7 @@ import (
 	"zeus-sales-service/internal/repository"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type ClientService struct {
@@ -260,3 +261,15 @@ func (svc *ClientService) publishAudit(ctx context.Context, actionType string, t
 		"details":         details,
 	})
 }
+
+func (svc *ClientService) VerifyClientAPIKey(ctx context.Context, prefix, rawKey string) (*models.Client, error) {
+	client, err := svc.repo.GetClientByAPIKeyPrefix(ctx, prefix)
+	if err != nil {
+		return nil, err
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(client.ApiKeyHash), []byte(rawKey)); err != nil {
+		return nil, fmt.Errorf("invalid api key: %w", err)
+	}
+	return client, nil
+}
+

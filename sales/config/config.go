@@ -25,9 +25,17 @@ type Config struct {
 	// External Services
 	MRPServiceURL string
 	SCMServiceURL string
+	ScmAPIKey     string
+	MrpAPIKey     string
 
 	// Logging
 	LogLevel string
+
+	// Observability
+	Env           string
+	AlloyURL      string
+	AlloyUsername string
+	AlloyPassword string
 }
 
 var loadEnvOnce sync.Once
@@ -42,9 +50,15 @@ func Load() *Config {
 		RabbitMQURL:      getenvAny("amqp://guest:guest@localhost:5672/", "RABBITMQ_URL"),
 		SQLiteDBPath:     getenvAny("./sales.db", "SALES_SQLITE_DB", "SQLITE_DB"),
 		ValkeyAddr:       getenvAny("localhost:6379", "SALES_VALKEY_ADDR", "VALKEY_ADDR"),
-		MRPServiceURL:    getenvAny("http://localhost:8082", "MRP_URL"),
-		SCMServiceURL:    getenvAny("http://localhost:8083", "SCM_URL"),
+		MRPServiceURL:    getenvAny("http://localhost:8083", "MRP_BASE_URL", "MRP_URL"),
+		SCMServiceURL:    getenvAny("http://localhost:8083", "SCM_BASE_URL", "SCM_URL"),
+		ScmAPIKey:        getenvAny("scmkey01-admin-20260524", "SCM_API_KEY", "scm_api_key", "X_API_KEY"),
+		MrpAPIKey:        getenvAny("mrpkey01-admin-20260524", "MRP_API_KEY", "mrp_api_key"),
 		LogLevel:         getenvAny("info", "LOG_LEVEL"),
+		Env:              getenvAny("development", "SALES_ENV", "APP_ENV"),
+		AlloyURL:         getenvAny("", "ALLOY_URL"),
+		AlloyUsername:    getenvAny("", "ALLOY_USERNAME"),
+		AlloyPassword:    getenvAny("", "ALLOY_PASSWORD"),
 	}
 }
 

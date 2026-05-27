@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // ------------------------------------------------------------
@@ -15,10 +16,56 @@ import (
 // ------------------------------------------------------------
 
 func TestProductionService_GetAssemblies(t *testing.T) {
-	svc := NewProductionService(setupMockRepo())
+	mockRepo := new(MockMRPRepository)
+	mockSCM := new(MockSCMClient)
+	partID := uuid.New()
+	mockRepo.On("GetAllBOMs", mock.Anything).Return([]models.BomEntry{{ParentModelCode: "21CB000QUS", ComponentPartID: partID, RequiredQuantityPerUnit: 2}}, nil)
+	mockSCM.On("GetPartCatalogByID", mock.Anything, partID).Return(&models.Part{ID: partID, SKU: "PN-1001"}, nil)
+	mockSCM.On("GetProductModelByCode", mock.Anything, "21CB000QUS").Return(&models.ProductModel{ModelCode: "21CB000QUS", ModelName: "ThinkPad X1 Carbon Gen 11"}, nil)
+	svc := NewProductionService(mockRepo, mockSCM)
 	res, err := svc.GetAssemblies(context.Background())
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
+	if assert.Len(t, res, 1) {
+		assert.Equal(t, "21CB000QUS", res[0].ModelCode)
+		assert.Equal(t, "ThinkPad X1 Carbon Gen 11", res[0].Name)
+	}
+}
+
+func TestProductionService_GetAssemblies_UsesPartNumberSKUs(t *testing.T) {
+	mockRepo := new(MockMRPRepository)
+	partID := uuid.New()
+	mockRepo.On("GetAllBOMs", mock.Anything).Return([]models.BomEntry{{ParentModelCode: "MODEL-X", ComponentPartID: partID, RequiredQuantityPerUnit: 2}}, nil)
+	mockSCM := setupMockSCMClient()
+	mockSCM.On("GetPartCatalogByID", mock.Anything, partID).Return(&models.Part{ID: partID, SKU: "PN-1001"}, nil)
+	mockSCM.On("GetProductModelByCode", mock.Anything, "MODEL-X").Return(&models.ProductModel{ModelCode: "MODEL-X", ModelName: "Model X"}, nil)
+	svc := NewProductionService(mockRepo, mockSCM)
+
+	res, err := svc.GetAssemblies(context.Background())
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+	require.Len(t, res[0].Components, 1)
+	assert.Equal(t, "PN-1001", res[0].Components[0].SKU)
+	assert.Equal(t, "Model X", res[0].Name)
+	assert.NotEqual(t, partID.String(), res[0].Components[0].SKU)
+}
+
+func TestProductionService_GetAssembliesPage_UsesModelName(t *testing.T) {
+	mockRepo := new(MockMRPRepository)
+	mockSCM := new(MockSCMClient)
+	partID := uuid.New()
+	mockRepo.On("GetPagedBOMsByAssembly", mock.Anything, 1, 10).Return([]models.BomEntry{{ParentModelCode: "83LY00HQVN", ComponentPartID: partID, RequiredQuantityPerUnit: 4}}, 1, nil)
+	mockSCM.On("GetPartCatalogByID", mock.Anything, partID).Return(&models.Part{ID: partID, SKU: "PN-3001"}, nil)
+	mockSCM.On("GetProductModelByCode", mock.Anything, "83LY00HQVN").Return(&models.ProductModel{ModelCode: "83LY00HQVN", ModelName: "Legion 5 15IRX10"}, nil)
+	svc := NewProductionService(mockRepo, mockSCM)
+
+	res, total, err := svc.GetAssembliesPage(context.Background(), 1, 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, total)
+	require.Len(t, res, 1)
+	assert.Equal(t, "83LY00HQVN", res[0].ModelCode)
+	assert.Equal(t, "Legion 5 15IRX10", res[0].Name)
+	assert.Equal(t, "PN-3001", res[0].Components[0].SKU)
 }
 
 func TestProductionService_GetCatalog(t *testing.T) {
@@ -29,10 +76,21 @@ func TestProductionService_GetCatalog(t *testing.T) {
 }
 
 func TestProductionService_GetWhereUsed(t *testing.T) {
-	svc := NewProductionService(setupMockRepo())
-	res, err := svc.GetWhereUsed(context.Background(), uuid.New().String())
+	mockRepo := setupMockRepo()
+	mockSCM := setupMockSCMClient()
+	partID := uuid.New()
+	mockSCM.On("GetPartCatalogBySKU", mock.Anything, "PN-001").Return(&models.Part{ID: partID, SKU: "PN-001"}, nil)
+	svc := NewProductionService(mockRepo, mockSCM)
+	res, err := svc.GetWhereUsed(context.Background(), "PN-001")
 	assert.NoError(t, err)
 	assert.NotNil(t, res)
+}
+
+func TestProductionService_GetWhereUsed_RejectsUUIDSKU(t *testing.T) {
+	svc := NewProductionService(setupMockRepo(), setupMockSCMClient())
+	res, err := svc.GetWhereUsed(context.Background(), uuid.New().String())
+	assert.Error(t, err)
+	assert.Nil(t, res)
 }
 
 func TestProductionService_CreateAssembly(t *testing.T) {
@@ -53,6 +111,24 @@ func TestProductionService_DeleteAssembly(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	err := svc.DeleteAssembly(context.Background(), uuid.New())
 	assert.NoError(t, err)
+}
+
+func TestProductionService_GetAssemblyByModelCode_ResolvesModelName(t *testing.T) {
+	mockRepo := new(MockMRPRepository)
+	mockSCM := new(MockSCMClient)
+	modelCode := "82A3000GUS"
+	partID := uuid.New()
+	mockRepo.On("GetBOMByModelCode", mock.Anything, modelCode).Return([]models.BomEntry{{ParentModelCode: modelCode, ComponentPartID: partID, RequiredQuantityPerUnit: 1}}, nil)
+	mockSCM.On("GetPartCatalogByID", mock.Anything, partID).Return(&models.Part{ID: partID, SKU: "PN-2001"}, nil)
+	mockSCM.On("GetProductModelByCode", mock.Anything, modelCode).Return(&models.ProductModel{ModelCode: modelCode, ModelName: "Yoga Slim 7i"}, nil)
+	svc := NewProductionService(mockRepo, mockSCM)
+
+	res, err := svc.GetAssemblyByModelCode(context.Background(), modelCode)
+	assert.NoError(t, err)
+	if assert.NotNil(t, res) {
+		assert.Equal(t, modelCode, res.ModelCode)
+		assert.Equal(t, "Yoga Slim 7i", res.Name)
+	}
 }
 
 // ------------------------------------------------------------

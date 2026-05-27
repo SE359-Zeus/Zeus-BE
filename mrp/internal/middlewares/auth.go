@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -118,15 +119,52 @@ func (v *JWTVerifier) VerifyAccessToken(tokenString string) (*JWTClaims, error) 
 func Authenticate(verifier TokenVerifier) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			apiKey := r.Header.Get("X-API-KEY")
+			if apiKey == "" {
+				apiKey = r.Header.Get("X-API-Key")
+			}
+
+			expectedKey := os.Getenv("MRP_API_KEY")
+			if expectedKey != "" && apiKey == expectedKey {
+				ctx := context.WithValue(r.Context(), ContextKeyRole, "apikey")
+				ctx = context.WithValue(ctx, ContextKeyUserID, "none")
+				ctx = context.WithValue(ctx, ContextKeyEmail, "apikey@zeus.mrp")
+				slog.Info("authentication accepted via API Key",
+					slog.String("service", "mrp"),
+					slog.String("event", "auth_accepted"),
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.String("user_id", "none"),
+					slog.String("role", "apikey"),
+				)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
 			authHeader := r.Header.Get("Authorization")
 			parts := strings.SplitN(authHeader, " ", 2)
 			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+				slog.Warn("authentication rejected",
+					slog.String("service", "mrp"),
+					slog.String("event", "auth_rejected"),
+					slog.String("reason", "missing_or_invalid_auth_header"),
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+				)
 				writeAuthError(w, http.StatusUnauthorized, "missing_or_invalid_auth_header", "missing or invalid authorization header")
 				return
 			}
 
 			claims, err := verifier.VerifyAccessToken(parts[1])
 			if err != nil {
+				slog.Warn("authentication rejected",
+					slog.String("service", "mrp"),
+					slog.String("event", "auth_rejected"),
+					slog.String("reason", "invalid_token"),
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.String("error", err.Error()),
+				)
 				writeAuthError(w, http.StatusUnauthorized, "invalid_token", "invalid access token")
 				return
 			}
@@ -138,6 +176,16 @@ func Authenticate(verifier TokenVerifier) Middleware {
 			ctx = context.WithValue(ctx, ContextKeyFullName, claims.FullName)
 			ctx = context.WithValue(ctx, ContextKeyStatus, claims.Status)
 
+			slog.Info("authentication accepted",
+				slog.String("service", "mrp"),
+				slog.String("event", "auth_accepted"),
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.String("user_id", claims.UserID),
+				slog.String("role", claims.Role),
+				slog.String("email", claims.Email),
+			)
+
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -148,15 +196,39 @@ func RequireMethodRoles(methodRoles map[string][]string) Middleware {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			allowedRoles, ok := methodRoles[r.Method]
 			if !ok {
+				slog.Warn("authorization rejected",
+					slog.String("service", "mrp"),
+					slog.String("event", "authorization_rejected"),
+					slog.String("reason", "method_not_allowed"),
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+				)
 				writeAuthError(w, http.StatusForbidden, "forbidden", "access to this endpoint is not allowed")
 				return
 			}
 
 			role, _ := r.Context().Value(ContextKeyRole).(string)
 			if !roleAllowed(role, allowedRoles) {
+				slog.Warn("authorization rejected",
+					slog.String("service", "mrp"),
+					slog.String("event", "authorization_rejected"),
+					slog.String("reason", "insufficient_role"),
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.String("role", role),
+					slog.Any("allowed_roles", allowedRoles),
+				)
 				writeAuthError(w, http.StatusForbidden, "forbidden", "insufficient role for this endpoint")
 				return
 			}
+
+			slog.Info("authorization accepted",
+				slog.String("service", "mrp"),
+				slog.String("event", "authorization_accepted"),
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.String("role", role),
+			)
 
 			next.ServeHTTP(w, r)
 		})
@@ -181,6 +253,9 @@ type jwtAccessClaims struct {
 
 func roleAllowed(role string, allowed []string) bool {
 	if strings.EqualFold(role, "admin") {
+		return true
+	}
+	if strings.EqualFold(role, "apikey") {
 		return true
 	}
 	for _, candidate := range allowed {

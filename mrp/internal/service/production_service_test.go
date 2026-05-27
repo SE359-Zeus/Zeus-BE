@@ -5,10 +5,13 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"zeus-mrp-service/internal/infrastructure/messaging"
 	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -227,4 +230,77 @@ func TestPlanProduction_ConcurrentCallsAreRaceFree(t *testing.T) {
 		}
 		seen[id] = true
 	}
+}
+
+func TestPlanProduction_ShortageCreationAndSCMAlerting(t *testing.T) {
+	db := new(MockMRPRepository)
+	scmClient := new(MockSCMClient)
+	auditPub := new(MockAuditPublisher)
+	svc := NewProductionService(db, scmClient, auditPub)
+
+	partID := uuid.New()
+	modelCode := "MODEL-X"
+	bomEntries := []models.BomEntry{
+		{
+			ID:                      1,
+			ParentModelCode:         modelCode,
+			ComponentPartID:         partID,
+			RequiredQuantityPerUnit: 3,
+		},
+	}
+
+	// 10 units of modelCode requires 30 parts. Available inventory: 10 parts. Deficit = 20 parts.
+	db.On("CreateProductionOrder", mock.Anything, mock.MatchedBy(func(order *models.ProductionOrder) bool {
+		return order.ProductModelCode == modelCode && order.TargetQuantity == 10
+	})).Return(nil)
+
+	db.On("GetProductionOrder", mock.Anything, mock.Anything).Return(&models.ProductionOrder{
+		ID:               uuid.Nil, // will be matched or overwritten
+		ProductModelCode: modelCode,
+		TargetQuantity:   10,
+		Status:           models.StatusPlanned,
+	}, nil)
+
+	db.On("GetBOMByModelCode", mock.Anything, modelCode).Return(bomEntries, nil)
+
+	// SCM details mapping
+	scmClient.On("GetPartCatalogByID", mock.Anything, partID).Return(&models.Part{
+		ID:       partID,
+		SKU:      "COMP-SKU-100",
+		Price:    1.5,
+		StockQty: 10,
+	}, nil)
+
+	// Shortage logging expectation
+	db.On("CreateShortageLog", mock.Anything, mock.MatchedBy(func(log *models.ShortageLog) bool {
+		return log.PartID == partID && log.ShortageQty == 20 && log.ResolutionStatus == models.ResolutionStatusShortage
+	})).Return(nil)
+
+	// SCM RabbitMQ alert publication expectation
+	auditPub.On("PublishJSON", messaging.DeficitPoolQueue, mock.MatchedBy(func(payload any) bool {
+		m, ok := payload.(map[string]any)
+		if !ok {
+			return false
+		}
+		return m["sku"] == "COMP-SKU-100" && m["qty"] == 20
+	})).Return(nil)
+
+	// Status update to SHORTAGE/PARTIAL
+	db.On("UpdateProductionOrderStatus", mock.Anything, mock.Anything, models.StatusPartial).Return(nil)
+
+	req := models.CreateProductionOrderRequest{
+		ProductModelCode: modelCode,
+		TargetQuantity:   10,
+	}
+
+	res, err := svc.PlanProduction(context.Background(), req)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	assert.Equal(t, models.StatusPartial, res.Status)
+	assert.Len(t, res.Shortages, 1)
+	assert.Equal(t, 20, res.Shortages[0].ShortageQty)
+
+	db.AssertExpectations(t)
+	scmClient.AssertExpectations(t)
+	auditPub.AssertExpectations(t)
 }

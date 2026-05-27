@@ -19,11 +19,8 @@ func TestOrderService_CreateOrder_ValidatesHardCases(t *testing.T) {
 	cache := setupMockCacheRepo()
 	svc := newTestServicesWithMocks(db, cache).Orders
 	baseReq := models.CreateOrderRequest{
-		ClientName:         "Acme Manufacturing",
-		DestinationAddress: "Dock 9",
-		ClientTier:         models.ClientTierB2B,
 		RequiredDate:       time.Now().Add(24 * time.Hour).UTC(),
-		Items:              []models.OrderItemRequest{{SKU: "SKU-1", RequestedQty: 2, UnitPrice: 10}},
+		Items:              []models.OrderItemRequest{{SKU: "SKU-1", RequestedQty: 2}},
 	}
 
 	tests := []struct {
@@ -31,22 +28,16 @@ func TestOrderService_CreateOrder_ValidatesHardCases(t *testing.T) {
 		req     models.CreateOrderRequest
 		wantErr string
 	}{
-		{name: "missing client name", req: func() models.CreateOrderRequest { req := baseReq; req.ClientName = ""; return req }(), wantErr: "validation error"},
 		{name: "missing required date", req: func() models.CreateOrderRequest { req := baseReq; req.RequiredDate = time.Time{}; return req }(), wantErr: "validation error"},
 		{name: "missing items", req: func() models.CreateOrderRequest { req := baseReq; req.Items = nil; return req }(), wantErr: "validation error"},
 		{name: "duplicate sku", req: func() models.CreateOrderRequest {
 			req := baseReq
-			req.Items = []models.OrderItemRequest{{SKU: "SKU-1", RequestedQty: 2, UnitPrice: 10}, {SKU: "sku-1", RequestedQty: 1, UnitPrice: 5}}
+			req.Items = []models.OrderItemRequest{{SKU: "SKU-1", RequestedQty: 2}, {SKU: "sku-1", RequestedQty: 1}}
 			return req
 		}(), wantErr: "validation error"},
 		{name: "zero quantity", req: func() models.CreateOrderRequest {
 			req := baseReq
-			req.Items = []models.OrderItemRequest{{SKU: "SKU-2", RequestedQty: 0, UnitPrice: 10}}
-			return req
-		}(), wantErr: "validation error"},
-		{name: "negative price", req: func() models.CreateOrderRequest {
-			req := baseReq
-			req.Items = []models.OrderItemRequest{{SKU: "SKU-2", RequestedQty: 1, UnitPrice: -1}}
+			req.Items = []models.OrderItemRequest{{SKU: "SKU-2", RequestedQty: 0}}
 			return req
 		}(), wantErr: "validation error"},
 	}
@@ -64,34 +55,39 @@ func TestOrderService_CreateOrder_ValidatesHardCases(t *testing.T) {
 func TestOrderService_CreateOrder_SetsDerivedFields(t *testing.T) {
 	db := setupMockDbRepo()
 	cache := setupMockCacheRepo()
-	svc := newTestServicesWithMocks(db, cache).Orders
+	mockSCM := new(MockSCMClient)
+	infra := &Infrastructure{SCMClient: mockSCM}
+	svc := NewServices(db, cache, infra).Orders
 	pendingStatus := defaultPendingStatus()
 	clientID := uuid.New()
 
-	db.On("ExistsClientByName", mock.Anything, "Orbit Co").Return(false, nil)
+	db.On("ExistsClientByName", mock.Anything, "Default Client").Return(false, nil)
 	db.On("CreateClient", mock.Anything, mock.AnythingOfType("*models.Client")).Return(nil)
 	db.On("GetOrderStatusByCode", mock.Anything, models.SalesOrderStatusPendingCode).Return(pendingStatus, nil)
 	db.On("CreateOrder", mock.Anything, mock.AnythingOfType("*models.SalesOrder")).Return(nil)
 	db.On("CreateOrderItem", mock.Anything, mock.AnythingOfType("*models.SalesOrderItem")).Return(nil).Times(2)
 	db.On("UpdateClient", mock.Anything, mock.MatchedBy(func(client *models.Client) bool {
-		return client.Name == "Orbit Co" && client.TotalLifetimeOrders == 1
+		return client.Name == "Default Client" && client.TotalLifetimeOrders == 1
 	})).Return(nil)
 	cache.On("EnqueueOrder", mock.Anything, mock.AnythingOfType("models.AllocationQueueEntry")).Return(nil)
 	db.On("GetClient", mock.Anything, mock.Anything).Return(&models.Client{
 		ID:                        clientID,
-		Name:                      "Orbit Co",
+		Name:                      "Default Client",
 		Tier:                      models.ClientTierB2C,
-		DefaultDestinationAddress: "",
+		DefaultDestinationAddress: "Default Address",
 		TotalLifetimeOrders:       1,
 	}, nil)
 
+	mockSCM.On("CheckSKU", mock.Anything, "SKU-100").Return(true, nil)
+	mockSCM.On("GetProductModelPrice", mock.Anything, "SKU-100").Return(15.0, nil)
+	mockSCM.On("CheckSKU", mock.Anything, "SKU-200").Return(true, nil)
+	mockSCM.On("GetProductModelPrice", mock.Anything, "SKU-200").Return(8.0, nil)
+
 	response, err := svc.CreateOrder(context.Background(), models.CreateOrderRequest{
-		ClientName:         "Orbit Co",
-		DestinationAddress: "",
 		RequiredDate:       time.Now().Add(72 * time.Hour).UTC(),
 		Items: []models.OrderItemRequest{
-			{SKU: "SKU-100", RequestedQty: 3, UnitPrice: 15},
-			{SKU: "SKU-200", RequestedQty: 2, UnitPrice: 8},
+			{SKU: "SKU-100", RequestedQty: 3},
+			{SKU: "SKU-200", RequestedQty: 2},
 		},
 	})
 	require.NoError(t, err)
@@ -235,33 +231,91 @@ func TestOrderService_ListOrders_ReturnsSummaryRows(t *testing.T) {
 func TestOrderService_CreateOrder_AcceptsCamelCaseDatePayload(t *testing.T) {
 	db := setupMockDbRepo()
 	cache := setupMockCacheRepo()
-	svc := newTestServicesWithMocks(db, cache).Orders
+	mockSCM := new(MockSCMClient)
+	infra := &Infrastructure{SCMClient: mockSCM}
+	svc := NewServices(db, cache, infra).Orders
 	pendingStatus := defaultPendingStatus()
 
-	db.On("ExistsClientByName", mock.Anything, "Hung").Return(false, nil)
+	db.On("ExistsClientByName", mock.Anything, "Default Client").Return(false, nil)
 	db.On("CreateClient", mock.Anything, mock.AnythingOfType("*models.Client")).Return(nil)
 	db.On("GetOrderStatusByCode", mock.Anything, models.SalesOrderStatusPendingCode).Return(pendingStatus, nil)
 	db.On("CreateOrder", mock.Anything, mock.AnythingOfType("*models.SalesOrder")).Return(nil)
 	db.On("CreateOrderItem", mock.Anything, mock.AnythingOfType("*models.SalesOrderItem")).Return(nil)
 	db.On("UpdateClient", mock.Anything, mock.AnythingOfType("*models.Client")).Return(nil)
 	cache.On("EnqueueOrder", mock.Anything, mock.AnythingOfType("models.AllocationQueueEntry")).Return(nil)
-	db.On("GetClient", mock.Anything, mock.Anything).Return(&models.Client{ID: uuid.New(), Name: "Hung", Tier: models.ClientTierB2B}, nil)
+	db.On("GetClient", mock.Anything, mock.Anything).Return(&models.Client{ID: uuid.New(), Name: "Default Client", Tier: models.ClientTierB2C}, nil)
+
+	mockSCM.On("CheckSKU", mock.Anything, "sadfawefdf").Return(true, nil)
+	mockSCM.On("GetProductModelPrice", mock.Anything, "sadfawefdf").Return(1.0, nil)
 
 	response, err := svc.CreateOrder(context.Background(), models.CreateOrderRequest{
-		ClientName:         "Hung",
-		DestinationAddress: "123 Nguyen Van Troi, TPHCM",
-		ClientTier:         models.ClientTierB2B,
 		RequiredDate:       time.Date(2026, time.January, 1, 10, 0, 0, 0, time.UTC),
 		Items: []models.OrderItemRequest{{
 			RequestedQty: 1,
 			SKU:          "sadfawefdf",
-			UnitPrice:    1,
 		}},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, response)
 	require.NotNil(t, response.Order.Status)
 	assert.Equal(t, models.SalesOrderStatusPendingCode, response.Order.Status.Code)
+}
+
+func TestOrderService_CreateOrder_CallsSCMAndPublishesToQueue(t *testing.T) {
+	db := setupMockDbRepo()
+	cache := setupMockCacheRepo()
+
+	mockSCM := new(MockSCMClient)
+	mockPublisher := new(MockPublisher)
+
+	infra := &Infrastructure{
+		SCMClient: mockSCM,
+		Publisher: mockPublisher,
+	}
+
+	svc := NewServices(db, cache, infra).Orders
+
+	pendingStatus := defaultPendingStatus()
+	db.On("ExistsClientByName", mock.Anything, "Default Client").Return(false, nil)
+	db.On("CreateClient", mock.Anything, mock.AnythingOfType("*models.Client")).Return(nil)
+	db.On("GetOrderStatusByCode", mock.Anything, models.SalesOrderStatusPendingCode).Return(pendingStatus, nil)
+	db.On("CreateOrder", mock.Anything, mock.AnythingOfType("*models.SalesOrder")).Return(nil)
+	db.On("CreateOrderItem", mock.Anything, mock.AnythingOfType("*models.SalesOrderItem")).Return(nil)
+	db.On("UpdateClient", mock.Anything, mock.AnythingOfType("*models.Client")).Return(nil)
+	db.On("GetClient", mock.Anything, mock.Anything).Return(&models.Client{ID: uuid.New(), Name: "Default Client", Tier: models.ClientTierB2C}, nil)
+	cache.On("EnqueueOrder", mock.Anything, mock.AnythingOfType("models.AllocationQueueEntry")).Return(nil)
+
+	// Set expectations on SCM check and RabbitMQ queue publishing
+	mockSCM.On("CheckSKU", mock.Anything, "SKU-MRP-TEST").Return(true, nil)
+	mockSCM.On("GetProductModelPrice", mock.Anything, "SKU-MRP-TEST").Return(12.5, nil)
+	mockPublisher.On("Publish", mock.Anything, "sales.order.created", mock.MatchedBy(func(payload any) bool {
+		m, ok := payload.(map[string]any)
+		if !ok {
+			return false
+		}
+		items, ok := m["items"].([]map[string]any)
+		if !ok {
+			return false
+		}
+		if len(items) != 1 {
+			return false
+		}
+		return items[0]["sku"] == "SKU-MRP-TEST" && items[0]["qty"] == 5
+	})).Return(nil)
+	mockPublisher.On("Publish", mock.Anything, "system.audit.log", mock.Anything).Return(nil)
+
+	response, err := svc.CreateOrder(context.Background(), models.CreateOrderRequest{
+		RequiredDate: time.Date(2026, time.January, 1, 10, 0, 0, 0, time.UTC),
+		Items: []models.OrderItemRequest{{
+			SKU:          "SKU-MRP-TEST",
+			RequestedQty: 5,
+		}},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	mockSCM.AssertExpectations(t)
+	mockPublisher.AssertExpectations(t)
 }
 
 func ptrString(value string) *string {

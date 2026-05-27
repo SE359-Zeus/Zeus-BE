@@ -6,10 +6,10 @@ This document defines the Manufacturing Resource Planning (MRP) module for the Z
 ## 1. Core Subsystems
 
 ### Component Catalog
-The Component Catalog serves as the master record for all hardware parts and product assemblies. It maintains the technical specifications, unit costs, and structural dependencies required for build orchestration.
+The Component Catalog serves as the master record for all hardware parts and product assemblies. It maintains the technical specifications, unit costs, and structural dependencies required for build orchestration. Following the SCM-first architecture, component specifications and detailed SKU pricing are dynamically resolved on-the-fly from the SCM service, removing redundant local storage.
 
 **Core Data Structures:**
-- **Component Specification:** Detailed metadata for individual SKUs, including type (Raw Material, Assembly), unit cost, and functional description.
+- **Component Specification:** Detailed metadata for individual SKUs, dynamically resolved from SCM, including type (Raw Material, Assembly), unit cost, and functional description.
 - **Product Assembly (BOM):** A hierarchical map linking a parent product (e.g., Workstation Alpha) to its constituent component SKUs and required quantities.
 - **Dependency Mapping (Where Used):** A reverse-lookup table that identifies which parent assemblies are affected by a specific component SKU, enabling rapid impact analysis for shortages.
 

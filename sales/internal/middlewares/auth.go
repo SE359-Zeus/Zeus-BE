@@ -7,12 +7,14 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"zeus-sales-service/internal/models"
 )
 
 const (
@@ -25,6 +27,10 @@ const (
 )
 
 type Middleware func(http.Handler) http.Handler
+
+type ClientAPIKeyVerifier interface {
+	VerifyClientAPIKey(ctx context.Context, prefix, rawKey string) (*models.Client, error)
+}
 
 type JWTClaims struct {
 	UserID   string `json:"user_id"`
@@ -115,18 +121,81 @@ func (v *JWTVerifier) VerifyAccessToken(tokenString string) (*JWTClaims, error) 
 	}, nil
 }
 
-func Authenticate(verifier TokenVerifier) Middleware {
+func Authenticate(verifier TokenVerifier, keyVerifier ClientAPIKeyVerifier) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			apiKey := r.Header.Get("X-API-KEY")
+			if apiKey != "" {
+				if len(apiKey) < 8 {
+					slog.Warn("authentication rejected",
+						slog.String("service", "sales"),
+						slog.String("event", "auth_rejected"),
+						slog.String("reason", "api_key_too_short"),
+						slog.String("method", r.Method),
+						slog.String("path", r.URL.Path),
+					)
+					writeAuthError(w, http.StatusUnauthorized, "invalid_api_key", "invalid api key format")
+					return
+				}
+				prefix := apiKey[:8]
+				client, err := keyVerifier.VerifyClientAPIKey(r.Context(), prefix, apiKey)
+				if err != nil {
+					slog.Warn("authentication rejected",
+						slog.String("service", "sales"),
+						slog.String("event", "auth_rejected"),
+						slog.String("reason", "invalid_api_key"),
+						slog.String("method", r.Method),
+						slog.String("path", r.URL.Path),
+						slog.String("error", err.Error()),
+					)
+					writeAuthError(w, http.StatusUnauthorized, "invalid_api_key", "invalid api key")
+					return
+				}
+
+				ctx := context.WithValue(r.Context(), ContextKeyUserID, client.ID.String())
+				ctx = context.WithValue(ctx, ContextKeyRole, "client")
+				ctx = context.WithValue(ctx, ContextKeyEmail, "client:"+client.Name)
+				ctx = context.WithValue(ctx, ContextKeyFullName, client.Name)
+				ctx = context.WithValue(ctx, ContextKeyStatus, "active")
+
+				slog.Info("authentication accepted",
+					slog.String("service", "sales"),
+					slog.String("event", "auth_accepted"),
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.String("client_id", client.ID.String()),
+					slog.String("role", "client"),
+					slog.String("email", "client:"+client.Name),
+				)
+
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
 			authHeader := r.Header.Get("Authorization")
 			parts := strings.SplitN(authHeader, " ", 2)
 			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+				slog.Warn("authentication rejected",
+					slog.String("service", "sales"),
+					slog.String("event", "auth_rejected"),
+					slog.String("reason", "missing_or_invalid_auth_header"),
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+				)
 				writeAuthError(w, http.StatusUnauthorized, "missing_or_invalid_auth_header", "missing or invalid authorization header")
 				return
 			}
 
 			claims, err := verifier.VerifyAccessToken(parts[1])
 			if err != nil {
+				slog.Warn("authentication rejected",
+					slog.String("service", "sales"),
+					slog.String("event", "auth_rejected"),
+					slog.String("reason", "invalid_token"),
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.String("error", err.Error()),
+				)
 				writeAuthError(w, http.StatusUnauthorized, "invalid_token", "invalid access token")
 				return
 			}
@@ -138,6 +207,16 @@ func Authenticate(verifier TokenVerifier) Middleware {
 			ctx = context.WithValue(ctx, ContextKeyFullName, claims.FullName)
 			ctx = context.WithValue(ctx, ContextKeyStatus, claims.Status)
 
+			slog.Info("authentication accepted",
+				slog.String("service", "sales"),
+				slog.String("event", "auth_accepted"),
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.String("user_id", claims.UserID),
+				slog.String("role", claims.Role),
+				slog.String("email", claims.Email),
+			)
+
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -148,15 +227,39 @@ func RequireMethodRoles(methodRoles map[string][]string) Middleware {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			allowedRoles, ok := methodRoles[r.Method]
 			if !ok {
+				slog.Warn("authorization rejected",
+					slog.String("service", "sales"),
+					slog.String("event", "authorization_rejected"),
+					slog.String("reason", "method_not_allowed"),
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+				)
 				writeAuthError(w, http.StatusForbidden, "forbidden", "access to this endpoint is not allowed")
 				return
 			}
 
 			role, _ := r.Context().Value(ContextKeyRole).(string)
 			if !roleAllowed(role, allowedRoles) {
+				slog.Warn("authorization rejected",
+					slog.String("service", "sales"),
+					slog.String("event", "authorization_rejected"),
+					slog.String("reason", "insufficient_role"),
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.String("role", role),
+					slog.Any("allowed_roles", allowedRoles),
+				)
 				writeAuthError(w, http.StatusForbidden, "forbidden", "insufficient role for this endpoint")
 				return
 			}
+
+			slog.Info("authorization accepted",
+				slog.String("service", "sales"),
+				slog.String("event", "authorization_accepted"),
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.String("role", role),
+			)
 
 			next.ServeHTTP(w, r)
 		})

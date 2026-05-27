@@ -29,7 +29,6 @@ type DbRepository interface {
 	GetAggregatedShortages(ctx context.Context) ([]models.BOMExplosionResult, error)
 
 	// External/Interop (Read-only proxy to Product/Audit services)
-	GetPartInventory(ctx context.Context, partID uuid.UUID) (int, error)
 	GetInventoryTransactions(ctx context.Context) ([]models.InventoryTransactionDTO, error)
 	GetInventoryMetrics(ctx context.Context) (*models.InventoryMetrics, error)
 }

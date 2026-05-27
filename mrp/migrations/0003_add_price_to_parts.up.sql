@@ -1,1 +1,2 @@
-ALTER TABLE parts ADD COLUMN price REAL NOT NULL DEFAULT 0.0;
+-- No-op: parts table has been removed as per the catalog refactor.
+SELECT 1;

@@ -86,6 +86,12 @@ type ComponentReference struct {
 	Quantity int    `json:"qty" validate:"gt=0"`
 }
 
+type ProductModel struct {
+	ModelCode string  `json:"model_code"`
+	ModelName string  `json:"model_name"`
+	UnitPrice float64 `json:"unit_price"`
+}
+
 // AssemblyResponse is the detail view for a single product assembly (GET /assemblies/{id}).
 type AssemblyResponse struct {
 	ModelCode   string               `json:"model_code"`
@@ -93,6 +99,7 @@ type AssemblyResponse struct {
 	Description string               `json:"description"`
 	TotalParts  int                  `json:"total_parts"`
 	Components  []ComponentReference `json:"components"`
+	UnitPrice   float64              `json:"unit_price"`
 }
 
 // --- Pagination & Filtering ---
@@ -157,6 +164,7 @@ type Part struct {
 	SKU         string     `json:"sku"`
 	Description string     `json:"description"`
 	Price       float64    `json:"price"`
+	StockQty    int        `json:"stock_qty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 	DeletedAt   *time.Time `json:"deleted_at,omitempty"`

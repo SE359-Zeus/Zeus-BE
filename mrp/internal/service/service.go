@@ -2,6 +2,10 @@ package service
 
 import (
 	"context"
+
+	"github.com/google/uuid"
+
+	"zeus-mrp-service/internal/infrastructure/messaging"
 	"zeus-mrp-service/internal/middlewares"
 	"zeus-mrp-service/internal/models"
 	"zeus-mrp-service/internal/repository"
@@ -13,7 +17,9 @@ type AuditPublisher interface {
 
 type SCMClient interface {
 	GetPartCatalogBySKU(ctx context.Context, sku string) (*models.Part, error)
+	GetPartCatalogByID(ctx context.Context, id uuid.UUID) (*models.Part, error)
 	GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error)
+	GetProductModelByCode(ctx context.Context, code string) (*models.ProductModel, error)
 	ListStocks(ctx context.Context, page, limit int, sortBy, sortDir, q string) ([]models.ComponentStock, bool, error)
 	CreateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error)
 	UpdateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error)
@@ -51,7 +57,7 @@ func (s *ProductionService) publishAudit(ctx context.Context, actionType, target
 	if userID == "" || userEmail == "" {
 		return
 	}
-	_ = s.audit.PublishJSON("system.audit.log", map[string]any{
+	_ = s.audit.PublishJSON(messaging.AuditQueue, map[string]any{
 		"user_id":         userID,
 		"user_email":      userEmail,
 		"action_type":     normalizeAuditActionType(actionType),

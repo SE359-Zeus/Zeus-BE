@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"zeus-mrp-service/internal/infrastructure/observability"
 	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
@@ -36,13 +37,95 @@ func NewClient() *Client {
 	}
 }
 
+func propagateTrace(ctx context.Context, req *http.Request) {
+	traceID := observability.TraceIDFromContext(ctx)
+	if traceID == "" {
+		return
+	}
+	spanID := observability.NewSpanID()
+	req.Header.Set("traceparent", "00-"+traceID+"-"+spanID+"-01")
+}
+
 func (c *Client) GetPartCatalogBySKU(ctx context.Context, sku string) (*models.Part, error) {
-	stock, err := c.GetStockBySKU(ctx, sku)
-	if err != nil || stock == nil {
+	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/part-catalog/sku/%s", c.baseURL, url.PathEscape(sku))
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
 		return nil, err
 	}
-	return &models.Part{SKU: stock.SKU, Description: stock.Name, Price: stock.UnitCost}, nil
+	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("SCM API returned status %d", resp.StatusCode)
+	}
+
+	var envelope struct {
+		Data struct {
+			ID          uuid.UUID `json:"id"`
+			SKU         string    `json:"sku"`
+			Description string    `json:"description"`
+			Price       float64   `json:"price"`
+			StockQty    int       `json:"stock_qty"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, err
+	}
+	if envelope.Data.ID == uuid.Nil {
+		return nil, nil
+	}
+	return &models.Part{ID: envelope.Data.ID, SKU: envelope.Data.SKU, Description: envelope.Data.Description, Price: envelope.Data.Price, StockQty: envelope.Data.StockQty}, nil
 }
+
+func (c *Client) GetPartCatalogByID(ctx context.Context, id uuid.UUID) (*models.Part, error) {
+	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/part-catalog/%s", c.baseURL, url.PathEscape(id.String()))
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("SCM API returned status %d", resp.StatusCode)
+	}
+
+	var envelope struct {
+		Data struct {
+			ID          uuid.UUID `json:"id"`
+			PartNumber  string    `json:"part_number"`
+			Description string    `json:"description"`
+			Price       float64   `json:"price"`
+			StockQty    int       `json:"stock_qty"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, err
+	}
+	if envelope.Data.ID == uuid.Nil {
+		return nil, nil
+	}
+	return &models.Part{ID: envelope.Data.ID, SKU: envelope.Data.PartNumber, Description: envelope.Data.Description, Price: envelope.Data.Price, StockQty: envelope.Data.StockQty}, nil
+}
+
 
 func (c *Client) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
 	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/stocks/%s", c.baseURL, url.PathEscape(sku))
@@ -51,6 +134,7 @@ func (c *Client) GetStockBySKU(ctx context.Context, sku string) (*models.Compone
 		return nil, err
 	}
 	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -67,6 +151,37 @@ func (c *Client) GetStockBySKU(ctx context.Context, sku string) (*models.Compone
 
 	var envelope struct {
 		Data models.ComponentStock `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, err
+	}
+	return &envelope.Data, nil
+}
+
+func (c *Client) GetProductModelByCode(ctx context.Context, code string) (*models.ProductModel, error) {
+	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/product-models/%s", c.baseURL, url.PathEscape(code))
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("SCM API returned status %d", resp.StatusCode)
+	}
+
+	var envelope struct {
+		Data models.ProductModel `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
 		return nil, err
@@ -98,6 +213,7 @@ func (c *Client) ListStocks(ctx context.Context, page, limit int, sortBy, sortDi
 		return nil, false, err
 	}
 	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -148,6 +264,7 @@ func (c *Client) CreateCatalogPart(ctx context.Context, sku, description string,
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -195,6 +312,7 @@ func (c *Client) UpdateCatalogPart(ctx context.Context, sku, description string,
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -235,6 +353,7 @@ func (c *Client) DeleteCatalogPart(ctx context.Context, sku string) error {
 		return err
 	}
 	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
