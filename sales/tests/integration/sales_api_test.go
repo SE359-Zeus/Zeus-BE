@@ -145,7 +145,7 @@ func TestSalesAPI_CreateOrder_AcceptsCamelCaseRequestBody(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &envelope))
 	var created models.OrderResponse
 	require.NoError(t, json.Unmarshal(envelope.Data, &created))
-	require.Equal(t, "Default Client", created.Order.ClientName)
+	require.Equal(t, "Default Client", created.Client.Name)
 	require.Equal(t, models.ClientTierB2C, created.Client.Tier)
 	require.NotNil(t, created.Order.Status)
 	require.Equal(t, models.SalesOrderStatusPendingCode, created.Order.Status.Code)

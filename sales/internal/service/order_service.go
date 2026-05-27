@@ -11,6 +11,7 @@ import (
 
 	"zeus-sales-service/config"
 	infraMessaging "zeus-sales-service/internal/infrastructure/messaging"
+	"zeus-sales-service/internal/infrastructure/observability"
 	"zeus-sales-service/internal/middlewares"
 	"zeus-sales-service/internal/models"
 	"zeus-sales-service/internal/repository"
@@ -535,6 +536,13 @@ func (svc *OrderService) ReserveInventory(ctx context.Context, id uuid.UUID) err
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+
+	traceID := observability.TraceIDFromContext(ctx)
+	if traceID != "" {
+		spanID := observability.NewSpanID()
+		req.Header.Set("traceparent", "00-"+traceID+"-"+spanID+"-01")
+	}
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
