@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -395,4 +396,34 @@ func TestExportReadinessReport_ReturnsNonEmptyBytes(t *testing.T) {
 	data, err := svc.ExportReadinessReport(context.Background())
 	require.NoError(t, err)
 	assert.NotEmpty(t, data, "ExportReadinessReport must return a non-empty byte slice")
+}
+
+func TestRunBOMExplosion_ResolvesPartSKUFromSCM(t *testing.T) {
+	mockRepo := setupMockRepo()
+	mockSCM := setupMockSCMClient()
+	svc := NewProductionService(mockRepo, mockSCM)
+
+	partID := uuid.New()
+	mockRepo.ExpectedCalls = nil // Reset default happy-path mock behaviors that conflict
+	mockRepo.On("GetProductionOrder", mock.Anything, mock.Anything).Return(&models.ProductionOrder{ProductModelCode: "MODEL-A", TargetQuantity: 10}, nil)
+	mockRepo.On("GetBOMByModelCode", mock.Anything, mock.Anything).Return([]models.BomEntry{
+		{
+			ID:                      1,
+			ParentModelCode:         "MODEL-A",
+			ComponentPartID:         partID,
+			RequiredQuantityPerUnit: 2,
+		},
+	}, nil)
+
+	mockSCM.On("GetPartCatalogByID", mock.Anything, partID).Return(&models.Part{
+		ID:          partID,
+		SKU:         "PART-SKU-123",
+		Description: "Mock Component Part",
+		StockQty:    100,
+	}, nil)
+
+	results, err := svc.RunBOMExplosion(context.Background(), uuid.New())
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "PART-SKU-123", results[0].ComponentSKU)
 }

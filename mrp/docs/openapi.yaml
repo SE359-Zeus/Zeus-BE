@@ -983,6 +983,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ComponentReference'
+        unit_price:
+          type: number
+          format: double
+          example: 245.50
 
     CreateAssemblyRequest:
       type: object
@@ -1355,6 +1359,9 @@ components:
               model_code:
                 type: string
                 example: "Drone-V1"
+              model_name:
+                type: string
+                example: "Standard Quadcopter"
 
     PartEnvelope:
       type: object
@@ -1389,6 +1396,9 @@ components:
           type: number
           format: double
           example: 45.50
+        stock_qty:
+          type: integer
+          example: 50
         created_at:
           type: string
           format: date-time

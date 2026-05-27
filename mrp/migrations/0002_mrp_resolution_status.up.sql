@@ -25,9 +25,6 @@ CREATE TABLE shortage_logs (
     FOREIGN KEY (production_order_id) REFERENCES production_orders(id)
         ON UPDATE CASCADE
         ON DELETE CASCADE,
-    FOREIGN KEY (part_id) REFERENCES parts(id)
-        ON UPDATE CASCADE
-        ON DELETE RESTRICT,
     FOREIGN KEY (resolution_status_id) REFERENCES resolution_statuses(id)
         ON UPDATE CASCADE
         ON DELETE RESTRICT

@@ -83,7 +83,7 @@ func (c *Client) GetPartCatalogBySKU(ctx context.Context, sku string) (*models.P
 	if envelope.Data.ID == uuid.Nil {
 		return nil, nil
 	}
-	return &models.Part{ID: envelope.Data.ID, SKU: envelope.Data.SKU, Description: envelope.Data.Description, Price: envelope.Data.Price}, nil
+	return &models.Part{ID: envelope.Data.ID, SKU: envelope.Data.SKU, Description: envelope.Data.Description, Price: envelope.Data.Price, StockQty: envelope.Data.StockQty}, nil
 }
 
 func (c *Client) GetPartCatalogByID(ctx context.Context, id uuid.UUID) (*models.Part, error) {
@@ -123,7 +123,7 @@ func (c *Client) GetPartCatalogByID(ctx context.Context, id uuid.UUID) (*models.
 	if envelope.Data.ID == uuid.Nil {
 		return nil, nil
 	}
-	return &models.Part{ID: envelope.Data.ID, SKU: envelope.Data.PartNumber, Description: envelope.Data.Description, Price: envelope.Data.Price}, nil
+	return &models.Part{ID: envelope.Data.ID, SKU: envelope.Data.PartNumber, Description: envelope.Data.Description, Price: envelope.Data.Price, StockQty: envelope.Data.StockQty}, nil
 }
 
 

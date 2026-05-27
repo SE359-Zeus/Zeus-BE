@@ -81,11 +81,18 @@ func (s *ProductionService) GetAssemblyByModelCode(ctx context.Context, modelCod
 			Quantity: e.RequiredQuantityPerUnit,
 		})
 	}
+	var unitPrice float64
+	if s.scmClient != nil {
+		if model, err := s.scmClient.GetProductModelByCode(ctx, modelCode); err == nil && model != nil {
+			unitPrice = model.UnitPrice
+		}
+	}
 	return &models.AssemblyResponse{
 		ModelCode:  modelCode,
 		Name:       s.resolveAssemblyName(ctx, modelCode),
 		TotalParts: len(comps),
 		Components: comps,
+		UnitPrice:   unitPrice,
 	}, nil
 }
 
@@ -215,7 +222,19 @@ func (s *ProductionService) GetCatalog(ctx context.Context) ([]any, error) {
 		return nil, err
 	}
 
-	return catalogFromBOMs(boms), nil
+	parentSet := map[string]struct{}{}
+	for _, e := range boms {
+		parentSet[e.ParentModelCode] = struct{}{}
+	}
+	res := make([]any, 0, len(parentSet))
+	for p := range parentSet {
+		name := s.resolveAssemblyName(ctx, p)
+		res = append(res, map[string]any{
+			"model_code": p,
+			"model_name": name,
+		})
+	}
+	return res, nil
 }
 
 func (s *ProductionService) GetWhereUsed(ctx context.Context, sku string) ([]any, error) {
@@ -404,17 +423,6 @@ func (s *ProductionService) resolveComponentSKU(ctx context.Context, partID uuid
 
 
 
-func catalogFromBOMs(boms []models.BomEntry) []any {
-	parentSet := map[string]struct{}{}
-	for _, e := range boms {
-		parentSet[e.ParentModelCode] = struct{}{}
-	}
-	res := make([]any, 0, len(parentSet))
-	for p := range parentSet {
-		res = append(res, map[string]any{"model_code": p})
-	}
-	return res
-}
 
 func whereUsedFromBOMs(entries []models.BomEntry) []any {
 	res := make([]any, 0, len(entries))

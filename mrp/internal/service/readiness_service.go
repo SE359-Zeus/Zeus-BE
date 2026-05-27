@@ -78,8 +78,14 @@ func (s *ProductionService) RunBOMExplosion(ctx context.Context, orderID uuid.UU
 			return nil, err
 		}
 
+		sku, err := s.resolveComponentSKU(ctx, entry.ComponentPartID)
+		if err != nil {
+			return nil, err
+		}
+
 		results = append(results, models.BOMExplosionResult{
 			PartID:           entry.ComponentPartID,
+			ComponentSKU:     sku,
 			TotalRequiredQty: requiredQty,
 			AvailableQty:     availableQty,
 			IsShortage:       availableQty < requiredQty,
@@ -374,9 +380,15 @@ func (s *ProductionService) getPartInventory(ctx context.Context, partID uuid.UU
 		return *cached, nil
 	}
 
-	availableQty, err := s.repo.GetPartInventory(ctx, partID)
-	if err != nil {
-		return 0, err
+	var availableQty int
+	if s.scmClient != nil {
+		part, err := s.scmClient.GetPartCatalogByID(ctx, partID)
+		if err != nil {
+			return 0, err
+		}
+		if part != nil {
+			availableQty = part.StockQty
+		}
 	}
 
 	s.cacheInventory(ctx, partID, availableQty)

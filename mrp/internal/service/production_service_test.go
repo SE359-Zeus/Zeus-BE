@@ -262,13 +262,13 @@ func TestPlanProduction_ShortageCreationAndSCMAlerting(t *testing.T) {
 	}, nil)
 
 	db.On("GetBOMByModelCode", mock.Anything, modelCode).Return(bomEntries, nil)
-	db.On("GetPartInventory", mock.Anything, partID).Return(10, nil)
 
 	// SCM details mapping
 	scmClient.On("GetPartCatalogByID", mock.Anything, partID).Return(&models.Part{
-		ID:    partID,
-		SKU:   "COMP-SKU-100",
-		Price: 1.5,
+		ID:       partID,
+		SKU:      "COMP-SKU-100",
+		Price:    1.5,
+		StockQty: 10,
 	}, nil)
 
 	// Shortage logging expectation

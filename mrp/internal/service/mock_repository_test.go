@@ -106,11 +106,6 @@ func (m *MockMRPRepository) GetAggregatedShortages(ctx context.Context) ([]model
 	return nil, args.Error(1)
 }
 
-func (m *MockMRPRepository) GetPartInventory(ctx context.Context, partID uuid.UUID) (int, error) {
-	args := m.Called(ctx, partID)
-	return args.Int(0), args.Error(1)
-}
-
 func (m *MockMRPRepository) GetInventoryTransactions(ctx context.Context) ([]models.InventoryTransactionDTO, error) {
 	args := m.Called(ctx)
 	if args.Get(0) != nil {
@@ -144,7 +139,6 @@ func setupMockRepo() *MockMRPRepository {
 	m.On("CreateShortageLog", mock.Anything, mock.Anything).Return(nil)
 	m.On("GetShortagesByOrderID", mock.Anything, mock.Anything).Return([]models.ShortageLog{}, nil)
 	m.On("GetAggregatedShortages", mock.Anything).Return([]models.BOMExplosionResult{}, nil)
-	m.On("GetPartInventory", mock.Anything, mock.Anything).Return(100, nil)
 	m.On("GetInventoryTransactions", mock.Anything).Return([]models.InventoryTransactionDTO{{ID: "TXN-1", SKU: "PART-1", QtyChange: 10, RunningBalance: 10, Timestamp: time.Now()}}, nil)
 	m.On("GetInventoryMetrics", mock.Anything).Return(&models.InventoryMetrics{ActiveSKUs: 154}, nil)
 
