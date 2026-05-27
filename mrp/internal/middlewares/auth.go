@@ -126,14 +126,16 @@ func Authenticate(verifier TokenVerifier) Middleware {
 
 			expectedKey := os.Getenv("MRP_API_KEY")
 			if expectedKey != "" && apiKey == expectedKey {
-				ctx := context.WithValue(r.Context(), ContextKeyRole, "admin")
-				ctx = context.WithValue(ctx, ContextKeyUserID, "api_key")
-				ctx = context.WithValue(ctx, ContextKeyEmail, "api-key@zeus.mrp")
+				ctx := context.WithValue(r.Context(), ContextKeyRole, "apikey")
+				ctx = context.WithValue(ctx, ContextKeyUserID, "none")
+				ctx = context.WithValue(ctx, ContextKeyEmail, "apikey@zeus.mrp")
 				slog.Info("authentication accepted via API Key",
 					slog.String("service", "mrp"),
 					slog.String("event", "auth_accepted"),
 					slog.String("method", r.Method),
 					slog.String("path", r.URL.Path),
+					slog.String("user_id", "none"),
+					slog.String("role", "apikey"),
 				)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
@@ -251,6 +253,9 @@ type jwtAccessClaims struct {
 
 func roleAllowed(role string, allowed []string) bool {
 	if strings.EqualFold(role, "admin") {
+		return true
+	}
+	if strings.EqualFold(role, "apikey") {
 		return true
 	}
 	for _, candidate := range allowed {

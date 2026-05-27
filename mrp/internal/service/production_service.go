@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"regexp"
 	"time"
+
+	"zeus-mrp-service/internal/infrastructure/messaging"
 	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
@@ -72,11 +74,11 @@ func (s *ProductionService) PlanProduction(ctx context.Context, req models.Creat
 				}
 
 				shortageLog := &models.ShortageLog{
-					ID:                 uuid.New(),
-					ProductionOrderID:  id,
-					PartID:             result.PartID,
-					ShortageQty:        shortageQty,
-					ResolutionStatus:   models.ResolutionStatusShortage,
+					ID:                uuid.New(),
+					ProductionOrderID: id,
+					PartID:            result.PartID,
+					ShortageQty:       shortageQty,
+					ResolutionStatus:  models.ResolutionStatusShortage,
 				}
 				if err := s.repo.CreateShortageLog(ctx, shortageLog); err != nil {
 					return nil, fmt.Errorf("failed to create shortage log: %w", err)
@@ -85,7 +87,7 @@ func (s *ProductionService) PlanProduction(ctx context.Context, req models.Creat
 
 				// Emit shortage demand (deficit) to SCM
 				if s.audit != nil {
-					_ = s.audit.PublishJSON("system.deficit.pool", map[string]any{
+					_ = s.audit.PublishJSON(messaging.DeficitPoolQueue, map[string]any{
 						"sku":      partSKU,
 						"qty":      shortageQty,
 						"order_id": id.String(),

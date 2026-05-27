@@ -12,8 +12,6 @@ import (
 
 var ErrUnavailable = errors.New("rabbitmq unavailable")
 
-const AuditQueue = "system.audit.log"
-
 type RabbitMQ struct {
 	url       string
 	available bool

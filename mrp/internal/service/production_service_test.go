@@ -5,6 +5,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"zeus-mrp-service/internal/infrastructure/messaging"
 	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
@@ -275,7 +277,7 @@ func TestPlanProduction_ShortageCreationAndSCMAlerting(t *testing.T) {
 	})).Return(nil)
 
 	// SCM RabbitMQ alert publication expectation
-	auditPub.On("PublishJSON", "system.deficit.pool", mock.MatchedBy(func(payload any) bool {
+	auditPub.On("PublishJSON", messaging.DeficitPoolQueue, mock.MatchedBy(func(payload any) bool {
 		m, ok := payload.(map[string]any)
 		if !ok {
 			return false
@@ -301,4 +303,4 @@ func TestPlanProduction_ShortageCreationAndSCMAlerting(t *testing.T) {
 	db.AssertExpectations(t)
 	scmClient.AssertExpectations(t)
 	auditPub.AssertExpectations(t)
-}
+}
