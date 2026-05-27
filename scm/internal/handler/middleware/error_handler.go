@@ -61,7 +61,13 @@ func RequestLogger() gin.HandlerFunc {
 		if v, ok := c.Get(ContextKeyAuthMethod); ok {
 			attrs = append(attrs, slog.Any("auth_method", v))
 		}
-		slog.InfoContext(c.Request.Context(), "request complete", attrs...)
+		logFunc := slog.InfoContext
+		if status >= 500 {
+			logFunc = slog.ErrorContext
+		} else if status >= 400 {
+			logFunc = slog.WarnContext
+		}
+		logFunc(c.Request.Context(), "request complete", attrs...)
 	}
 }
 
