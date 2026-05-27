@@ -75,31 +75,7 @@ func (h contextInjectHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 
 func (h contextInjectHandler) WithGroup(name string) slog.Handler {
 	return contextInjectHandler{Handler: h.Handler.WithGroup(name)}
-}
-
-type contextInjectHandler struct {
-	slog.Handler
-}
-
-func (h contextInjectHandler) Handle(ctx context.Context, r slog.Record) error {
-	if traceID := TraceIDFromContext(ctx); traceID != "" {
-		r.AddAttrs(slog.String("trace_id", traceID))
-	}
-	if spanID := SpanIDFromContext(ctx); spanID != "" {
-		r.AddAttrs(slog.String("span_id", spanID))
-	}
-	return h.Handler.Handle(ctx, r)
-}
-
-func (h contextInjectHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return contextInjectHandler{Handler: h.Handler.WithAttrs(attrs)}
-}
-
-func (h contextInjectHandler) WithGroup(name string) slog.Handler {
-	return contextInjectHandler{Handler: h.Handler.WithGroup(name)}
-}
-
-// Setup initialises the observability stack and returns a Provider plus a
+}// Setup initialises the observability stack and returns a Provider plus a
 // shutdown function. Always call shutdown() before the process exits.
 func Setup(cfg Config) (p *Provider, shutdown func()) {
 	if cfg.Env == "" {
