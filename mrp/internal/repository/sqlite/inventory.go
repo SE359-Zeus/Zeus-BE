@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"zeus-mrp-service/internal/infrastructure/observability"
 	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
@@ -33,6 +34,12 @@ func (r *sqliteMRPRepository) GetPartInventory(ctx context.Context, partID uuid.
 		return 0, err
 	}
 	req.Header.Set("X-API-KEY", apiKey)
+
+	traceID := observability.TraceIDFromContext(ctx)
+	if traceID != "" {
+		spanID := observability.NewSpanID()
+		req.Header.Set("traceparent", "00-"+traceID+"-"+spanID+"-01")
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {

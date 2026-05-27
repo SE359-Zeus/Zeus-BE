@@ -37,8 +37,6 @@ func NewClient() *Client {
 	}
 }
 
-// propagateTrace injects the W3C traceparent header onto an outbound request
-// using the trace_id and a new child span_id from the calling context.
 func propagateTrace(ctx context.Context, req *http.Request) {
 	traceID := observability.TraceIDFromContext(ctx)
 	if traceID == "" {
