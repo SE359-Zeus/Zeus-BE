@@ -319,3 +319,36 @@ func TestProductionService_DeleteCatalogPart(t *testing.T) {
 	err := svc.DeleteCatalogPart(context.Background(), "EXISTING-SKU")
 	assert.NoError(t, err)
 }
+
+func TestProductionService_GetAssemblyByModelCode_GroupsDuplicateSKUs(t *testing.T) {
+	mockRepo := new(MockMRPRepository)
+	mockSCM := new(MockSCMClient)
+	modelCode := "TEST-MODEL-DUPLICATE"
+	partID1 := uuid.New()
+	partID2 := uuid.New()
+
+	boms := []models.BomEntry{
+		{ParentModelCode: modelCode, ComponentPartID: partID1, RequiredQuantityPerUnit: 2},
+		{ParentModelCode: modelCode, ComponentPartID: partID2, RequiredQuantityPerUnit: 3},
+	}
+
+	mockRepo.On("GetBOMByModelCode", mock.Anything, modelCode).Return(boms, nil)
+	// Both part ID 1 and part ID 2 resolve to the SAME SKU PN-DUPLICATE
+	mockSCM.On("GetPartCatalogByID", mock.Anything, partID1).Return(&models.Part{ID: partID1, SKU: "PN-DUPLICATE"}, nil)
+	mockSCM.On("GetPartCatalogByID", mock.Anything, partID2).Return(&models.Part{ID: partID2, SKU: "PN-DUPLICATE"}, nil)
+	mockSCM.On("GetProductModelByCode", mock.Anything, modelCode).Return(&models.ProductModel{ModelCode: modelCode, ModelName: "Duplicate Test Model", UnitPrice: 99.9}, nil)
+
+	svc := NewProductionService(mockRepo, mockSCM)
+
+	res, err := svc.GetAssemblyByModelCode(context.Background(), modelCode)
+	assert.NoError(t, err)
+	if assert.NotNil(t, res) {
+		assert.Equal(t, modelCode, res.ModelCode)
+		assert.Equal(t, "Duplicate Test Model", res.Name)
+		assert.Equal(t, 1, res.TotalParts)
+		assert.Len(t, res.Components, 1)
+		assert.Equal(t, "PN-DUPLICATE", res.Components[0].SKU)
+		assert.Equal(t, 5, res.Components[0].Quantity)
+		assert.Equal(t, 99.9, res.UnitPrice)
+	}
+}
