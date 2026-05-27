@@ -97,12 +97,19 @@ func ErrorHandler(next http.Handler) http.Handler {
 				)
 				return
 			}
-			slog.InfoContext(r.Context(), "request completed",
+			status := recorder.statusCode
+			logFunc := slog.InfoContext
+			if status >= 500 {
+				logFunc = slog.ErrorContext
+			} else if status >= 400 {
+				logFunc = slog.WarnContext
+			}
+			logFunc(r.Context(), "request completed",
 				slog.String("service", "mrp"),
 				slog.String("event", "http_request_completed"),
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
-				slog.Int("status", recorder.statusCode),
+				slog.Int("status", status),
 				slog.Int64("duration_ms", time.Since(start).Milliseconds()),
 				slog.String("user_id", logger.userID),
 				slog.String("role", logger.role),
