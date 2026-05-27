@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+	"zeus-sales-service/internal/infrastructure/observability"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -75,11 +76,24 @@ func (r *RabbitMQ) Publish(ctx context.Context, queue string, payload any) error
 			)
 			return err
 		}
+		headers := amqp.Table{}
+		traceID := observability.TraceIDFromContext(ctx)
+		if traceID != "" {
+			spanID := observability.SpanIDFromContext(ctx)
+			if spanID == "" {
+				spanID = observability.NewSpanID()
+			}
+			headers["traceparent"] = "00-" + traceID + "-" + spanID + "-01"
+			headers["trace_id"] = traceID
+			headers["span_id"] = spanID
+		}
+
 		err = channel.PublishWithContext(ctx, "", queue, true, false, amqp.Publishing{
 			ContentType:  "application/json",
 			Body:         body,
 			DeliveryMode: amqp.Persistent,
 			Timestamp:    time.Now().UTC(),
+			Headers:      headers,
 		})
 		if err != nil {
 			slog.Error("rabbitmq publish failed",
