@@ -39,6 +39,8 @@ RUN chown -R scm:scm /app
 
 USER scm
 
+RUN mkdir -p /app/contracts
+
 EXPOSE 8081
 
 CMD ["./server"]

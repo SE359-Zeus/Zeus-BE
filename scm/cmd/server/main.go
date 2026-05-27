@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -12,7 +12,9 @@ import (
 	"zeus-scm-service/internal/handler"
 	"zeus-scm-service/internal/handler/middleware"
 	"zeus-scm-service/internal/infrastructure/cache"
+	"zeus-scm-service/internal/infrastructure/cronjob"
 	"zeus-scm-service/internal/infrastructure/messaging"
+	"zeus-scm-service/internal/infrastructure/observability"
 	sqliteRepo "zeus-scm-service/internal/repository/sqlite"
 	valkeyRepo "zeus-scm-service/internal/repository/valkey"
 	"zeus-scm-service/internal/service"
@@ -27,17 +29,64 @@ const scmAPIPrefix = "/api/v1/scm"
 func main() {
 	cfg := config.Load()
 
+	// ── Observability: logger + metrics (must be first) ───────────────────────
+	env := cfg.Env
+	if env == "" {
+		env = os.Getenv("APP_ENV")
+	}
+	obs, shutdownObs := observability.Setup(observability.Config{
+		ServiceName:   "scm",
+		Env:           env,
+		AlloyURL:      cfg.AlloyURL,
+		AlloyUsername: cfg.AlloyUsername,
+		AlloyPassword: cfg.AlloyPassword,
+	})
+	defer shutdownObs()
+	slog.SetDefault(obs.Logger)
+
+	// ── Periodic metrics collector ────────────────────────────────────────────
+	scheduler := cronjob.NewScheduler()
+	scheduler.Register("metrics", 30*time.Second, cronjob.MetricsCollectorJob(obs.Metrics))
+	scheduler.Start(context.Background())
+	defer scheduler.Stop()
+
+	slog.Info("starting scm service",
+		slog.String("service", "scm"),
+		slog.String("event", "startup"),
+		slog.String("db_path", cfg.DBPath),
+		slog.String("rabbitmq_url", cfg.RabbitMQURL),
+		slog.String("valkey_addr", cfg.ValkeyAddr),
+	)
+
+
 	db, err := sqliteRepo.NewDB(cfg.DBPath)
 	if err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
+		slog.Error("failed to connect to database",
+			slog.String("service", "scm"),
+			slog.String("event", "startup_failed"),
+			slog.String("component", "database"),
+			slog.Any("error", err),
+		)
+		os.Exit(1)
 	}
 
 	mq, err := messaging.NewRabbitMQ(cfg.RabbitMQURL)
 	if err != nil {
-		log.Printf("running in degraded mode: RabbitMQ unavailable [RabbitMQURL: %s], deficit pool disabled: %v", cfg.RabbitMQURL, err)
+		slog.Warn("running in degraded mode: rabbitmq unavailable",
+			slog.String("service", "scm"),
+			slog.String("event", "dependency_unavailable"),
+			slog.String("component", "rabbitmq"),
+			slog.String("url", cfg.RabbitMQURL),
+			slog.Any("error", err),
+		)
 		mq = nil
 	} else {
-		log.Printf("RabbitMQ connected: %s", cfg.RabbitMQURL)
+		slog.Info("rabbitmq connected",
+			slog.String("service", "scm"),
+			slog.String("event", "dependency_ready"),
+			slog.String("component", "rabbitmq"),
+			slog.String("url", cfg.RabbitMQURL),
+		)
 		defer mq.Close()
 		stop := make(chan struct{})
 		defer close(stop)
@@ -59,7 +108,13 @@ func main() {
 
 	jwtSvc, err := service.NewJWTService(cfg.JwtPublicKeyPath)
 	if err != nil {
-		log.Fatalf("JWT service init failed: %v", err)
+		slog.Error("jwt service init failed",
+			slog.String("service", "scm"),
+			slog.String("event", "startup_failed"),
+			slog.String("component", "jwt"),
+			slog.Any("error", err),
+		)
+		os.Exit(1)
 	}
 
 	rolesWorker := []string{"admin", "scm_operator", "scm_worker", "api_key"}
@@ -70,12 +125,23 @@ func main() {
 	vendorCache := valkeyRepo.NewVendorCache(cacheBackend)
 	if cfg.ValkeyAddr != "" {
 		if valkeyCache, err := cache.NewValkey(cfg.ValkeyAddr); err != nil {
-			log.Printf("running in degraded mode: Valkey unavailable [ValkeyAddr: %s], cache disabled: %v", cfg.ValkeyAddr, err)
+			slog.Warn("running in degraded mode: valkey unavailable",
+				slog.String("service", "scm"),
+				slog.String("event", "dependency_unavailable"),
+				slog.String("component", "valkey"),
+				slog.String("addr", cfg.ValkeyAddr),
+				slog.Any("error", err),
+			)
 		} else {
 			cacheBackend = valkeyCache
 			productCache = valkeyRepo.NewProductCache(cacheBackend)
 			vendorCache = valkeyRepo.NewVendorCache(cacheBackend)
-			log.Printf("Valkey connected: %s", cfg.ValkeyAddr)
+			slog.Info("valkey connected",
+				slog.String("service", "scm"),
+				slog.String("event", "dependency_ready"),
+				slog.String("component", "valkey"),
+				slog.String("addr", cfg.ValkeyAddr),
+			)
 			service.WarmupCache(context.Background(), db, productCache)
 		}
 	}
@@ -93,7 +159,15 @@ func main() {
 	// from /docs/ → /docs, which would escape the nginx /scm/docs/ proxy
 	// and fall through to the catch-all "Success!" location.
 	r.RedirectTrailingSlash = false
-	r.Use(gin.Logger(), middleware.Recovery())
+	r.Use(
+		observability.Tracing("scm"), // inject trace_id / span_id
+		middleware.RequestLogger(),
+		middleware.Recovery(),
+	)
+
+	// Internal metrics endpoint — Alloy scrapes this.
+	r.GET("/metrics", gin.WrapF(observability.MetricsHTTPHandler(obs.Metrics)))
+
 
 	// ── Public routes (no auth) ──────────────────────────────────────────────
 	{
@@ -101,7 +175,12 @@ func main() {
 		specURL := runtimeServerURL(cfg.ServerPort)
 		spec, err := loadOpenAPISpec(specPath, specURL)
 		if err != nil {
-			log.Printf("warning: could not load openapi spec at %s: %v", specPath, err)
+			slog.Warn("could not load openapi spec",
+				slog.String("service", "scm"),
+				slog.String("event", "openapi_load_failed"),
+				slog.String("path", specPath),
+				slog.Any("error", err),
+			)
 		}
 
 		// NOTE: SpecURL must be a RELATIVE path ("./openapi.json"), NOT absolute.
@@ -171,11 +250,23 @@ func main() {
 		api.GET("/inventory/part-catalog/sku/:sku", middleware.RequireRoles(rolesWorker...), inventoryH.GetPartCatalogBySKU)
 	}
 
-	log.Printf("Zeus SCM service starting on :%s", cfg.ServerPort)
+	slog.Info("scm service listening",
+		slog.String("service", "scm"),
+		slog.String("event", "server_starting"),
+		slog.String("port", cfg.ServerPort),
+	)
 	if err := r.Run(":" + cfg.ServerPort); err != nil {
-		log.Fatalf("server failed: %v", err)
+		slog.Error("server failed",
+			slog.String("service", "scm"),
+			slog.String("event", "server_failed"),
+			slog.Any("error", err),
+		)
+		shutdownObs()
+		os.Exit(1)
 	}
 }
+
+
 
 func findOpenAPISpec() string {
 	paths := []string{"docs/openapi.yaml", "./docs/openapi.yaml", filepath.Join(".", "docs", "openapi.yaml")}

@@ -402,6 +402,8 @@ func (s *ProductionService) resolveComponentSKU(ctx context.Context, partID uuid
 	return part.SKU, nil
 }
 
+
+
 func catalogFromBOMs(boms []models.BomEntry) []any {
 	parentSet := map[string]struct{}{}
 	for _, e := range boms {

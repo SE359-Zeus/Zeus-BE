@@ -19,6 +19,8 @@ type Client struct {
 	Tier                      ClientTier `json:"tier"`
 	DefaultDestinationAddress string     `json:"default_destination_address"`
 	TotalLifetimeOrders       int        `json:"total_lifetime_orders"`
+	ApiKeyPrefix              string     `json:"-"`
+	ApiKeyHash                string     `json:"-"`
 	CreatedAt                 time.Time  `json:"created_at"`
 	UpdatedAt                 time.Time  `json:"updated_at"`
 }

@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 	"sync/atomic"
@@ -33,6 +34,7 @@ func (conn *Conn) withClient(ctx context.Context, fn func(*redis.Client) error) 
 	}
 	if err := probeTCP(conn.addr); err != nil {
 		conn.disabled.Store(true)
+		slog.Warn("valkey connection disabled", slog.String("service", "sales"), slog.String("component", "valkey"), slog.String("addr", conn.addr), slog.String("error", err.Error()))
 		return nil
 	}
 	client := redis.NewClient(&redis.Options{
@@ -53,8 +55,10 @@ func (conn *Conn) Ping(ctx context.Context) error {
 	}
 	if err := probeTCP(conn.addr); err != nil {
 		conn.disabled.Store(true)
+		slog.Warn("valkey connection failed", slog.String("service", "sales"), slog.String("component", "valkey"), slog.String("addr", conn.addr), slog.String("error", err.Error()))
 		return err
 	}
+	slog.Info("valkey connection successful", slog.String("service", "sales"), slog.String("component", "valkey"), slog.String("addr", conn.addr))
 	return nil
 }
 

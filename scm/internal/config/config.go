@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 
@@ -15,11 +15,19 @@ type Config struct {
 	ValkeyAddr          string
 	AgingThresholdYears int
 	JwtPublicKeyPath    string
+	// Observability
+	Env           string // APP_ENV — e.g. "production", "staging", "development"
+	AlloyURL      string // Alloy Loki-receiver endpoint (empty = stdout only)
+	AlloyUsername string // Grafana Cloud user ID (empty for local Alloy)
+	AlloyPassword string // Grafana Cloud API token (empty for local Alloy)
 }
 
 func Load() *Config {
 	if err := godotenv.Load(); err != nil {
-		log.Printf(".env file not found, using OS env vars and defaults")
+		slog.Info(".env file not found, using OS env vars and defaults",
+			slog.String("service", "scm"),
+			slog.String("event", "config_fallback"),
+		)
 	}
 	return &Config{
 		ServerPort:          getEnv("SERVER_PORT", "8080"),
@@ -28,6 +36,10 @@ func Load() *Config {
 		ValkeyAddr:          getEnv("VALKEY_ADDR", "redis://localhost:6379"),
 		AgingThresholdYears: getEnvInt("AGING_THRESHOLD_YEARS", 5),
 		JwtPublicKeyPath:    getEnv("JWT_PUBLIC_KEY_PATH", ""),
+		Env:                 getEnv("APP_ENV", "production"),
+		AlloyURL:            getEnv("ALLOY_URL", ""),
+		AlloyUsername:       getEnv("ALLOY_USERNAME", ""),
+		AlloyPassword:       getEnv("ALLOY_PASSWORD", ""),
 	}
 }
 

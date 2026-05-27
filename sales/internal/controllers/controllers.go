@@ -12,14 +12,14 @@ func NewMux(services *service.Services, authVerifier middlewares.TokenVerifier) 
 	orderController := NewOrderController(services.Orders)
 	clientController := NewClientController(services.Clients)
 	fulfillmentController := NewFulfillmentController(services.Fulfillment)
-	authenticate := middlewares.Authenticate(authVerifier)
+	authenticate := middlewares.Authenticate(authVerifier, services.Clients)
 	protect := func(handler http.Handler, methodRoles map[string][]string) http.Handler {
 		return middlewares.Chain(handler, authenticate, middlewares.RequireMethodRoles(methodRoles))
 	}
 
 	mux.Handle("/api/v1/sales/orders", protect(http.HandlerFunc(orderController.HandleOrders), map[string][]string{
 		http.MethodGet:  {"sales_operator", "sales_worker", "admin"},
-		http.MethodPost: {"sales_operator", "admin"},
+		http.MethodPost: {"sales_operator", "admin", "client"},
 	}))
 	mux.Handle("/api/v1/sales/orders/", protect(http.HandlerFunc(orderController.HandleOrderByID), map[string][]string{
 		http.MethodGet:   {"sales_operator", "sales_worker", "admin"},
