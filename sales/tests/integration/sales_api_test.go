@@ -36,10 +36,8 @@ func TestSalesAPI_OrderLifecycleAndLocking(t *testing.T) {
 	require.NoError(t, valkeyRepo.SetATP(context.Background(), "SKU-LOCK", 5))
 
 	createBody := models.CreateOrderRequest{
-		ClientName:         "Integration Client",
-		DestinationAddress: "Warehouse 12",
 		RequiredDate:       time.Now().Add(48 * time.Hour).UTC(),
-		Items:              []models.OrderItemRequest{{SKU: "SKU-LOCK", RequestedQty: 2, UnitPrice: 11}},
+		Items:              []models.OrderItemRequest{{SKU: "SKU-LOCK", RequestedQty: 2}},
 	}
 	createResp := doJSONRequest(t, router, adminToken, http.MethodPost, "/api/v1/sales/orders", createBody)
 	require.Equal(t, http.StatusCreated, createResp.Code)
@@ -75,9 +73,8 @@ func TestSalesAPI_ClientRegistryAndQueueStatus(t *testing.T) {
 	router, adminToken, _, _ := newIntegrationHarness(t)
 
 	createResp := doJSONRequest(t, router, adminToken, http.MethodPost, "/api/v1/sales/orders", models.CreateOrderRequest{
-		ClientName:   "Registry Client",
 		RequiredDate: time.Now().Add(24 * time.Hour).UTC(),
-		Items:        []models.OrderItemRequest{{SKU: "SKU-R", RequestedQty: 1, UnitPrice: 3}},
+		Items:        []models.OrderItemRequest{{SKU: "SKU-R", RequestedQty: 1}},
 	})
 	require.Equal(t, http.StatusCreated, createResp.Code)
 
@@ -100,10 +97,8 @@ func TestSalesAPI_CancelOrderEndpoint(t *testing.T) {
 	require.NoError(t, valkeyRepo.SetATP(context.Background(), "SKU-CANCEL", 4))
 
 	createResp := doJSONRequest(t, router, adminToken, http.MethodPost, "/api/v1/sales/orders", models.CreateOrderRequest{
-		ClientName:         "Cancel Client",
-		DestinationAddress: "Dock Cancel",
 		RequiredDate:       time.Now().Add(72 * time.Hour).UTC(),
-		Items:              []models.OrderItemRequest{{SKU: "SKU-CANCEL", RequestedQty: 2, UnitPrice: 7}},
+		Items:              []models.OrderItemRequest{{SKU: "SKU-CANCEL", RequestedQty: 2}},
 	})
 	require.Equal(t, http.StatusCreated, createResp.Code)
 
@@ -131,14 +126,10 @@ func TestSalesAPI_CreateOrder_AcceptsCamelCaseRequestBody(t *testing.T) {
 	require.NoError(t, valkeyRepo.SetATP(context.Background(), "sadfawefdf", 3))
 
 	body := []byte(`{
-		"clientName": "Hung",
-		"clientTier": "B2B",
-		"destinationAddress": "123 Nguyen Van Troi, TPHCM",
 		"items": [
 			{
 				"requestedQty": 1,
-				"sku": "sadfawefdf",
-				"unitPrice": 1
+				"sku": "sadfawefdf"
 			}
 		],
 		"requiredDate": "2026-1-1T10:00:00"
@@ -154,8 +145,8 @@ func TestSalesAPI_CreateOrder_AcceptsCamelCaseRequestBody(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &envelope))
 	var created models.OrderResponse
 	require.NoError(t, json.Unmarshal(envelope.Data, &created))
-	require.Equal(t, "Hung", created.Order.ClientName)
-	require.Equal(t, models.ClientTierB2B, created.Client.Tier)
+	require.Equal(t, "Default Client", created.Order.ClientName)
+	require.Equal(t, models.ClientTierB2C, created.Client.Tier)
 	require.NotNil(t, created.Order.Status)
 	require.Equal(t, models.SalesOrderStatusPendingCode, created.Order.Status.Code)
 }
@@ -165,11 +156,8 @@ func TestSalesAPI_ListOrders_ReturnsSummaryRows(t *testing.T) {
 	require.NoError(t, valkeyRepo.SetATP(context.Background(), "SKU-SUMMARY", 3))
 
 	createResp := doJSONRequest(t, router, adminToken, http.MethodPost, "/api/v1/sales/orders", models.CreateOrderRequest{
-		ClientName:         "Summary Client",
-		DestinationAddress: "Summary Dock",
-		ClientTier:         models.ClientTierB2B,
 		RequiredDate:       time.Date(2026, time.January, 3, 10, 0, 0, 0, time.UTC),
-		Items:              []models.OrderItemRequest{{SKU: "SKU-SUMMARY", RequestedQty: 1, UnitPrice: 5}},
+		Items:              []models.OrderItemRequest{{SKU: "SKU-SUMMARY", RequestedQty: 1}},
 	})
 	require.Equal(t, http.StatusCreated, createResp.Code)
 
@@ -187,7 +175,7 @@ func TestSalesAPI_ListOrders_ReturnsSummaryRows(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(listEnvelope.Data, &rows))
 	require.NotEmpty(t, rows)
-	require.Equal(t, "Summary Client", rows[0].ClientName)
+	require.Equal(t, "Default Client", rows[0].ClientName)
 	require.Equal(t, models.SalesOrderStatusPendingCode, rows[0].Status)
 	require.NotZero(t, rows[0].OrderID)
 }

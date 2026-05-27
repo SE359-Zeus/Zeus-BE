@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"zeus-sales-service/internal/middlewares"
 	"zeus-sales-service/internal/models"
 	"zeus-sales-service/internal/repository"
 	"zeus-sales-service/internal/service"
@@ -51,9 +52,11 @@ func SeedAll(ctx context.Context, sqliteRepo repository.DbRepository, manifestPa
 	now := time.Now().UTC()
 	seedOrders := buildManifestOrders(manifest, seedClients, now)
 
-	for _, req := range seedOrders {
-		if _, err := services.Orders.CreateOrder(ctx, req); err != nil {
-			return fmt.Errorf("seed order for %s: %w", req.ClientName, err)
+	for _, seedData := range seedOrders {
+		orderCtx := context.WithValue(ctx, middlewares.ContextKeyRole, "client")
+		orderCtx = context.WithValue(orderCtx, middlewares.ContextKeyUserID, seedData.ClientID)
+		if _, err := services.Orders.CreateOrder(orderCtx, seedData.Request); err != nil {
+			return fmt.Errorf("seed order for client %s: %w", seedData.ClientID, err)
 		}
 	}
 
@@ -203,7 +206,12 @@ func seedClientsToRepository(ctx context.Context, sqliteRepo repository.DbReposi
 	return nil
 }
 
-func buildManifestOrders(manifest *scmManifest, clients []manifestClientSeed, now time.Time) []models.CreateOrderRequest {
+type seedOrderPayload struct {
+	ClientID uuid.UUID
+	Request  models.CreateOrderRequest
+}
+
+func buildManifestOrders(manifest *scmManifest, clients []manifestClientSeed, now time.Time) []seedOrderPayload {
 	if manifest == nil || len(clients) == 0 {
 		return nil
 	}
@@ -211,7 +219,7 @@ func buildManifestOrders(manifest *scmManifest, clients []manifestClientSeed, no
 	if len(skuPool) == 0 {
 		return nil
 	}
-	orders := make([]models.CreateOrderRequest, 0, len(clients)*2)
+	orders := make([]seedOrderPayload, 0, len(clients)*2)
 	for i, client := range clients {
 		orderCount := 1
 		if i%2 == 0 {
@@ -219,12 +227,12 @@ func buildManifestOrders(manifest *scmManifest, clients []manifestClientSeed, no
 		}
 		for j := 0; j < orderCount; j++ {
 			items := buildOrderItemsFromManifest(skuPool, i, j)
-			orders = append(orders, models.CreateOrderRequest{
-				ClientName:         client.Name,
-				ClientTier:         client.Tier,
-				DestinationAddress: client.Address,
-				RequiredDate:       now.Add(time.Duration(36+(i*12)+(j*8)) * time.Hour),
-				Items:              items,
+			orders = append(orders, seedOrderPayload{
+				ClientID: client.ID,
+				Request: models.CreateOrderRequest{
+					RequiredDate: now.Add(time.Duration(36+(i*12)+(j*8)) * time.Hour),
+					Items:        items,
+				},
 			})
 		}
 	}
@@ -262,18 +270,7 @@ func buildOrderItemsFromManifest(skus []string, orderIndex int, batchIndex int) 
 		items = append(items, models.OrderItemRequest{
 			SKU:          sku,
 			RequestedQty: 1 + ((orderIndex + batchIndex + i) % 6),
-			UnitPrice:    manifestPriceForSKU(sku, orderIndex, batchIndex, i),
 		})
 	}
 	return items
-}
-
-func manifestPriceForSKU(sku string, orderIndex int, batchIndex int, itemIndex int) float64 {
-	base := 8.0 + float64((orderIndex+batchIndex+itemIndex)%7)*4.25
-	if strings.Contains(strings.ToUpper(sku), "5B21") {
-		base = 180.0 + float64((orderIndex+itemIndex)%5)*24.5
-	} else if strings.Contains(strings.ToUpper(sku), "00HM") {
-		base = 35.0 + float64((batchIndex+itemIndex)%4)*8.75
-	}
-	return base
 }

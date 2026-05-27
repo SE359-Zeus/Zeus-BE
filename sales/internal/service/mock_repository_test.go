@@ -228,6 +228,11 @@ func (m *MockSCMClient) CheckSKU(ctx context.Context, sku string) (bool, error) 
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *MockSCMClient) GetProductModelPrice(ctx context.Context, sku string) (float64, error) {
+	args := m.Called(ctx, sku)
+	return args.Get(0).(float64), args.Error(1)
+}
+
 type MockMRPClient struct {
 	mock.Mock
 }

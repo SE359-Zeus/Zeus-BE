@@ -105,8 +105,7 @@ paths:
       summary: Create a sales order
       description: >-
         Create a new sales order and automatically queue it for inventory
-        fulfillment. The client is resolved by name — a new client record
-        is created if none exists with that name.
+        fulfillment. The client is resolved from the authenticated context.
       operationId: createOrder
       requestBody:
         required: true
@@ -118,14 +117,10 @@ paths:
               standard:
                 summary: Standard order
                 value:
-                  clientName: "Orbit Co"
-                  destinationAddress: "123 Main St"
-                  clientTier: "B2C"
                   requiredDate: "2026-06-15T00:00:00Z"
                   items:
                     - sku: "SKU-100"
                       requestedQty: 3
-                      unitPrice: 15.0
       responses:
         '201':
           description: Order created
@@ -765,23 +760,22 @@ components:
           type: number
           format: float
 
+    OrderItemRequest:
+      type: object
+      required: [sku, requestedQty]
+      properties:
+        sku:
+          type: string
+          example: "SKU-100"
+        requestedQty:
+          type: integer
+          minimum: 1
+          example: 3
+
     CreateOrderRequest:
       type: object
-      required: [clientName, requiredDate, items]
+      required: [requiredDate, items]
       properties:
-        clientName:
-          type: string
-          description: Name of the client placing the order
-          example: "Orbit Co"
-        destinationAddress:
-          type: string
-          description: Delivery address (overrides client default)
-          example: "123 Main St"
-        clientTier:
-          type: string
-          enum: [B2B, B2C]
-          description: Tier used when auto-creating a new client
-          example: "B2C"
         requiredDate:
           type: string
           format: date-time
@@ -791,20 +785,7 @@ components:
           type: array
           minItems: 1
           items:
-            type: object
-            required: [sku, requestedQty]
-            properties:
-              sku:
-                type: string
-                example: "SKU-100"
-              requestedQty:
-                type: integer
-                minimum: 1
-                example: 3
-              unitPrice:
-                type: number
-                format: float
-                example: 15.0
+            $ref: '#/components/schemas/OrderItemRequest'
 
     UpdateOrderRequest:
       type: object
@@ -818,7 +799,7 @@ components:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/OrderItem'
+            $ref: '#/components/schemas/OrderItemRequest'
 
     # --- Clients ---
     Client:

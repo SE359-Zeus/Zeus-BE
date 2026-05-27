@@ -34,9 +34,6 @@ func NewOrderService(repo repository.DbRepository, cache repository.CacheReposit
 }
 
 func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrderRequest) (*models.OrderResponse, error) {
-	if strings.TrimSpace(req.ClientName) == "" {
-		return nil, fmt.Errorf("%w: client name is required", middlewares.ErrValidation)
-	}
 	if req.RequiredDate.IsZero() {
 		return nil, fmt.Errorf("%w: required date is required", middlewares.ErrValidation)
 	}
@@ -45,6 +42,7 @@ func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrder
 	}
 	seen := make(map[string]struct{}, len(req.Items))
 	totalValue := 0.0
+	itemPrices := make(map[string]float64, len(req.Items))
 	for _, item := range req.Items {
 		sku := strings.TrimSpace(item.SKU)
 		if sku == "" {
@@ -53,15 +51,11 @@ func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrder
 		if item.RequestedQty <= 0 {
 			return nil, fmt.Errorf("%w: requested quantity for %s must be positive", middlewares.ErrValidation, sku)
 		}
-		if item.UnitPrice < 0 {
-			return nil, fmt.Errorf("%w: unit price for %s cannot be negative", middlewares.ErrValidation, sku)
-		}
 		key := strings.ToUpper(sku)
 		if _, exists := seen[key]; exists {
 			return nil, fmt.Errorf("%w: duplicate sku %s", middlewares.ErrValidation, sku)
 		}
 		seen[key] = struct{}{}
-		totalValue += float64(item.RequestedQty) * item.UnitPrice
 
 		// Validate SKU against SCM
 		if svc.infra != nil && svc.infra.SCMClient != nil {
@@ -73,6 +67,18 @@ func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrder
 				return nil, fmt.Errorf("%w: SKU %s is not an active, orderable finished good in SCM", middlewares.ErrValidation, sku)
 			}
 		}
+
+		// Fetch unit price from SCM
+		var price float64
+		if svc.infra != nil && svc.infra.SCMClient != nil {
+			var err error
+			price, err = svc.infra.SCMClient.GetProductModelPrice(ctx, sku)
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch price for SKU %s: %w", sku, err)
+			}
+		}
+		itemPrices[key] = price
+		totalValue += float64(item.RequestedQty) * price
 	}
 
 	var client *models.Client
@@ -96,7 +102,7 @@ func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrder
 
 	if client == nil {
 		var err error
-		client, err = svc.clients.ResolveOrCreateClient(ctx, req.ClientName, req.DestinationAddress, req.ClientTier)
+		client, err = svc.clients.ResolveOrCreateClient(ctx, "Default Client", "Default Address", models.ClientTierB2C)
 		if err != nil {
 			return nil, err
 		}
@@ -110,7 +116,7 @@ func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrder
 		ID:                 uuid.New(),
 		ClientID:           client.ID,
 		ClientName:         client.Name,
-		DestinationAddress: strings.TrimSpace(req.DestinationAddress),
+		DestinationAddress: client.DefaultDestinationAddress,
 		RequiredDate:       req.RequiredDate,
 		StatusID:           pendingStatus.ID,
 		Status:             pendingStatus,
@@ -118,21 +124,19 @@ func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrder
 		Locked:             false,
 		CreatedAt:          time.Now().UTC(),
 	}
-	if order.DestinationAddress == "" {
-		order.DestinationAddress = client.DefaultDestinationAddress
-	}
 	if err := svc.repo.CreateOrder(ctx, order); err != nil {
 		return nil, err
 	}
 	items := make([]models.SalesOrderItem, 0, len(req.Items))
 	for _, item := range req.Items {
+		sku := strings.TrimSpace(item.SKU)
 		salesItem := models.SalesOrderItem{
 			ID:           uuid.New(),
 			OrderID:      order.ID,
-			SKU:          strings.TrimSpace(item.SKU),
+			SKU:          sku,
 			RequestedQty: item.RequestedQty,
 			AllocatedQty: 0,
-			UnitPrice:    item.UnitPrice,
+			UnitPrice:    itemPrices[strings.ToUpper(sku)],
 			CreatedAt:    time.Now().UTC(),
 		}
 		items = append(items, salesItem)
@@ -385,13 +389,22 @@ func (svc *OrderService) UpdateOrder(ctx context.Context, id uuid.UUID, req mode
 				}
 			}
 
-			total += float64(item.RequestedQty) * item.UnitPrice
+			var price float64
+			if svc.infra != nil && svc.infra.SCMClient != nil {
+				var err error
+				price, err = svc.infra.SCMClient.GetProductModelPrice(ctx, sku)
+				if err != nil {
+					return nil, fmt.Errorf("failed to fetch price for SKU %s: %w", sku, err)
+				}
+			}
+
+			total += float64(item.RequestedQty) * price
 			items = append(items, models.SalesOrderItem{
 				ID:           uuid.New(),
 				OrderID:      order.ID,
 				SKU:          sku,
 				RequestedQty: item.RequestedQty,
-				UnitPrice:    item.UnitPrice,
+				UnitPrice:    price,
 				CreatedAt:    time.Now().UTC(),
 			})
 		}

@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -65,6 +66,40 @@ func (c *SCMClient) CheckSKU(ctx context.Context, sku string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// GetProductModelPrice fetches the product model details from SCM and returns its unit price.
+func (c *SCMClient) GetProductModelPrice(ctx context.Context, sku string) (float64, error) {
+	prodModelURL := fmt.Sprintf("%s/api/v1/scm/inventory/product-models/%s", c.baseURL, url.PathEscape(sku))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, prodModelURL, nil)
+	if err != nil {
+		return 0.0, err
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0.0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return 0.0, fmt.Errorf("SKU %s not found in SCM", sku)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return 0.0, fmt.Errorf("SCM returned status code %d", resp.StatusCode)
+	}
+
+	var envelope struct {
+		Data struct {
+			UnitPrice float64 `json:"unit_price"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return 0.0, err
+	}
+
+	return envelope.Data.UnitPrice, nil
 }
 
 // Ping checks the health endpoint of the SCM service to verify connectivity.

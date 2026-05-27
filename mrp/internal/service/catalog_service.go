@@ -402,37 +402,7 @@ func (s *ProductionService) resolveComponentSKU(ctx context.Context, partID uuid
 	return part.SKU, nil
 }
 
-func (s *ProductionService) hydrateAssemblyNames(ctx context.Context, assemblies []models.AssemblyResponse) []models.AssemblyResponse {
-	if s == nil || s.scmClient == nil {
-		return assemblies
-	}
-	resolved := make(map[string]string, len(assemblies))
-	for i := range assemblies {
-		code := assemblies[i].ModelCode
-		if name, ok := resolved[code]; ok {
-			assemblies[i].Name = name
-			continue
-		}
-		name := s.resolveAssemblyName(ctx, code)
-		resolved[code] = name
-		assemblies[i].Name = name
-	}
-	return assemblies
-}
 
-func (s *ProductionService) resolveAssemblyName(ctx context.Context, modelCode string) string {
-	if s == nil || s.scmClient == nil {
-		return modelCode
-	}
-	model, err := s.scmClient.GetProductModelByCode(ctx, modelCode)
-	if err != nil || model == nil {
-		return modelCode
-	}
-	if name := strings.TrimSpace(model.ModelName); name != "" {
-		return name
-	}
-	return modelCode
-}
 
 func catalogFromBOMs(boms []models.BomEntry) []any {
 	parentSet := map[string]struct{}{}
