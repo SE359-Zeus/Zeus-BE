@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"zeus-mrp-service/internal/infrastructure/observability"
 	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
@@ -36,6 +37,17 @@ func NewClient() *Client {
 	}
 }
 
+// propagateTrace injects the W3C traceparent header onto an outbound request
+// using the trace_id and a new child span_id from the calling context.
+func propagateTrace(ctx context.Context, req *http.Request) {
+	traceID := observability.TraceIDFromContext(ctx)
+	if traceID == "" {
+		return
+	}
+	spanID := observability.NewSpanID()
+	req.Header.Set("traceparent", "00-"+traceID+"-"+spanID+"-01")
+}
+
 func (c *Client) GetPartCatalogBySKU(ctx context.Context, sku string) (*models.Part, error) {
 	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/part-catalog/sku/%s", c.baseURL, url.PathEscape(sku))
 	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
@@ -43,6 +55,7 @@ func (c *Client) GetPartCatalogBySKU(ctx context.Context, sku string) (*models.P
 		return nil, err
 	}
 	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -82,6 +95,7 @@ func (c *Client) GetPartCatalogByID(ctx context.Context, id uuid.UUID) (*models.
 		return nil, err
 	}
 	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -122,6 +136,7 @@ func (c *Client) GetStockBySKU(ctx context.Context, sku string) (*models.Compone
 		return nil, err
 	}
 	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -152,6 +167,7 @@ func (c *Client) GetProductModelByCode(ctx context.Context, code string) (*model
 		return nil, err
 	}
 	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -199,6 +215,7 @@ func (c *Client) ListStocks(ctx context.Context, page, limit int, sortBy, sortDi
 		return nil, false, err
 	}
 	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -249,6 +266,7 @@ func (c *Client) CreateCatalogPart(ctx context.Context, sku, description string,
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -296,6 +314,7 @@ func (c *Client) UpdateCatalogPart(ctx context.Context, sku, description string,
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -336,6 +355,7 @@ func (c *Client) DeleteCatalogPart(ctx context.Context, sku string) error {
 		return err
 	}
 	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
