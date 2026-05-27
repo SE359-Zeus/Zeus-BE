@@ -3,6 +3,8 @@ package sqlite
 import (
 	"context"
 	"errors"
+	"log"
+	"os"
 	"time"
 
 	rootrepo "zeus-sales-service/internal/repository"
@@ -11,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 )
 
 type Repository struct {
@@ -18,7 +21,18 @@ type Repository struct {
 }
 
 func Open(dsn string) (*Repository, error) {
-	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	newLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags),
+		logger.Config{
+			SlowThreshold:             200 * time.Millisecond,
+			LogLevel:                  logger.Warn,
+			IgnoreRecordNotFoundError: true,
+			Colorful:                  true,
+		},
+	)
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: newLogger,
+	})
 	if err != nil {
 		return nil, err
 	}
