@@ -158,7 +158,12 @@ func Authenticate(verifier TokenVerifier, keyVerifier ClientAPIKeyVerifier) Midd
 				ctx = context.WithValue(ctx, ContextKeyFullName, client.Name)
 				ctx = context.WithValue(ctx, ContextKeyStatus, "active")
 
-				slog.Info("authentication accepted",
+				if identity, ok := r.Context().Value(contextKeyIdentity).(*requestIdentity); ok {
+					identity.userID = client.ID.String()
+					identity.role = "client"
+				}
+
+				slog.InfoContext(r.Context(), "authentication accepted",
 					slog.String("service", "sales"),
 					slog.String("event", "auth_accepted"),
 					slog.String("method", r.Method),
@@ -175,7 +180,7 @@ func Authenticate(verifier TokenVerifier, keyVerifier ClientAPIKeyVerifier) Midd
 			authHeader := r.Header.Get("Authorization")
 			parts := strings.SplitN(authHeader, " ", 2)
 			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-				slog.Warn("authentication rejected",
+				slog.WarnContext(r.Context(), "authentication rejected",
 					slog.String("service", "sales"),
 					slog.String("event", "auth_rejected"),
 					slog.String("reason", "missing_or_invalid_auth_header"),
@@ -188,7 +193,7 @@ func Authenticate(verifier TokenVerifier, keyVerifier ClientAPIKeyVerifier) Midd
 
 			claims, err := verifier.VerifyAccessToken(parts[1])
 			if err != nil {
-				slog.Warn("authentication rejected",
+				slog.WarnContext(r.Context(), "authentication rejected",
 					slog.String("service", "sales"),
 					slog.String("event", "auth_rejected"),
 					slog.String("reason", "invalid_token"),
@@ -207,7 +212,12 @@ func Authenticate(verifier TokenVerifier, keyVerifier ClientAPIKeyVerifier) Midd
 			ctx = context.WithValue(ctx, ContextKeyFullName, claims.FullName)
 			ctx = context.WithValue(ctx, ContextKeyStatus, claims.Status)
 
-			slog.Info("authentication accepted",
+			if identity, ok := r.Context().Value(contextKeyIdentity).(*requestIdentity); ok {
+				identity.userID = claims.UserID
+				identity.role = claims.Role
+			}
+
+			slog.InfoContext(r.Context(), "authentication accepted",
 				slog.String("service", "sales"),
 				slog.String("event", "auth_accepted"),
 				slog.String("method", r.Method),
@@ -227,7 +237,7 @@ func RequireMethodRoles(methodRoles map[string][]string) Middleware {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			allowedRoles, ok := methodRoles[r.Method]
 			if !ok {
-				slog.Warn("authorization rejected",
+				slog.WarnContext(r.Context(), "authorization rejected",
 					slog.String("service", "sales"),
 					slog.String("event", "authorization_rejected"),
 					slog.String("reason", "method_not_allowed"),
@@ -240,7 +250,7 @@ func RequireMethodRoles(methodRoles map[string][]string) Middleware {
 
 			role, _ := r.Context().Value(ContextKeyRole).(string)
 			if !roleAllowed(role, allowedRoles) {
-				slog.Warn("authorization rejected",
+				slog.WarnContext(r.Context(), "authorization rejected",
 					slog.String("service", "sales"),
 					slog.String("event", "authorization_rejected"),
 					slog.String("reason", "insufficient_role"),
@@ -253,7 +263,7 @@ func RequireMethodRoles(methodRoles map[string][]string) Middleware {
 				return
 			}
 
-			slog.Info("authorization accepted",
+			slog.InfoContext(r.Context(), "authorization accepted",
 				slog.String("service", "sales"),
 				slog.String("event", "authorization_accepted"),
 				slog.String("method", r.Method),

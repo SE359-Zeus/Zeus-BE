@@ -96,7 +96,7 @@ func (r *RabbitMQ) Publish(ctx context.Context, queue string, payload any) error
 			Headers:      headers,
 		})
 		if err != nil {
-			slog.Error("rabbitmq publish failed",
+			slog.ErrorContext(ctx, "rabbitmq publish failed",
 				slog.String("service", "sales"),
 				slog.String("component", "rabbitmq"),
 				slog.String("event", "publish"),
@@ -107,7 +107,7 @@ func (r *RabbitMQ) Publish(ctx context.Context, queue string, payload any) error
 			return err
 		}
 
-		slog.Info("rabbitmq publish success",
+		slog.InfoContext(ctx, "rabbitmq publish success",
 			slog.String("service", "sales"),
 			slog.String("component", "rabbitmq"),
 			slog.String("event", "publish"),

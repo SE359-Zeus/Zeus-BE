@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -10,6 +11,15 @@ import (
 
 	rootrepo "zeus-sales-service/internal/repository"
 )
+
+type requestIdentity struct {
+	userID string
+	role   string
+}
+
+type contextKeyIdentityType string
+
+const contextKeyIdentity = contextKeyIdentityType("identity")
 
 var (
 	ErrValidation = errors.New("validation error")
@@ -61,20 +71,23 @@ func NewHTTPError(status int, code, message string, err error) *HTTPError {
 func ErrorHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		logger := requestLoggerFromContext(r)
-		slog.Info("request started",
+		identity := &requestIdentity{userID: "anonymous", role: "unknown"}
+		r = r.WithContext(context.WithValue(r.Context(), contextKeyIdentity, identity))
+
+		slog.InfoContext(r.Context(), "request started",
 			slog.String("service", "sales"),
 			slog.String("event", "http_request_started"),
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 			slog.String("query", r.URL.RawQuery),
 			slog.String("remote_addr", r.RemoteAddr),
-			slog.String("user_id", logger.userID),
-			slog.String("role", logger.role),
+			slog.String("user_id", identity.userID),
+			slog.String("role", identity.role),
 		)
 
 		recorder := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		defer func() {
+			logger := requestLoggerFromContext(r)
 			if recovered := recover(); recovered != nil {
 				httpError := normalizeError(recovered)
 				recorder.Header().Set("Content-Type", "application/json")
@@ -85,7 +98,7 @@ func ErrorHandler(next http.Handler) http.Handler {
 					Metadata:   map[string]any{"code": httpError.Code},
 					Data:       nil,
 				})
-				slog.Error("request failed",
+				slog.ErrorContext(r.Context(), "request failed",
 					slog.String("service", "sales"),
 					slog.String("event", "http_request_failed"),
 					slog.String("outcome", "panic"),
@@ -99,7 +112,7 @@ func ErrorHandler(next http.Handler) http.Handler {
 				)
 				return
 			}
-			slog.Info("request completed",
+			slog.InfoContext(r.Context(), "request completed",
 				slog.String("service", "sales"),
 				slog.String("event", "http_request_completed"),
 				slog.String("method", r.Method),
@@ -125,6 +138,9 @@ func (w *loggingResponseWriter) WriteHeader(statusCode int) {
 }
 
 func requestLoggerFromContext(r *http.Request) struct{ userID, role string } {
+	if identity, ok := r.Context().Value(contextKeyIdentity).(*requestIdentity); ok {
+		return struct{ userID, role string }{userID: identity.userID, role: identity.role}
+	}
 	userID, _ := r.Context().Value(ContextKeyUserID).(string)
 	role, _ := r.Context().Value(ContextKeyRole).(string)
 	if strings.TrimSpace(userID) == "" {
