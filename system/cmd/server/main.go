@@ -415,6 +415,7 @@ func main() {
 
 	api := r.Group("/api/v1/system", middleware.JWTAuth(authSvc))
 	{
+		api.POST("/auth/change-password", authH.ChangePassword)
 		api.POST("/users", middleware.RequireRoles("admin"), userH.Create)
 		api.GET("/users", middleware.RequireRoles("admin"), userH.List)
 		api.GET("/users/:id", middleware.RequireRoles("admin"), userH.GetByID)

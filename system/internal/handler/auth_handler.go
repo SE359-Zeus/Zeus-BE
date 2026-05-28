@@ -11,6 +11,7 @@ import (
 	"zeus-system-service/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type AuthHandler struct {
@@ -124,6 +125,53 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		ExpiresIn:   result.Tokens.ExpiresIn,
 		User:        models.ToUserResponse(result.User),
 	})
+}
+
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	var req models.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		WriteAppError(c, exception.ErrInvalidBody)
+		return
+	}
+
+	userIDVal, okID := c.Get("user_id")
+	emailVal, okEmail := c.Get("email")
+	if !okID || !okEmail {
+		WriteAppError(c, exception.ErrMissingAuth)
+		return
+	}
+
+	userID, ok := userIDVal.(uuid.UUID)
+	if !ok {
+		WriteAppError(c, exception.ErrMissingAuth)
+		return
+	}
+	email, _ := emailVal.(string)
+
+	user, err := h.authSvc.ChangePassword(c.Request.Context(), userID, req.OldPassword, req.NewPassword)
+	if err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			WriteAppError(c, appErr)
+			return
+		}
+		WriteAppError(c, exception.ErrInternal)
+		return
+	}
+
+	if h.auditSvc != nil {
+		if err := h.auditSvc.Ingest(c.Request.Context(), models.IngestAuditRequest{
+			UserID:         userID,
+			UserEmail:      email,
+			ActionType:     models.ActionType("UPDATE"),
+			TargetResource: "users/" + userID.String() + "/password",
+			Details:        "Changed password",
+			IPAddress:      c.ClientIP(),
+		}); err != nil {
+			log.Printf("warning: failed to record password change audit event: %v", err)
+		}
+	}
+
+	WriteEnvelope(c, 200, "password updated", gin.H{}, models.ToUserResponse(user))
 }
 
 func resolveRefreshToken(c *gin.Context) string {

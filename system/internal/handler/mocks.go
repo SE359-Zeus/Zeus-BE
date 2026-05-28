@@ -61,6 +61,14 @@ func (m *MockUserService) Authenticate(ctx context.Context, email, password stri
 	return nil, args.Error(1)
 }
 
+func (m *MockUserService) ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) (*models.User, error) {
+	args := m.Called(ctx, userID, oldPassword, newPassword)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.User), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 type MockAuthService struct {
 	mock.Mock
 }
@@ -77,6 +85,14 @@ func (m *MockAuthService) Refresh(ctx context.Context, req models.RefreshRequest
 	args := m.Called(ctx, req)
 	if args.Get(0) != nil {
 		return args.Get(0).(*models.AuthLoginResult), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockAuthService) ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) (*models.User, error) {
+	args := m.Called(ctx, userID, oldPassword, newPassword)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.User), args.Error(1)
 	}
 	return nil, args.Error(1)
 }

@@ -261,3 +261,43 @@ func (s *userService) Authenticate(ctx context.Context, email, password string) 
 
 	return user, nil
 }
+
+func (s *userService) ChangePassword(ctx context.Context, id uuid.UUID, oldPassword, newPassword string) (*models.User, error) {
+	if id == uuid.Nil {
+		return nil, ErrNilID
+	}
+	if oldPassword == "" || newPassword == "" {
+		return nil, ErrEmptyPassword
+	}
+	if len(newPassword) < 8 {
+		return nil, ErrShortPassword
+	}
+
+	user, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, ErrNotFound
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(oldPassword)); err != nil {
+		return nil, ErrUnauthorized
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	user.PasswordHash = string(hash)
+	if err := s.repo.Update(ctx, user); err != nil {
+		return nil, err
+	}
+
+	if s.cacheRepo != nil {
+		_ = s.cacheRepo.Set(ctx, user)
+	}
+
+	return user, nil
+}

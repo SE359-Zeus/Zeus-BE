@@ -15,11 +15,13 @@ type UserService interface {
 	Update(ctx context.Context, id uuid.UUID, req models.UpdateUserRequest) (*models.User, error)
 	SetStatus(ctx context.Context, id uuid.UUID, status models.AccountStatus) error
 	Authenticate(ctx context.Context, email, password string) (*models.User, error)
+	ChangePassword(ctx context.Context, id uuid.UUID, oldPassword, newPassword string) (*models.User, error)
 }
 
 type AuthService interface {
 	Login(ctx context.Context, req models.LoginRequest) (*models.AuthLoginResult, error)
 	Refresh(ctx context.Context, req models.RefreshRequest) (*models.AuthLoginResult, error)
+	ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) (*models.User, error)
 	VerifyAccessToken(tokenString string) (*JWTClaims, error)
 	Logout(ctx context.Context, accessToken string) error
 }
