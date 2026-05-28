@@ -226,24 +226,24 @@ func (c *Client) ListStocks(ctx context.Context, page, limit int, sortBy, sortDi
 	}
 
 	var envelope struct {
-		Data struct {
-			Data struct {
-				Items []models.ComponentStock `json:"items"`
-			} `json:"data"`
+		Message    string `json:"message"`
+		StatusCode int    `json:"statusCode"`
+		Metadata   struct {
 			Pagination struct {
 				Page       int `json:"page"`
 				Limit      int `json:"limit"`
 				TotalRows  int `json:"total_rows"`
 				TotalPages int `json:"total_pages"`
 			} `json:"pagination"`
-		} `json:"data"`
+		} `json:"metadata"`
+		Data []models.ComponentStock `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
 		return nil, false, err
 	}
 
-	hasMore := envelope.Data.Pagination.TotalPages > 0 && envelope.Data.Pagination.Page < envelope.Data.Pagination.TotalPages
-	return envelope.Data.Data.Items, hasMore, nil
+	hasMore := envelope.Metadata.Pagination.TotalPages > 0 && envelope.Metadata.Pagination.Page < envelope.Metadata.Pagination.TotalPages
+	return envelope.Data, hasMore, nil
 }
 
 func (c *Client) CreateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error) {
