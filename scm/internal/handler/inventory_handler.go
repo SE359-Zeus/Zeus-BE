@@ -545,3 +545,34 @@ func (h *InventoryHandler) GetPartCatalogBySKU(c *gin.Context) {
 		"stock_qty":   stock,
 	})
 }
+
+func (h *InventoryHandler) ListStocks(c *gin.Context) {
+	params := parsePaginationParams(c)
+	q := c.Query("q")
+
+	stocks, meta, err := h.svc.ListStocks(c.Request.Context(), params, q)
+	if err != nil {
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+	writeJSON(c, 200, pagination.Response{Data: stocks, Pagination: *meta})
+}
+
+func (h *InventoryHandler) GetStockBySKU(c *gin.Context) {
+	sku := c.Param("sku")
+	if sku == "" {
+		exception.WriteError(c, exception.ErrInvalidResourceID)
+		return
+	}
+
+	stock, err := h.svc.GetStockBySKU(c.Request.Context(), sku)
+	if err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+	writeJSON(c, 200, stock)
+}
