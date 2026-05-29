@@ -166,6 +166,7 @@ func main() {
 	// and fall through to the catch-all "Success!" location.
 	r.RedirectTrailingSlash = false
 	r.Use(
+		middleware.CORS(),
 		observability.Tracing("scm"), // inject trace_id / span_id
 		middleware.RequestLogger(),
 		middleware.Recovery(),
