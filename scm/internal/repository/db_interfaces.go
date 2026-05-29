@@ -78,3 +78,13 @@ type IGoodsReceiptRepository interface {
 	FindGRLineItemsByGRID(ctx context.Context, grID string) ([]models.GRLineItem, error)
 	SaveGRLineItem(ctx context.Context, item *models.GRLineItem) error
 }
+
+type ILUTRepository interface {
+	ListPartTypes(ctx context.Context) ([]models.PartType, error)
+	ListPartConditions(ctx context.Context) ([]models.PartCondition, error)
+	ListPartMfgStatuses(ctx context.Context) ([]models.PartMfgStatus, error)
+	ListComponentStockStates(ctx context.Context) ([]models.ComponentStockState, error)
+	ListPurchaseOrderStates(ctx context.Context) ([]models.PurchaseOrderState, error)
+	ListGoodsReceiptStates(ctx context.Context) ([]models.GoodsReceiptState, error)
+	ListShipmentStates(ctx context.Context) ([]models.ShipmentState, error)
+}

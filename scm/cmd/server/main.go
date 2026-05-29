@@ -99,8 +99,10 @@ func main() {
 	shipmentRepo := sqliteRepo.NewShipmentRepository(db)
 	inventoryRepo := sqliteRepo.NewInventoryRepository(db)
 	stockRepo := sqliteRepo.NewStockRepository(db)
+	lutRepo := sqliteRepo.NewLUTRepository(db)
 
 	vendorSvc := service.NewVendorService(vendorRepo)
+	lutSvc := service.NewLUTService(lutRepo)
 	poSvc := service.NewPOService(poRepo, stockRepo, cfg.RabbitMQURL)
 	grSvc := service.NewGoodsReceiptService(grRepo, stockRepo, poRepo, cfg.AgingThresholdYears)
 	shipmentSvc := service.NewShipmentService(shipmentRepo, stockRepo)
@@ -153,6 +155,7 @@ func main() {
 	grH := handler.NewGoodsReceiptHandler(grSvc)
 	shipmentH := handler.NewShipmentHandler(shipmentSvc)
 	inventoryH := handler.NewInventoryHandler(inventorySvc)
+	lutH := handler.NewLUTHandler(lutSvc)
 
 	r := gin.New()
 	// Disable trailing-slash redirect: prevents Gin from issuing a 301/302
@@ -250,6 +253,8 @@ func main() {
 		api.PUT("/inventory/part-catalog/:sku", middleware.RequireRoles(rolesOperator...), inventoryH.UpdatePartCatalog)
 		api.DELETE("/inventory/part-catalog/:sku", middleware.RequireRoles(rolesOperator...), inventoryH.DeletePartCatalog)
 		api.GET("/inventory/part-catalog/sku/:sku", middleware.RequireRoles(rolesWorker...), inventoryH.GetPartCatalogBySKU)
+
+		api.GET("/luts", middleware.RequireRoles(rolesWorker...), lutH.GetAllLUTs)
 	}
 
 	slog.Info("scm service listening",
