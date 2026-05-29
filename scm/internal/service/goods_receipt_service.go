@@ -22,6 +22,7 @@ type IGoodsReceiptService interface {
 type goodsReceiptService struct {
 	db             *gorm.DB
 	agingThreshold time.Duration
+	ledgerSvc      ILedgerService
 }
 
 type goodsReceiptServiceRepo struct {
@@ -29,12 +30,21 @@ type goodsReceiptServiceRepo struct {
 	stockRepo      repository.IStockRepository
 	poRepo         repository.IPORepository
 	agingThreshold time.Duration
+	ledgerSvc      ILedgerService
 }
 
 func NewGoodsReceiptService(arg interface{}, args ...interface{}) IGoodsReceiptService {
+	var ledgerSvc ILedgerService
+	// scan all args for ILedgerService
+	for _, a := range args {
+		if ls, ok := a.(ILedgerService); ok {
+			ledgerSvc = ls
+		}
+	}
+
 	switch v := arg.(type) {
 	case *gorm.DB:
-		// support both NewGoodsReceiptService(db, years) and NewGoodsReceiptService(db, grRepo, stockRepo, poRepo, years)
+		// support both NewGoodsReceiptService(db, years) and NewGoodsReceiptService(db, grRepo, stockRepo, poRepo, years, ledgerSvc)
 		if len(args) > 0 {
 			// if second arg is a repo, build repo-backed adapter
 			if grRepo, ok := args[0].(repository.IGoodsReceiptRepository); ok {
@@ -56,7 +66,7 @@ func NewGoodsReceiptService(arg interface{}, args ...interface{}) IGoodsReceiptS
 						years = y
 					}
 				}
-				return &goodsReceiptServiceRepo{repo: grRepo, stockRepo: stock, poRepo: po, agingThreshold: time.Duration(years) * 365 * 24 * time.Hour}
+				return &goodsReceiptServiceRepo{repo: grRepo, stockRepo: stock, poRepo: po, agingThreshold: time.Duration(years) * 365 * 24 * time.Hour, ledgerSvc: ledgerSvc}
 			}
 		}
 		years := 0
@@ -65,7 +75,7 @@ func NewGoodsReceiptService(arg interface{}, args ...interface{}) IGoodsReceiptS
 				years = y
 			}
 		}
-		return &goodsReceiptService{db: v, agingThreshold: time.Duration(years) * 365 * 24 * time.Hour}
+		return &goodsReceiptService{db: v, agingThreshold: time.Duration(years) * 365 * 24 * time.Hour, ledgerSvc: ledgerSvc}
 	case repository.IGoodsReceiptRepository:
 		var stock repository.IStockRepository
 		var po repository.IPORepository
@@ -85,7 +95,7 @@ func NewGoodsReceiptService(arg interface{}, args ...interface{}) IGoodsReceiptS
 				years = y
 			}
 		}
-		return &goodsReceiptServiceRepo{repo: v, stockRepo: stock, poRepo: po, agingThreshold: time.Duration(years) * 365 * 24 * time.Hour}
+		return &goodsReceiptServiceRepo{repo: v, stockRepo: stock, poRepo: po, agingThreshold: time.Duration(years) * 365 * 24 * time.Hour, ledgerSvc: ledgerSvc}
 	default:
 		panic("invalid NewGoodsReceiptService usage")
 	}
@@ -161,6 +171,12 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 		if err := tx.Save(&stock).Error; err != nil {
 			tx.Rollback()
 			return err
+		}
+
+		if s.ledgerSvc != nil && received > 0 {
+			if _, lerr := s.ledgerSvc.RecordEntry(ctx, item.SKU, models.LedgerTxnTypeIN, received, operatorID, gr.ID, models.LedgerRefGoodsReceipt, gr.ID); lerr != nil {
+				s.ledgerSvc.RecordEntry(context.Background(), item.SKU, models.LedgerTxnTypeIN, received, operatorID, gr.ID, models.LedgerRefGoodsReceipt, gr.ID)
+			}
 		}
 	}
 
@@ -273,6 +289,12 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 		stock.StockQty += received
 		if err := s.stockRepo.SaveStock(ctx, stock); err != nil {
 			return err
+		}
+
+		if s.ledgerSvc != nil && received > 0 {
+			if _, lerr := s.ledgerSvc.RecordEntry(ctx, item.SKU, models.LedgerTxnTypeIN, received, operatorID, gr.ID, models.LedgerRefGoodsReceipt, gr.ID); lerr != nil {
+				s.ledgerSvc.RecordEntry(context.Background(), item.SKU, models.LedgerTxnTypeIN, received, operatorID, gr.ID, models.LedgerRefGoodsReceipt, gr.ID)
+			}
 		}
 	}
 

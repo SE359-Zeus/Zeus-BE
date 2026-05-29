@@ -88,3 +88,10 @@ type ILUTRepository interface {
 	ListGoodsReceiptStates(ctx context.Context) ([]models.GoodsReceiptState, error)
 	ListShipmentStates(ctx context.Context) ([]models.ShipmentState, error)
 }
+
+type ILedgerRepository interface {
+	CreateEntry(ctx context.Context, entry *models.InventoryLedger) error
+	ListEntries(ctx context.Context, params pagination.Params, txnType, sku string) ([]models.InventoryLedger, *pagination.Meta, error)
+	GetEntryByID(ctx context.Context, id string) (*models.InventoryLedger, error)
+	GetLatestBalance(ctx context.Context, sku string) (int, error)
+}

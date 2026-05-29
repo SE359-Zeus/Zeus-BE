@@ -100,12 +100,14 @@ func main() {
 	inventoryRepo := sqliteRepo.NewInventoryRepository(db)
 	stockRepo := sqliteRepo.NewStockRepository(db)
 	lutRepo := sqliteRepo.NewLUTRepository(db)
+	ledgerRepo := sqliteRepo.NewLedgerRepository(db)
 
 	vendorSvc := service.NewVendorService(vendorRepo)
 	lutSvc := service.NewLUTService(lutRepo)
+	ledgerSvc := service.NewLedgerService(ledgerRepo)
 	poSvc := service.NewPOService(poRepo, stockRepo, cfg.RabbitMQURL)
-	grSvc := service.NewGoodsReceiptService(grRepo, stockRepo, poRepo, cfg.AgingThresholdYears)
-	shipmentSvc := service.NewShipmentService(shipmentRepo, stockRepo)
+	grSvc := service.NewGoodsReceiptService(grRepo, stockRepo, poRepo, cfg.AgingThresholdYears, ledgerSvc)
+	shipmentSvc := service.NewShipmentService(shipmentRepo, stockRepo, ledgerSvc)
 	inventorySvc := service.NewInventoryService(inventoryRepo)
 
 	jwtSvc, err := service.NewJWTService(cfg.JwtPublicKeyPath)
@@ -156,6 +158,7 @@ func main() {
 	shipmentH := handler.NewShipmentHandler(shipmentSvc)
 	inventoryH := handler.NewInventoryHandler(inventorySvc)
 	lutH := handler.NewLUTHandler(lutSvc)
+	ledgerH := handler.NewLedgerHandler(ledgerSvc)
 
 	r := gin.New()
 	// Disable trailing-slash redirect: prevents Gin from issuing a 301/302
@@ -255,6 +258,9 @@ func main() {
 		api.GET("/inventory/part-catalog/sku/:sku", middleware.RequireRoles(rolesWorker...), inventoryH.GetPartCatalogBySKU)
 
 		api.GET("/luts", middleware.RequireRoles(rolesWorker...), lutH.GetAllLUTs)
+
+		api.GET("/inventory/ledger", middleware.RequireRoles(rolesWorker...), ledgerH.ListEntries)
+		api.GET("/inventory/ledger/:id", middleware.RequireRoles(rolesWorker...), ledgerH.GetEntryByID)
 	}
 
 	slog.Info("scm service listening",

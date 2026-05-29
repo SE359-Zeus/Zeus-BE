@@ -16,18 +16,26 @@ type IShipmentService interface {
 }
 
 type shipmentService struct {
-	db *gorm.DB
+	db        *gorm.DB
+	ledgerSvc ILedgerService
 }
 
 type shipmentServiceRepo struct {
-	repo  repository.IShipmentRepository
-	stock repository.IStockRepository
+	repo      repository.IShipmentRepository
+	stock     repository.IStockRepository
+	ledgerSvc ILedgerService
 }
 
 func NewShipmentService(arg interface{}, args ...interface{}) IShipmentService {
+	var ledgerSvc ILedgerService
+	for _, a := range args {
+		if ls, ok := a.(ILedgerService); ok {
+			ledgerSvc = ls
+		}
+	}
+
 	switch v := arg.(type) {
 	case *gorm.DB:
-		// support NewShipmentService(db) and NewShipmentService(db, shipmentRepo, stockRepo)
 		if len(args) > 0 {
 			if repoArg, ok := args[0].(repository.IShipmentRepository); ok {
 				var stock repository.IStockRepository
@@ -36,10 +44,10 @@ func NewShipmentService(arg interface{}, args ...interface{}) IShipmentService {
 						stock = r
 					}
 				}
-				return &shipmentServiceRepo{repo: repoArg, stock: stock}
+				return &shipmentServiceRepo{repo: repoArg, stock: stock, ledgerSvc: ledgerSvc}
 			}
 		}
-		return &shipmentService{db: v}
+		return &shipmentService{db: v, ledgerSvc: ledgerSvc}
 	case repository.IShipmentRepository:
 		var stock repository.IStockRepository
 		if len(args) > 0 {
@@ -47,7 +55,7 @@ func NewShipmentService(arg interface{}, args ...interface{}) IShipmentService {
 				stock = r
 			}
 		}
-		return &shipmentServiceRepo{repo: v, stock: stock}
+		return &shipmentServiceRepo{repo: v, stock: stock, ledgerSvc: ledgerSvc}
 	default:
 		panic("invalid NewShipmentService usage")
 	}
@@ -96,6 +104,12 @@ func (s *shipmentService) DispatchShipment(ctx context.Context, shipmentID strin
 		if err := tx.Save(&stock).Error; err != nil {
 			tx.Rollback()
 			return err
+		}
+
+		if s.ledgerSvc != nil {
+			if _, lerr := s.ledgerSvc.RecordEntry(ctx, item.SKU, models.LedgerTxnTypeOUT, -item.Qty, operatorID, shipment.ID, models.LedgerRefShipment, shipment.ID); lerr != nil {
+				s.ledgerSvc.RecordEntry(context.Background(), item.SKU, models.LedgerTxnTypeOUT, -item.Qty, operatorID, shipment.ID, models.LedgerRefShipment, shipment.ID)
+			}
 		}
 	}
 
@@ -148,6 +162,12 @@ func (s *shipmentServiceRepo) DispatchShipment(ctx context.Context, shipmentID s
 		stock.StockQty -= item.Qty
 		if err := s.stock.SaveStock(ctx, stock); err != nil {
 			return err
+		}
+
+		if s.ledgerSvc != nil {
+			if _, lerr := s.ledgerSvc.RecordEntry(ctx, item.SKU, models.LedgerTxnTypeOUT, -item.Qty, operatorID, shipmentID, models.LedgerRefShipment, shipmentID); lerr != nil {
+				s.ledgerSvc.RecordEntry(context.Background(), item.SKU, models.LedgerTxnTypeOUT, -item.Qty, operatorID, shipmentID, models.LedgerRefShipment, shipmentID)
+			}
 		}
 	}
 
