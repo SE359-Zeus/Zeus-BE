@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"zeus-scm-service/internal/models"
+	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/repository"
 
 	"gorm.io/gorm"
@@ -17,6 +18,9 @@ type IGoodsReceiptService interface {
 		Defective int
 	}) error
 	ReleaseLock(ctx context.Context, grID string) error
+	ListGRs(ctx context.Context, status string, params pagination.Params) ([]models.GoodsReceipt, *pagination.Meta, error)
+	GetGR(ctx context.Context, grID string) (*models.GoodsReceipt, error)
+	GetMetrics(ctx context.Context) (pending int64, completedToday int64, discrepancies int64, queue int64, err error)
 }
 
 type goodsReceiptService struct {
@@ -141,6 +145,7 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 
 	tx := s.db.WithContext(ctx).Begin()
 
+	hasDiscrepancy := false
 	for i := range lineItems {
 		item := &lineItems[i]
 		count, ok := counts[item.SKU]
@@ -151,6 +156,10 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 		defective := count.Defective
 		item.ReceivedQty = &received
 		item.DefectiveQty = &defective
+
+		if received != item.OrderedQty || defective > 0 {
+			hasDiscrepancy = true
+		}
 
 		if item.AgingSensitive && item.ProductionDate != nil {
 			if time.Since(*item.ProductionDate) > s.agingThreshold {
@@ -196,7 +205,11 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 		}
 	}
 
-	gr.Status = models.GRStatusComplete
+	if hasDiscrepancy {
+		gr.Status = models.GRStatusDiscrepancy
+	} else {
+		gr.Status = models.GRStatusComplete
+	}
 	if err := tx.Save(&gr).Error; err != nil {
 		tx.Rollback()
 		return err
@@ -263,6 +276,7 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 	}
 
 	// emulate transaction semantics via sequence of operations; repo implementations/tests should simulate rollback behavior if needed
+	hasDiscrepancy := false
 	for _, item := range items {
 		count, ok := counts[item.SKU]
 		if !ok {
@@ -272,6 +286,10 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 		defective := count.Defective
 		item.ReceivedQty = &received
 		item.DefectiveQty = &defective
+
+		if received != item.OrderedQty || defective > 0 {
+			hasDiscrepancy = true
+		}
 
 		if item.AgingSensitive && item.ProductionDate != nil {
 			if time.Since(*item.ProductionDate) > s.agingThreshold {
@@ -311,7 +329,11 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 		}
 	}
 
-	gr.Status = models.GRStatusComplete
+	if hasDiscrepancy {
+		gr.Status = models.GRStatusDiscrepancy
+	} else {
+		gr.Status = models.GRStatusComplete
+	}
 	if err := s.repo.UpdateGR(ctx, gr); err != nil {
 		return err
 	}
@@ -333,4 +355,71 @@ func (s *goodsReceiptServiceRepo) ReleaseLock(ctx context.Context, grID string) 
 		return ErrNotFound
 	}
 	return s.repo.UpdateGRFields(ctx, grID, map[string]interface{}{"locked_by": nil, "lock_expires_at": nil})
+}
+
+func (s *goodsReceiptService) ListGRs(ctx context.Context, status string, params pagination.Params) ([]models.GoodsReceipt, *pagination.Meta, error) {
+	query := s.db.WithContext(ctx).Model(&models.GoodsReceipt{}).Preload("LineItems")
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	var grs []models.GoodsReceipt
+	meta, err := pagination.Paginate(query, params, &grs, "created_at", "updated_at", "id", "status", "arrival_date")
+	if err != nil {
+		return nil, nil, err
+	}
+	return grs, meta, nil
+}
+
+func (s *goodsReceiptService) GetGR(ctx context.Context, grID string) (*models.GoodsReceipt, error) {
+	var gr models.GoodsReceipt
+	if err := s.db.WithContext(ctx).Preload("LineItems").First(&gr, "id = ?", grID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &gr, nil
+}
+
+func (s *goodsReceiptService) GetMetrics(ctx context.Context) (pending int64, completedToday int64, discrepancies int64, queue int64, err error) {
+	err = s.db.WithContext(ctx).Model(&models.GoodsReceipt{}).Where("status = ?", models.GRStatusPending).Count(&pending).Error
+	if err != nil {
+		return
+	}
+
+	todayStart := time.Now().Truncate(24 * time.Hour)
+	err = s.db.WithContext(ctx).Model(&models.GoodsReceipt{}).
+		Where("status = ? AND updated_at >= ?", models.GRStatusComplete, todayStart).
+		Count(&completedToday).Error
+	if err != nil {
+		return
+	}
+
+	err = s.db.WithContext(ctx).Model(&models.GoodsReceipt{}).Where("status = ?", models.GRStatusDiscrepancy).Count(&discrepancies).Error
+	if err != nil {
+		return
+	}
+
+	err = rdbCountQueue(s.db, ctx, &queue)
+	return
+}
+
+func rdbCountQueue(db *gorm.DB, ctx context.Context, queue *int64) error {
+	return db.WithContext(ctx).Model(&models.GoodsReceipt{}).Where("status = ?", models.GRStatusInspected).Count(queue).Error
+}
+
+func (s *goodsReceiptServiceRepo) ListGRs(ctx context.Context, status string, params pagination.Params) ([]models.GoodsReceipt, *pagination.Meta, error) {
+	return s.repo.ListGRs(ctx, status, params)
+}
+
+func (s *goodsReceiptServiceRepo) GetGR(ctx context.Context, grID string) (*models.GoodsReceipt, error) {
+	gr, err := s.repo.GetGRByID(ctx, grID)
+	if err != nil || gr == nil {
+		return nil, ErrNotFound
+	}
+	return gr, nil
+}
+
+func (s *goodsReceiptServiceRepo) GetMetrics(ctx context.Context) (pending int64, completedToday int64, discrepancies int64, queue int64, err error) {
+	return s.repo.GetMetrics(ctx)
 }

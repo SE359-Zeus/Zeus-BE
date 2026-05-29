@@ -85,6 +85,8 @@ type IGoodsReceiptRepository interface {
 	UpdateGRFields(ctx context.Context, id string, fields map[string]interface{}) error
 	FindGRLineItemsByGRID(ctx context.Context, grID string) ([]models.GRLineItem, error)
 	SaveGRLineItem(ctx context.Context, item *models.GRLineItem) error
+	ListGRs(ctx context.Context, status string, params pagination.Params) ([]models.GoodsReceipt, *pagination.Meta, error)
+	GetMetrics(ctx context.Context) (pending int64, completedToday int64, discrepancies int64, queue int64, err error)
 }
 
 type ILUTRepository interface {

@@ -410,3 +410,21 @@ func (m *MockGoodsReceiptRepository) SaveGRLineItem(ctx context.Context, item *m
 	args := m.Called(ctx, item)
 	return args.Error(0)
 }
+
+func (m *MockGoodsReceiptRepository) ListGRs(ctx context.Context, status string, params pagination.Params) ([]models.GoodsReceipt, *pagination.Meta, error) {
+	args := m.Called(ctx, status, params)
+	var grs []models.GoodsReceipt
+	if args.Get(0) != nil {
+		grs = args.Get(0).([]models.GoodsReceipt)
+	}
+	var meta *pagination.Meta
+	if args.Get(1) != nil {
+		meta = args.Get(1).(*pagination.Meta)
+	}
+	return grs, meta, args.Error(2)
+}
+
+func (m *MockGoodsReceiptRepository) GetMetrics(ctx context.Context) (pending int64, completedToday int64, discrepancies int64, queue int64, err error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Get(1).(int64), args.Get(2).(int64), args.Get(3).(int64), args.Error(4)
+}

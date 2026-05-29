@@ -2,6 +2,7 @@ package handler
 
 import (
 	"zeus-scm-service/internal/exception"
+	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -86,4 +87,52 @@ func (h *GoodsReceiptHandler) ReleaseLock(c *gin.Context) {
 		return
 	}
 	writeJSON(c, 200, gin.H{"message": "lock released"})
+}
+
+func (h *GoodsReceiptHandler) ListGRs(c *gin.Context) {
+	status := c.Query("status")
+	params := parsePaginationParams(c)
+
+	grs, meta, err := h.svc.ListGRs(c.Request.Context(), status, params)
+	if err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+	writeJSON(c, 200, pagination.Response{Data: grs, Pagination: *meta})
+}
+
+func (h *GoodsReceiptHandler) GetGR(c *gin.Context) {
+	grID := c.Param("grId")
+	gr, err := h.svc.GetGR(c.Request.Context(), grID)
+	if err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+	writeJSON(c, 200, gr)
+}
+
+func (h *GoodsReceiptHandler) GetMetrics(c *gin.Context) {
+	pending, completedToday, discrepancies, queue, err := h.svc.GetMetrics(c.Request.Context())
+	if err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+	writeJSON(c, 200, gin.H{
+		"pending_receipts":     pending,
+		"completed_today":      completedToday,
+		"active_discrepancies": discrepancies,
+		"inspection_queue":     queue,
+	})
 }

@@ -237,6 +237,9 @@ func main() {
 		api.POST("/goods-receipts/:grId/lock", middleware.RequireRoles(rolesWorker...), grH.AcquireLock)
 		api.POST("/goods-receipts/:grId/process", middleware.RequireRoles(rolesWorker...), grH.ProcessBlindReceipt)
 		api.DELETE("/goods-receipts/:grId/lock", middleware.RequireRoles(rolesWorker...), grH.ReleaseLock)
+		api.GET("/goods-receipts", middleware.RequireRoles(rolesWorker...), grH.ListGRs)
+		api.GET("/goods-receipts/metrics", middleware.RequireRoles(rolesWorker...), grH.GetMetrics)
+		api.GET("/goods-receipts/:grId", middleware.RequireRoles(rolesWorker...), grH.GetGR)
 
 		api.POST("/shipments/:shipmentId/lock", middleware.RequireRoles(rolesWorker...), shipmentH.AcquireDispatchLock)
 		api.POST("/shipments/:shipmentId/dispatch", middleware.RequireRoles(rolesWorker...), shipmentH.DispatchShipment)
