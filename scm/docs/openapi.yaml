@@ -317,6 +317,34 @@ components:
         updated_at:
           type: string
           format: date-time
+    InventoryLedger:
+      type: object
+      properties:
+        id:
+          type: string
+        sku:
+          type: string
+        type:
+          type: string
+          enum: [IN, OUT, ADJ]
+        qty_change:
+          type: integer
+        running_balance:
+          type: integer
+        location:
+          type: string
+        operator_id:
+          type: string
+        reference:
+          type: string
+        reference_type:
+          type: string
+          enum: [goods_receipt, shipment, adjustment, initial]
+        reference_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
 
 security:
   - BearerAuth: []
@@ -1178,3 +1206,87 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
+
+  /inventory/ledger:
+    get:
+      summary: List inventory ledger entries
+      tags: [Inventory]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 15
+          description: Items per page (max 100)
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            default: created_at
+            enum: [created_at, sku, type]
+          description: Sort column
+        - name: sort_dir
+          in: query
+          schema:
+            type: string
+            default: desc
+            enum: [asc, desc]
+          description: Sort direction
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [IN, OUT, ADJ]
+          description: Filter by transaction type
+        - name: sku
+          in: query
+          schema:
+            type: string
+          description: Filter by SKU
+      responses:
+        '200':
+          description: Inventory ledger list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/InventoryLedger'
+                      metadata:
+                        type: object
+                        properties:
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
+
+  /inventory/ledger/{id}:
+    get:
+      summary: Get inventory ledger entry by ID
+      tags: [Inventory]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Inventory ledger entry
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/InventoryLedger'
+

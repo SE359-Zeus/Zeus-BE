@@ -34,3 +34,8 @@ type InventoryLedger struct {
 	ReferenceID    string        `gorm:"type:varchar(64);not null" json:"reference_id"`
 	CreatedAt      time.Time     `gorm:"autoCreateTime" json:"created_at"`
 }
+
+func (InventoryLedger) TableName() string {
+	return "inventory_ledger"
+}
+

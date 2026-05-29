@@ -48,7 +48,7 @@ func (r *ledgerRepository) GetEntryByID(ctx context.Context, id string) (*models
 
 func (r *ledgerRepository) GetLatestBalance(ctx context.Context, sku string) (int, error) {
 	var entry models.InventoryLedger
-	if err := r.db.WithContext(ctx).Where("sku = ?", sku).Order("created_at DESC, id DESC").First(&entry).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("sku = ?", sku).Order("created_at DESC, id DESC").Take(&entry).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return 0, nil
 		}
