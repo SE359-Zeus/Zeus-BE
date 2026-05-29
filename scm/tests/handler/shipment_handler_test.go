@@ -141,7 +141,7 @@ func TestShipmentHandler_DispatchShipment_400_InvalidTransition(t *testing.T) {
 func TestShipmentHandler_ListShipments_200(t *testing.T) {
 	r, mockSvc := setupShipmentTest()
 
-	params := pagination.Params{Page: 1, Limit: 15}
+	params := pagination.Params{Page: 1, Limit: 15, Sort: "created_at", Order: "desc"}
 	shipments := []models.Shipment{
 		{ID: "SHP-2026-001", PORef: "PO-2026-001", Status: models.ShipmentStatusScheduled},
 	}
@@ -159,7 +159,7 @@ func TestShipmentHandler_ListShipments_200(t *testing.T) {
 func TestShipmentHandler_ListShipments_WithStatusFilter(t *testing.T) {
 	r, mockSvc := setupShipmentTest()
 
-	params := pagination.Params{Page: 1, Limit: 15}
+	params := pagination.Params{Page: 1, Limit: 15, Sort: "created_at", Order: "desc"}
 	shipments := []models.Shipment{
 		{ID: "SHP-2026-001", PORef: "PO-2026-001", Status: models.ShipmentStatusInTransit},
 	}
@@ -301,5 +301,3 @@ func TestShipmentHandler_CreateShipment_404_PONotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	mockSvc.AssertExpectations(t)
 }
-
-
