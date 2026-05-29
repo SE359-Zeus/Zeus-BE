@@ -10,11 +10,14 @@ package observability
 //	slog.SetDefault(obs.Logger)
 
 import (
+	"context"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	slogmulti "github.com/samber/slog-multi"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // Config holds all observability settings read from environment / config.
@@ -49,6 +52,7 @@ type Provider struct {
 	Metrics *Registry
 
 	stopLog func() // non-nil only when Alloy log-push is active
+	tp      *sdktrace.TracerProvider
 }
 
 // Setup initialises the observability stack and returns a Provider plus a
@@ -94,16 +98,52 @@ func Setup(cfg Config) (p *Provider, shutdown func()) {
 	// ── Metrics registry ──────────────────────────────────────────────────────
 	registry := NewRegistry()
 	DefaultRegistry = registry // expose as package-level singleton
+	// Initialize OTLP tracer provider if endpoint is configured.
+	var tp *sdktrace.TracerProvider
+	var otlpEP string
+	if val := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); val != "" {
+		otlpEP = val
+	} else if cfg.AlloyURL != "" {
+		// Derive OTLP endpoint from Alloy host when OTLP env not explicitly set.
+		clean := cfg.AlloyURL
+		clean = strings.TrimPrefix(clean, "https://")
+		clean = strings.TrimPrefix(clean, "http://")
+		if idx := strings.Index(clean, ":"); idx != -1 {
+			clean = clean[:idx]
+		} else if idx := strings.Index(clean, "/"); idx != -1 {
+			clean = clean[:idx]
+		}
+		if clean != "" {
+			if strings.HasPrefix(cfg.AlloyURL, "https://") {
+				otlpEP = "https://" + clean + ":4318"
+			} else {
+				otlpEP = "http://" + clean + ":4318"
+			}
+		}
+	}
 
+	if otlpEP != "" {
+		var err error
+		tp, err = InitTracer(context.Background(), cfg.ServiceName, cfg.Env, otlpEP)
+		if err != nil {
+			slog.Error("failed to initialize tracer provider", "error", err)
+		}
+	}
 	p = &Provider{
 		Logger:  logger,
 		Metrics: registry,
 		stopLog: stopLog,
+		tp:      tp,
 	}
 
 	shutdown = func() {
 		if p.stopLog != nil {
 			p.stopLog()
+		}
+		if p.tp != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = p.tp.Shutdown(ctx)
 		}
 	}
 
