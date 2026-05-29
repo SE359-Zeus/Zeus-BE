@@ -1,27 +1,25 @@
 package observability
 
-// trace.go — W3C-compatible trace / span ID helpers.
-//
-// Philosophy:
-//   - We do NOT import OpenTelemetry SDK at this stage. IDs are generated
-//     locally using crypto/rand so the format is already OTel-compatible
-//     (128-bit trace ID, 64-bit span ID, hex-encoded). Plugging in a real
-//     OTel SDK later only requires swapping the context key extraction.
-//   - Every HTTP request gets a fresh span. The trace_id is taken from the
-//     incoming "traceparent" header (W3C Trace Context) when present, allowing
-//     distributed tracing across services without an SDK.
-//   - trace_id and span_id are stored on the request context so both slog
-//     (via LogHandler.Handle) and any downstream code can read them.
+// trace.go — W3C-compatible trace / span ID helpers with OpenTelemetry and Tempo.
 
 import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // ── Context keys ──────────────────────────────────────────────────────────────
@@ -33,16 +31,24 @@ const (
 	ctxSpanID  contextKey = "span_id"
 )
 
-// TraceIDFromContext returns the trace ID stored in ctx, or "".
+// TraceIDFromContext returns the trace ID stored in ctx (either from OTel span or custom key).
 func TraceIDFromContext(ctx context.Context) string {
+	spanContext := trace.SpanContextFromContext(ctx)
+	if spanContext.IsValid() {
+		return spanContext.TraceID().String()
+	}
 	if v, ok := ctx.Value(ctxTraceID).(string); ok {
 		return v
 	}
 	return ""
 }
 
-// SpanIDFromContext returns the span ID stored in ctx, or "".
+// SpanIDFromContext returns the span ID stored in ctx (either from OTel span or custom key).
 func SpanIDFromContext(ctx context.Context) string {
+	spanContext := trace.SpanContextFromContext(ctx)
+	if spanContext.IsValid() {
+		return spanContext.SpanID().String()
+	}
 	if v, ok := ctx.Value(ctxSpanID).(string); ok {
 		return v
 	}
@@ -59,13 +65,12 @@ func WithSpanID(ctx context.Context, spanID string) context.Context {
 	return context.WithValue(ctx, ctxSpanID, spanID)
 }
 
-// ── ID generation ─────────────────────────────────────────────────────────────
+// ── ID generation (for non-OTel fallback) ──────────────────────────────────────
 
 // NewTraceID generates a random 128-bit (32 hex chars) W3C-compatible trace ID.
 func NewTraceID() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		// Extremely unlikely; fall back to timestamp-based ID.
 		return hex.EncodeToString([]byte(strings.ReplaceAll(time.Now().Format("20060102150405.999999999"), ".", "")))
 	}
 	return hex.EncodeToString(b)
@@ -80,54 +85,99 @@ func NewSpanID() string {
 	return hex.EncodeToString(b)
 }
 
-// ── W3C traceparent parsing ───────────────────────────────────────────────────
+// ── OpenTelemetry Initialization ──────────────────────────────────────────────
 
-// parseTraceparent tries to extract the trace ID from a W3C "traceparent" header.
-// Format: 00-<traceID>-<parentSpanID>-<flags>
-// Returns "" if the header is absent or malformed.
-func parseTraceparent(header string) string {
-	parts := strings.Split(header, "-")
-	if len(parts) != 4 || len(parts[1]) != 32 {
-		return ""
+// InitTracer initializes an OTLP trace exporter and registers it as the global tracer provider.
+func InitTracer(ctx context.Context, serviceName, env, otlpEndpoint string) (*sdktrace.TracerProvider, error) {
+	if otlpEndpoint == "" {
+		otlpEndpoint = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+		if otlpEndpoint == "" {
+			// Return dummy tracer provider with tracecontext propagator so local spans work without exporter
+			tp := sdktrace.NewTracerProvider(
+				sdktrace.WithSampler(sdktrace.AlwaysSample()),
+			)
+			otel.SetTracerProvider(tp)
+			otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+				propagation.TraceContext{},
+				propagation.Baggage{},
+			))
+			return tp, nil
+		}
 	}
-	return parts[1]
+
+	cleanEndpoint := otlpEndpoint
+	cleanEndpoint = strings.TrimPrefix(cleanEndpoint, "https://")
+	cleanEndpoint = strings.TrimPrefix(cleanEndpoint, "http://")
+	if idx := strings.Index(cleanEndpoint, "/"); idx != -1 {
+		cleanEndpoint = cleanEndpoint[:idx]
+	}
+
+	opts := []otlptracehttp.Option{
+		otlptracehttp.WithEndpoint(cleanEndpoint),
+	}
+	if !strings.HasPrefix(otlpEndpoint, "https://") {
+		opts = append(opts, otlptracehttp.WithInsecure())
+	}
+
+	exporter, err := otlptracehttp.New(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String(serviceName),
+			semconv.DeploymentEnvironmentKey.String(env),
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(res),
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+	)
+
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
+
+	return tp, nil
 }
 
 // ── Gin middleware ────────────────────────────────────────────────────────────
 
-// Tracing is a Gin middleware that:
-//  1. Reads the incoming W3C "traceparent" header to continue an existing trace,
-//     or generates a fresh 128-bit trace ID.
-//  2. Always generates a new 64-bit span ID for this hop.
-//  3. Stores both IDs on the request context (accessible via TraceIDFromContext /
-//     SpanIDFromContext) and as Gin context values.
-//  4. Emits the "traceparent" response header so callers can propagate the trace.
-//  5. Logs the completed span with duration so every request has a root span log.
+// Tracing is a Gin middleware that extracts context, starts OTel span, and propagates traceparent.
 func Tracing(serviceName string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 
-		// 1. Determine trace ID.
-		traceID := parseTraceparent(c.GetHeader("traceparent"))
-		if traceID == "" {
-			traceID = NewTraceID()
-		}
-		spanID := NewSpanID()
+		// Extract parent context from incoming HTTP headers
+		propagator := otel.GetTextMapPropagator()
+		ctx := propagator.Extract(c.Request.Context(), propagation.HeaderCarrier(c.Request.Header))
 
-		// 2. Inject into both Gin and stdlib contexts.
+		// Start OTel span
+		tracer := otel.Tracer(serviceName)
+		ctx, span := tracer.Start(ctx, fmt.Sprintf("%s %s", c.Request.Method, c.Request.URL.Path))
+		defer span.End()
+
+		c.Request = c.Request.WithContext(ctx)
+
+		sc := span.SpanContext()
+		traceID := sc.TraceID().String()
+		spanID := sc.SpanID().String()
+
 		c.Set(string(ctxTraceID), traceID)
 		c.Set(string(ctxSpanID), spanID)
 
-		ctx := WithTraceID(c.Request.Context(), traceID)
-		ctx = WithSpanID(ctx, spanID)
-		c.Request = c.Request.WithContext(ctx)
-
-		// 3. Propagate downstream via response header.
-		c.Header("traceparent", "00-"+traceID+"-"+spanID+"-01")
+		c.Header("traceparent", fmt.Sprintf("00-%s-%s-01", traceID, spanID))
 
 		c.Next()
 
-		// 4. Emit root span log entry.
 		duration := time.Since(start)
 		slog.InfoContext(ctx, "http span",
 			slog.String("service", serviceName),

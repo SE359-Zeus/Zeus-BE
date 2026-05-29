@@ -73,14 +73,32 @@ func (s *ProductionService) RunBOMExplosion(ctx context.Context, orderID uuid.UU
 			return nil, fmt.Errorf("bom entry %d has invalid required quantity", entry.ID)
 		}
 
-		availableQty, err := s.getPartInventory(ctx, entry.ComponentPartID)
-		if err != nil {
-			return nil, err
-		}
-
-		sku, err := s.resolveComponentSKU(ctx, entry.ComponentPartID)
-		if err != nil {
-			return nil, err
+		var availableQty int
+		var sku string
+		if s.scmClient != nil {
+			part, err := s.scmClient.GetPartCatalogByID(ctx, entry.ComponentPartID)
+			if err != nil {
+				return nil, err
+			}
+			if part == nil || strings.TrimSpace(part.SKU) == "" {
+				return nil, fmt.Errorf("component part %s not found", entry.ComponentPartID.String())
+			}
+			availableQty = part.StockQty
+			sku = part.SKU
+			s.cacheInventory(ctx, entry.ComponentPartID, availableQty)
+			if s.cache != nil {
+				_ = s.cache.Set(ctx, "mrp:part:sku:v1:"+entry.ComponentPartID.String(), sku)
+			}
+		} else {
+			var err error
+			availableQty, err = s.getPartInventory(ctx, entry.ComponentPartID)
+			if err != nil {
+				return nil, err
+			}
+			sku, err = s.resolveComponentSKU(ctx, entry.ComponentPartID)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		results = append(results, models.BOMExplosionResult{

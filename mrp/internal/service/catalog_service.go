@@ -434,12 +434,24 @@ func (s *ProductionService) resolveComponentSKU(ctx context.Context, partID uuid
 	if s == nil || s.scmClient == nil {
 		return partID.String(), nil
 	}
+
+	if s.cache != nil {
+		var cachedSKU string
+		if err := s.cache.Get(ctx, "mrp:part:sku:v1:"+partID.String(), &cachedSKU); err == nil && cachedSKU != "" {
+			return cachedSKU, nil
+		}
+	}
+
 	part, err := s.scmClient.GetPartCatalogByID(ctx, partID)
 	if err != nil {
 		return "", err
 	}
 	if part == nil || strings.TrimSpace(part.SKU) == "" {
 		return "", fmt.Errorf("component part %s not found", partID.String())
+	}
+
+	if s.cache != nil {
+		_ = s.cache.Set(ctx, "mrp:part:sku:v1:"+partID.String(), part.SKU)
 	}
 	return part.SKU, nil
 }

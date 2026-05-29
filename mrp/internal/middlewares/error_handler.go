@@ -60,7 +60,7 @@ func ErrorHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		logger := requestLoggerFromContext(r)
-		slog.Info("request started",
+		slog.InfoContext(r.Context(), "request started",
 			slog.String("service", "mrp"),
 			slog.String("event", "http_request_started"),
 			slog.String("method", r.Method),
@@ -83,7 +83,7 @@ func ErrorHandler(next http.Handler) http.Handler {
 					Metadata:   map[string]any{"code": httpError.Code},
 					Data:       nil,
 				})
-				slog.Error("request failed",
+				slog.ErrorContext(r.Context(), "request failed",
 					slog.String("service", "mrp"),
 					slog.String("event", "http_request_failed"),
 					slog.String("outcome", "panic"),
@@ -97,12 +97,19 @@ func ErrorHandler(next http.Handler) http.Handler {
 				)
 				return
 			}
-			slog.Info("request completed",
+			status := recorder.statusCode
+			logFunc := slog.InfoContext
+			if status >= 500 {
+				logFunc = slog.ErrorContext
+			} else if status >= 400 {
+				logFunc = slog.WarnContext
+			}
+			logFunc(r.Context(), "request completed",
 				slog.String("service", "mrp"),
 				slog.String("event", "http_request_completed"),
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
-				slog.Int("status", recorder.statusCode),
+				slog.Int("status", status),
 				slog.Int64("duration_ms", time.Since(start).Milliseconds()),
 				slog.String("user_id", logger.userID),
 				slog.String("role", logger.role),

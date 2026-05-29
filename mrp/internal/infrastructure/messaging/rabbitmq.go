@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
+	"zeus-mrp-service/internal/infrastructure/observability"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -81,7 +82,7 @@ func (r *RabbitMQ) DeclareQueue(queue string, durable bool) error {
 	})
 }
 
-func (r *RabbitMQ) PublishJSON(queue string, payload any) error {
+func (r *RabbitMQ) PublishJSON(ctx context.Context, queue string, payload any) error {
 	return r.withChannel(func(channel *amqp.Channel) error {
 		if _, err := channel.QueueDeclare(queue, true, false, false, false, nil); err != nil {
 			return err
@@ -90,10 +91,24 @@ func (r *RabbitMQ) PublishJSON(queue string, payload any) error {
 		if err != nil {
 			return err
 		}
-		return channel.PublishWithContext(context.Background(), "", queue, true, false, amqp.Publishing{
+
+		headers := amqp.Table{}
+		traceID := observability.TraceIDFromContext(ctx)
+		if traceID != "" {
+			spanID := observability.SpanIDFromContext(ctx)
+			if spanID == "" {
+				spanID = observability.NewSpanID()
+			}
+			headers["traceparent"] = "00-" + traceID + "-" + spanID + "-01"
+			headers["trace_id"] = traceID
+			headers["span_id"] = spanID
+		}
+
+		return channel.PublishWithContext(ctx, "", queue, true, false, amqp.Publishing{
 			ContentType:  "application/json",
 			Body:         body,
 			DeliveryMode: amqp.Persistent,
+			Headers:      headers,
 		})
 	})
 }

@@ -124,17 +124,17 @@ type InventoryMetrics struct {
 }
 
 type ComponentStock struct {
-	SKU          string    `json:"sku"`
-	Name         string    `json:"name"`
-	Category     string    `json:"category"`
-	StockQty     int       `json:"stock_qty"`
-	ReorderPoint int       `json:"reorder_point"`
-	UnitCost     float64   `json:"unit_cost"`
-	Status       string    `json:"status"`
-	LeadTimeDays int       `json:"lead_time_days"`
-	Location     string    `json:"location"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	SKU          string    `json:"SKU"`
+	Name         string    `json:"Name"`
+	Category     string    `json:"Category"`
+	StockQty     int       `json:"StockQty"`
+	ReorderPoint int       `json:"ReorderPoint"`
+	UnitCost     float64   `json:"UnitCost"`
+	Status       string    `json:"Status"`
+	LeadTimeDays int       `json:"LeadTimeDays"`
+	Location     string    `json:"Location"`
+	CreatedAt    time.Time `json:"CreatedAt"`
+	UpdatedAt    time.Time `json:"UpdatedAt"`
 }
 
 // --- Demand & POs DTOs ---

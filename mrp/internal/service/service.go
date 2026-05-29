@@ -12,7 +12,7 @@ import (
 )
 
 type AuditPublisher interface {
-	PublishJSON(queue string, payload any) error
+	PublishJSON(ctx context.Context, queue string, payload any) error
 }
 
 type SCMClient interface {
@@ -57,7 +57,7 @@ func (s *ProductionService) publishAudit(ctx context.Context, actionType, target
 	if userID == "" || userEmail == "" {
 		return
 	}
-	_ = s.audit.PublishJSON(messaging.AuditQueue, map[string]any{
+	_ = s.audit.PublishJSON(ctx, messaging.AuditQueue, map[string]any{
 		"user_id":         userID,
 		"user_email":      userEmail,
 		"action_type":     normalizeAuditActionType(actionType),
