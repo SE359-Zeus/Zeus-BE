@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
+	"strings"
 	"time"
 
 	"zeus-scm-service/internal/infrastructure/cache"
@@ -39,7 +41,8 @@ type IInventoryService interface {
 	UpdatePartCatalogBySKU(ctx context.Context, sku string, fields map[string]any) (*models.PartCatalog, error)
 	DeletePartCatalogBySKU(ctx context.Context, sku string) error
 	GetPartCatalogBySKU(ctx context.Context, sku string) (*models.PartCatalog, float64, int, error)
-	ListStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error)
+	ListStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error)
+	CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error
 	GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error)
 }
 
@@ -244,7 +247,7 @@ func (s *inventoryServiceRepo) CreatePartCatalog(ctx context.Context, pc *models
 	if pc.Description != nil {
 		desc = *pc.Description
 	}
-	return s.repo.CreateComponentStock(ctx, &models.ComponentStock{
+	return s.CreateComponentStock(ctx, &models.ComponentStock{
 		SKU:          pc.PartNumber,
 		Name:         desc,
 		Category:     "Components",
@@ -254,6 +257,102 @@ func (s *inventoryServiceRepo) CreatePartCatalog(ctx context.Context, pc *models
 		Status:       models.ComponentStatusInStock,
 		LeadTimeDays: 0,
 	})
+}
+
+func deriveComponentStatus(stockQty, reorderPoint int) models.ComponentStatus {
+	switch {
+	case stockQty <= 0:
+		return models.ComponentStatusOutOfStock
+	case stockQty <= reorderPoint:
+		return models.ComponentStatusLowStock
+	default:
+		return models.ComponentStatusInStock
+	}
+}
+
+func normalizeComponentStatusFilter(status string) string {
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	normalized = strings.NewReplacer(" ", "", "_", "", "-", "").Replace(normalized)
+	switch normalized {
+	case "", "all":
+		return ""
+	case "instock":
+		return string(models.ComponentStatusInStock)
+	case "lowstock":
+		return string(models.ComponentStatusLowStock)
+	case "outofstock":
+		return string(models.ComponentStatusOutOfStock)
+	case "discontinued":
+		return string(models.ComponentStatusDiscontinued)
+	default:
+		return status
+	}
+}
+
+func pickRandomIndex(count int) int {
+	if count <= 1 {
+		return 0
+	}
+	return rand.New(rand.NewSource(time.Now().UnixNano())).Intn(count)
+}
+
+func (s *inventoryServiceRepo) resolvePrimarySupplier(ctx context.Context, sku string) (*models.Supplier, error) {
+	mappings, err := s.repo.FindSkuMappingsBySKU(ctx, sku)
+	if err != nil {
+		return nil, err
+	}
+	if len(mappings) == 0 {
+		return nil, nil
+	}
+	selected := mappings[pickRandomIndex(len(mappings))]
+	supplier, err := s.repo.GetSupplierByID(ctx, selected.SupplierID)
+	if err != nil {
+		return nil, err
+	}
+	return supplier, nil
+}
+
+func (s *inventoryServiceRepo) hydrateStockSuppliers(ctx context.Context, stocks []models.ComponentStock) ([]models.ComponentStock, error) {
+	supplierNames := make(map[uuid.UUID]string)
+	for i := range stocks {
+		if stocks[i].PrimarySupplierID == uuid.Nil {
+			continue
+		}
+		if name, ok := supplierNames[stocks[i].PrimarySupplierID]; ok {
+			stocks[i].PrimarySupplier = name
+			continue
+		}
+		supplier, err := s.repo.GetSupplierByID(ctx, stocks[i].PrimarySupplierID)
+		if err != nil {
+			return nil, err
+		}
+		supplierNames[stocks[i].PrimarySupplierID] = supplier.Name
+		stocks[i].PrimarySupplier = supplier.Name
+	}
+	return stocks, nil
+}
+
+func (s *inventoryServiceRepo) CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error {
+	if stock == nil {
+		return fmt.Errorf("component stock is required")
+	}
+	if stock.Category == "" {
+		stock.Category = "Components"
+	}
+	if stock.Location == "" {
+		stock.Location = "WH-A / Zone-C1"
+	}
+	if stock.Status == "" {
+		stock.Status = deriveComponentStatus(stock.StockQty, stock.ReorderPoint)
+	}
+	if supplier, err := s.resolvePrimarySupplier(ctx, stock.SKU); err == nil && supplier != nil {
+		stock.PrimarySupplierID = supplier.ID
+		stock.PrimarySupplier = supplier.Name
+		if stock.LeadTimeDays == 0 {
+			stock.LeadTimeDays = supplier.LeadTimeDays
+		}
+	}
+	return s.repo.CreateComponentStock(ctx, stock)
 }
 
 func (s *inventoryServiceRepo) UpdatePartCatalogBySKU(ctx context.Context, sku string, fields map[string]any) (*models.PartCatalog, error) {
@@ -316,14 +415,28 @@ func (s *inventoryServiceRepo) GetPartCatalogBySKU(ctx context.Context, sku stri
 	return pc, stock.UnitCost, stock.StockQty, nil
 }
 
-func (s *inventoryServiceRepo) ListStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error) {
-	return s.repo.ListComponentStocks(ctx, params, q)
+func (s *inventoryServiceRepo) ListStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error) {
+	status = normalizeComponentStatusFilter(status)
+	stocks, meta, err := s.repo.ListComponentStocks(ctx, params, status, q)
+	if err != nil {
+		return nil, nil, err
+	}
+	hydrated, err := s.hydrateStockSuppliers(ctx, stocks)
+	if err != nil {
+		return nil, nil, err
+	}
+	return hydrated, meta, nil
 }
 
 func (s *inventoryServiceRepo) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
 	stk, err := s.repo.GetComponentStockBySKU(ctx, sku)
 	if err != nil || stk == nil {
 		return nil, ErrNotFound
+	}
+	if stk.PrimarySupplierID != uuid.Nil {
+		if supplier, err := s.repo.GetSupplierByID(ctx, stk.PrimarySupplierID); err == nil && supplier != nil {
+			stk.PrimarySupplier = supplier.Name
+		}
 	}
 	return stk, nil
 }
@@ -725,18 +838,87 @@ func (s *inventoryService) ListPartCatalog(ctx context.Context, typeID *int32, p
 	return catalogs, meta, nil
 }
 
-func (s *inventoryService) ListStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error) {
+func (s *inventoryService) resolvePrimarySupplier(ctx context.Context, sku string) (*models.Supplier, error) {
+	var mappings []models.SkuMapping
+	if err := s.db.WithContext(ctx).Where("sku = ?", sku).Order("unit_price ASC").Find(&mappings).Error; err != nil {
+		return nil, err
+	}
+	if len(mappings) == 0 {
+		return nil, nil
+	}
+	selected := mappings[pickRandomIndex(len(mappings))]
+	var supplier models.Supplier
+	if err := s.db.WithContext(ctx).First(&supplier, "id = ?", selected.SupplierID).Error; err != nil {
+		return nil, err
+	}
+	return &supplier, nil
+}
+
+func (s *inventoryService) hydrateStockSuppliers(ctx context.Context, stocks []models.ComponentStock) ([]models.ComponentStock, error) {
+	supplierNames := make(map[uuid.UUID]string)
+	for i := range stocks {
+		if stocks[i].PrimarySupplierID == uuid.Nil {
+			continue
+		}
+		if name, ok := supplierNames[stocks[i].PrimarySupplierID]; ok {
+			stocks[i].PrimarySupplier = name
+			continue
+		}
+		var supplier models.Supplier
+		if err := s.db.WithContext(ctx).First(&supplier, "id = ?", stocks[i].PrimarySupplierID).Error; err != nil {
+			continue
+		}
+		supplierNames[stocks[i].PrimarySupplierID] = supplier.Name
+		stocks[i].PrimarySupplier = supplier.Name
+	}
+	return stocks, nil
+}
+
+func (s *inventoryService) CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error {
+	if stock == nil {
+		return fmt.Errorf("component stock is required")
+	}
+	if stock.Category == "" {
+		stock.Category = "Components"
+	}
+	if stock.Location == "" {
+		stock.Location = "WH-A / Zone-C1"
+	}
+	if stock.Status == "" {
+		stock.Status = deriveComponentStatus(stock.StockQty, stock.ReorderPoint)
+	}
+	if stock.PrimarySupplierID == uuid.Nil {
+		if supplier, err := s.resolvePrimarySupplier(ctx, stock.SKU); err == nil && supplier != nil {
+			stock.PrimarySupplierID = supplier.ID
+			stock.PrimarySupplier = supplier.Name
+			if stock.LeadTimeDays == 0 {
+				stock.LeadTimeDays = supplier.LeadTimeDays
+			}
+		}
+	}
+	return s.db.WithContext(ctx).Create(stock).Error
+}
+
+func (s *inventoryService) ListStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error) {
+	status = normalizeComponentStatusFilter(status)
 	query := s.db.WithContext(ctx).Model(&models.ComponentStock{})
+	if status != "" && !strings.EqualFold(status, "all") {
+		query = query.Where("status = ?", status)
+	}
 	if q != "" {
 		like := "%" + q + "%"
-		query = query.Where("sku LIKE ? OR name LIKE ? OR category LIKE ?", like, like, like)
+		query = query.Where("sku LIKE ? OR name LIKE ? OR category LIKE ? OR location LIKE ?", like, like, like, like)
 	}
 	var stocks []models.ComponentStock
 	meta, err := pagination.Paginate(query, params, &stocks, "created_at", "updated_at", "sku", "name", "category")
 	if err != nil {
 		return nil, nil, err
 	}
-	return stocks, meta, nil
+	hydrated, err := s.hydrateStockSuppliers(ctx, stocks)
+	if err != nil {
+		return nil, nil, err
+	}
+	return hydrated, meta, nil
 }
 
 func (s *inventoryService) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
@@ -744,6 +926,11 @@ func (s *inventoryService) GetStockBySKU(ctx context.Context, sku string) (*mode
 	if err := s.db.WithContext(ctx).First(&stock, "sku = ?", sku).Error; err != nil {
 		return nil, ErrNotFound
 	}
+	if stock.PrimarySupplierID != uuid.Nil {
+		var supplier models.Supplier
+		if err := s.db.WithContext(ctx).First(&supplier, "id = ?", stock.PrimarySupplierID).Error; err == nil {
+			stock.PrimarySupplier = supplier.Name
+		}
+	}
 	return &stock, nil
 }
-

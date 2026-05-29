@@ -19,6 +19,25 @@ func NewInventoryRepository(db *gorm.DB) repository.IInventoryRepository {
 	return &inventoryRepository{db: db}
 }
 
+func (r *inventoryRepository) GetSupplierByID(ctx context.Context, id uuid.UUID) (*models.Supplier, error) {
+	var supplier models.Supplier
+	if err := r.db.WithContext(ctx).First(&supplier, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &supplier, nil
+}
+
+func (r *inventoryRepository) FindSkuMappingsBySKU(ctx context.Context, sku string) ([]models.SkuMapping, error) {
+	var mappings []models.SkuMapping
+	if err := r.db.WithContext(ctx).
+		Where("sku = ?", sku).
+		Order("unit_price ASC").
+		Find(&mappings).Error; err != nil {
+		return nil, err
+	}
+	return mappings, nil
+}
+
 func (r *inventoryRepository) GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error) {
 	var p models.Product
 	if err := r.db.WithContext(ctx).First(&p, "id = ?", id).Error; err != nil {
@@ -168,11 +187,14 @@ func (r *inventoryRepository) GetComponentStockBySKU(ctx context.Context, sku st
 	return &s, nil
 }
 
-func (r *inventoryRepository) ListComponentStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error) {
+func (r *inventoryRepository) ListComponentStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error) {
 	query := r.db.WithContext(ctx).Model(&models.ComponentStock{})
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
 	if q != "" {
 		like := "%" + q + "%"
-		query = query.Where("sku LIKE ? OR name LIKE ? OR category LIKE ?", like, like, like)
+		query = query.Where("sku LIKE ? OR name LIKE ? OR category LIKE ? OR location LIKE ?", like, like, like, like)
 	}
 	var stocks []models.ComponentStock
 	meta, err := pagination.Paginate(query, params, &stocks, "created_at", "updated_at", "sku", "name", "category")

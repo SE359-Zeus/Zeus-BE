@@ -58,7 +58,6 @@ func main() {
 		slog.String("valkey_addr", cfg.ValkeyAddr),
 	)
 
-
 	db, err := sqliteRepo.NewDB(cfg.DBPath)
 	if err != nil {
 		slog.Error("failed to connect to database",
@@ -175,7 +174,6 @@ func main() {
 	// Internal metrics endpoint — Alloy scrapes this.
 	r.GET("/metrics", gin.WrapF(observability.MetricsHTTPHandler(obs.Metrics)))
 
-
 	// ── Public routes (no auth) ──────────────────────────────────────────────
 	{
 		specPath := findOpenAPISpec()
@@ -258,6 +256,7 @@ func main() {
 		api.GET("/inventory/product-models/:code", middleware.RequireRoles(rolesWorker...), inventoryH.GetProductModel)
 		api.POST("/inventory/product-models", middleware.RequireRoles(rolesOperator...), inventoryH.CreateProductModel)
 		api.GET("/inventory/stocks", middleware.RequireRoles(rolesWorker...), inventoryH.ListStocks)
+		api.POST("/inventory/stocks", middleware.RequireRoles(rolesOperator...), inventoryH.CreateComponentStock)
 		api.GET("/inventory/stocks/:sku", middleware.RequireRoles(rolesWorker...), inventoryH.GetStockBySKU)
 		api.GET("/inventory/parts", middleware.RequireRoles(rolesWorker...), inventoryH.ListParts)
 		api.GET("/inventory/parts/:id", middleware.RequireRoles(rolesWorker...), inventoryH.GetPart)
@@ -295,8 +294,6 @@ func main() {
 		os.Exit(1)
 	}
 }
-
-
 
 func findOpenAPISpec() string {
 	paths := []string{"docs/openapi.yaml", "./docs/openapi.yaml", filepath.Join(".", "docs", "openapi.yaml")}

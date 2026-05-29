@@ -39,6 +39,9 @@ type IPORepository interface {
 }
 
 type IInventoryRepository interface {
+	GetSupplierByID(ctx context.Context, id uuid.UUID) (*models.Supplier, error)
+	FindSkuMappingsBySKU(ctx context.Context, sku string) ([]models.SkuMapping, error)
+
 	GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error)
 	ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error)
 	CreateProduct(ctx context.Context, p *models.Product) error
@@ -60,7 +63,7 @@ type IInventoryRepository interface {
 	DeletePartCatalogBySKU(ctx context.Context, sku string) (int64, error)
 	GetPartCatalogBySKU(ctx context.Context, sku string) (*models.PartCatalog, error)
 	GetComponentStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error)
-	ListComponentStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error)
+	ListComponentStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error)
 	CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error
 	UpdateComponentStockFieldsBySKU(ctx context.Context, sku string, updates map[string]interface{}) (int64, error)
 	DeleteComponentStockBySKU(ctx context.Context, sku string) (int64, error)

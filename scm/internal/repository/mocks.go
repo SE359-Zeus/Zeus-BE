@@ -184,6 +184,22 @@ type MockInventoryRepository struct {
 	mock.Mock
 }
 
+func (m *MockInventoryRepository) GetSupplierByID(ctx context.Context, id uuid.UUID) (*models.Supplier, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Supplier), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockInventoryRepository) FindSkuMappingsBySKU(ctx context.Context, sku string) ([]models.SkuMapping, error) {
+	args := m.Called(ctx, sku)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.SkuMapping), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockInventoryRepository) GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) != nil {
@@ -301,8 +317,8 @@ func (m *MockInventoryRepository) GetComponentStockBySKU(ctx context.Context, sk
 	return nil, args.Error(1)
 }
 
-func (m *MockInventoryRepository) ListComponentStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error) {
-	args := m.Called(ctx, params, q)
+func (m *MockInventoryRepository) ListComponentStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error) {
+	args := m.Called(ctx, params, status, q)
 	if args.Get(0) != nil {
 		return args.Get(0).([]models.ComponentStock), args.Get(1).(*pagination.Meta), args.Error(2)
 	}
@@ -388,7 +404,6 @@ func (m *MockCarrierRepository) ListCarriers(ctx context.Context) ([]models.Carr
 	}
 	return nil, args.Error(1)
 }
-
 
 type MockStockRepository struct {
 	mock.Mock

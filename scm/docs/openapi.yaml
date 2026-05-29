@@ -272,6 +272,21 @@ components:
         status:
           type: string
           enum: [In Stock, Low Stock, Out of Stock, Discontinued]
+        primary_supplier_id:
+          type: string
+          format: uuid
+        primary_supplier:
+          type: string
+        lead_time_days:
+          type: integer
+        location:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     Product:
       type: object
       properties:
@@ -1358,6 +1373,84 @@ paths:
                         example: 201
                       data:
                         $ref: '#/components/schemas/Product'
+
+  /inventory/stocks:
+    get:
+      summary: List component inventory with pagination, search, and status filter
+      tags: [Inventory]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, In Stock, Low Stock, Out of Stock, Discontinued, in_stock, low_stock, out_of_stock, discontinued]
+          description: Filter by component status
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 15
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            default: created_at
+        - name: sort_dir
+          in: query
+          schema:
+            type: string
+            default: desc
+            enum: [asc, desc]
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Search keyword (matches SKU, name, category, or location)
+      responses:
+        '200':
+          description: Component inventory list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/ComponentStock'
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
+    post:
+      summary: Add a component stock record
+      tags: [Inventory]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComponentStock'
+      responses:
+        '201':
+          description: Component created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      statusCode:
+                        example: 201
+                      data:
+                        $ref: '#/components/schemas/ComponentStock'
 
   /inventory/products/{id}:
     get:

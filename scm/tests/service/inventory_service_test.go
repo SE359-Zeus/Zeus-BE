@@ -371,3 +371,30 @@ func TestInventoryService_ListParts_WithProductID(t *testing.T) {
 	assert.Equal(t, int64(1), resultMeta.TotalRows)
 	repo.AssertExpectations(t)
 }
+
+func TestInventoryService_CreateComponentStock_ChoosesPrimarySupplierFromMappings(t *testing.T) {
+	svc, repo := setupInventorySvc()
+	sku := "SOC-XM100-PRO"
+	primarySupplierID := uuid.New()
+	secondarySupplierID := uuid.New()
+	primarySupplier := &models.Supplier{ID: primarySupplierID, Name: "Intel Corporation", LeadTimeDays: 14}
+	secondarySupplier := &models.Supplier{ID: secondarySupplierID, Name: "Arrow Electronics", LeadTimeDays: 21}
+	stock := &models.ComponentStock{SKU: sku, Name: "Zeus SOC XM100 Pro", Category: "Processor", StockQty: 245, ReorderPoint: 100, UnitCost: 580}
+
+	repo.On("FindSkuMappingsBySKU", anyCtx, sku).Return([]models.SkuMapping{
+		{SupplierID: primarySupplierID, SKU: sku},
+		{SupplierID: secondarySupplierID, SKU: sku},
+	}, nil)
+	repo.On("GetSupplierByID", anyCtx, primarySupplierID).Return(primarySupplier, nil).Maybe()
+	repo.On("GetSupplierByID", anyCtx, secondarySupplierID).Return(secondarySupplier, nil).Maybe()
+	repo.On("CreateComponentStock", anyCtx, mock.MatchedBy(func(created *models.ComponentStock) bool {
+		if created == nil {
+			return false
+		}
+		return created.SKU == sku && created.PrimarySupplierID != uuid.Nil && created.PrimarySupplier != "" && created.LeadTimeDays > 0
+	})).Return(nil)
+
+	err := svc.CreateComponentStock(context.Background(), stock)
+	assert.NoError(t, err)
+	repo.AssertExpectations(t)
+}
