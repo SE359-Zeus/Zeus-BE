@@ -214,7 +214,37 @@ func (s *ProductionService) GetReadinessByOrderID(ctx context.Context, orderID u
 }
 
 func (s *ProductionService) GeneratePOForDeficits(ctx context.Context, orderID uuid.UUID) ([]models.BOMExplosionResult, error) {
-	return s.RunBOMExplosion(ctx, orderID)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	order, err := s.repo.GetProductionOrder(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if order == nil {
+		return nil, fmt.Errorf("production order not found")
+	}
+
+	results, err := s.RunBOMExplosion(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	var shortages []models.BOMExplosionResult
+	for _, res := range results {
+		if res.IsShortage {
+			shortages = append(shortages, res)
+		}
+	}
+
+	if len(shortages) > 0 {
+		if err := s.executeSCMHandoff(ctx, orderID, order.ProductModelCode, shortages); err != nil {
+			return nil, err
+		}
+	}
+
+	return results, nil
 }
 
 func (s *ProductionService) loadReadinessRows(ctx context.Context) ([]models.ReadinessMatrixRow, error) {

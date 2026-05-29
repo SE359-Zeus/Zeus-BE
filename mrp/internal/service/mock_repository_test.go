@@ -226,8 +226,30 @@ func (m *MockSCMClient) GetLUTs(ctx context.Context) (*models.LUTCollection, err
 	return nil, args.Error(1)
 }
 
+func (m *MockSCMClient) GetOptimalSupplier(ctx context.Context, sku string) (uuid.UUID, float64, error) {
+	args := m.Called(ctx, sku)
+	var id uuid.UUID
+	if args.Get(0) != nil {
+		id = args.Get(0).(uuid.UUID)
+	}
+	return id, args.Get(1).(float64), args.Error(2)
+}
+
+func (m *MockSCMClient) CreateDraftPO(ctx context.Context, vendorID uuid.UUID, targetBuild string) (string, error) {
+	args := m.Called(ctx, vendorID, targetBuild)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockSCMClient) AddLineItemWithLock(ctx context.Context, poID string, sku string, qty int) error {
+	args := m.Called(ctx, poID, sku, qty)
+	return args.Error(0)
+}
+
 func setupMockSCMClient() *MockSCMClient {
 	m := new(MockSCMClient)
+	m.On("GetOptimalSupplier", mock.Anything, mock.Anything).Return(uuid.New(), 10.0, nil).Maybe()
+	m.On("CreateDraftPO", mock.Anything, mock.Anything, mock.Anything).Return("PO-DRAFT-ID", nil).Maybe()
+	m.On("AddLineItemWithLock", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	return m
 }
 

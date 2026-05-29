@@ -142,6 +142,7 @@ type ComponentStock struct {
 type DemandPOSummary struct {
 	OrderID      string    `json:"order_id"`
 	TargetBuild  string    `json:"target_build"`
+	ProductName  string    `json:"product_name"`
 	Quantity     int       `json:"quantity"`
 	QtyReady     int       `json:"qty_ready"`
 	Status       string    `json:"status"`
