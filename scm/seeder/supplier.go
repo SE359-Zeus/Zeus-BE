@@ -41,7 +41,7 @@ func seedSuppliers(db *gorm.DB, count int) []models.Supplier {
 			ID:           stableUUID("supplier:" + spec.Name),
 			Name:         spec.Name,
 			Contact:      spec.Contact,
-			Tier:         models.SupplierTierQualified,
+			Tier:         models.SupplierTier2,
 			LeadTimeDays: spec.LeadTimeDays,
 			QualityScore: spec.QualityScore,
 			OnTimeRate:   spec.OnTimeRate,

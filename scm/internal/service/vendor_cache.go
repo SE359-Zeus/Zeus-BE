@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"zeus-scm-service/internal/models"
+	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/repository"
 
 	"github.com/google/uuid"
@@ -64,4 +65,31 @@ func (s *cachedVendorService) UpdateSupplierMetrics(ctx context.Context, supplie
 		}
 	}
 	return nil
+}
+
+func (s *cachedVendorService) ListSuppliers(ctx context.Context, tier string, params pagination.Params, q string) ([]models.Supplier, *pagination.Meta, error) {
+	return s.base.ListSuppliers(ctx, tier, params, q)
+}
+
+func (s *cachedVendorService) CreateSupplier(ctx context.Context, supplier *models.Supplier) error {
+	return s.base.CreateSupplier(ctx, supplier)
+}
+
+func (s *cachedVendorService) CreateSkuMapping(ctx context.Context, mapping *models.SkuMapping) error {
+	err := s.base.CreateSkuMapping(ctx, mapping)
+	if err != nil {
+		return err
+	}
+	if s.vendorCache != nil {
+		_ = s.vendorCache.DeleteOptimalSupplier(ctx, mapping.SKU)
+	}
+	return nil
+}
+
+func (s *cachedVendorService) GetSupplierMetrics(ctx context.Context) (int64, float64, error) {
+	return s.base.GetSupplierMetrics(ctx)
+}
+
+func (s *cachedVendorService) FindAllSuppliersWithMappings(ctx context.Context) ([]models.Supplier, error) {
+	return s.base.FindAllSuppliersWithMappings(ctx)
 }

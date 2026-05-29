@@ -220,6 +220,11 @@ func main() {
 	{
 		api.GET("/vendors/optimal", middleware.RequireRoles(rolesOperator...), vendorH.GetOptimalSupplier)
 		api.POST("/vendors/:id/recalc-metrics", middleware.RequireRoles(rolesOperator...), vendorH.UpdateSupplierMetrics)
+		api.GET("/vendors", middleware.RequireRoles(rolesWorker...), vendorH.ListSuppliers)
+		api.GET("/vendors/metrics", middleware.RequireRoles(rolesWorker...), vendorH.GetSupplierMetrics)
+		api.POST("/vendors", middleware.RequireRoles(rolesOperator...), vendorH.CreateSupplier)
+		api.POST("/vendors/:id/sku-mappings", middleware.RequireRoles(rolesOperator...), vendorH.CreateSkuMapping)
+		api.GET("/vendors/export", middleware.RequireRoles(rolesWorker...), vendorH.ExportSuppliersReport)
 
 		api.POST("/purchase-orders/draft", middleware.RequireRoles(rolesWorker...), poH.CreateDraft)
 		api.POST("/purchase-orders/:poId/line-items", middleware.RequireRoles(rolesWorker...), poH.AddLineItemWithLock)

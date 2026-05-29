@@ -17,6 +17,12 @@ type IVendorRepository interface {
 	FindGoodsReceiptsByVendor(ctx context.Context, vendorID uuid.UUID) ([]models.GoodsReceipt, error)
 	CountGoodsReceiptsByVendor(ctx context.Context, vendorID uuid.UUID) (int64, error)
 	FindGRLineItemsByGRID(ctx context.Context, grID string) ([]models.GRLineItem, error)
+	ListSuppliers(ctx context.Context, tier string, params pagination.Params, q string) ([]models.Supplier, *pagination.Meta, error)
+	CreateSupplier(ctx context.Context, supplier *models.Supplier) error
+	CreateSkuMapping(ctx context.Context, mapping *models.SkuMapping) error
+	CountSuppliers(ctx context.Context) (int64, error)
+	GetAverageOnTimeRate(ctx context.Context) (float64, error)
+	FindAllSuppliersWithMappings(ctx context.Context) ([]models.Supplier, error)
 }
 
 type IPORepository interface {

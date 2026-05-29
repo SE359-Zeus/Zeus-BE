@@ -64,6 +64,48 @@ func (m *MockVendorRepository) FindGRLineItemsByGRID(ctx context.Context, grID s
 	return nil, args.Error(1)
 }
 
+func (m *MockVendorRepository) ListSuppliers(ctx context.Context, tier string, params pagination.Params, q string) ([]models.Supplier, *pagination.Meta, error) {
+	args := m.Called(ctx, tier, params, q)
+	var suppliers []models.Supplier
+	if args.Get(0) != nil {
+		suppliers = args.Get(0).([]models.Supplier)
+	}
+	var meta *pagination.Meta
+	if args.Get(1) != nil {
+		meta = args.Get(1).(*pagination.Meta)
+	}
+	return suppliers, meta, args.Error(2)
+}
+
+func (m *MockVendorRepository) CreateSupplier(ctx context.Context, supplier *models.Supplier) error {
+	args := m.Called(ctx, supplier)
+	return args.Error(0)
+}
+
+func (m *MockVendorRepository) CreateSkuMapping(ctx context.Context, mapping *models.SkuMapping) error {
+	args := m.Called(ctx, mapping)
+	return args.Error(0)
+}
+
+func (m *MockVendorRepository) CountSuppliers(ctx context.Context) (int64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockVendorRepository) GetAverageOnTimeRate(ctx context.Context) (float64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(float64), args.Error(1)
+}
+
+func (m *MockVendorRepository) FindAllSuppliersWithMappings(ctx context.Context) ([]models.Supplier, error) {
+	args := m.Called(ctx)
+	var suppliers []models.Supplier
+	if args.Get(0) != nil {
+		suppliers = args.Get(0).([]models.Supplier)
+	}
+	return suppliers, args.Error(1)
+}
+
 type MockPORepository struct {
 	mock.Mock
 }

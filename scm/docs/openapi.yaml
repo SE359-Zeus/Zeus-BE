@@ -114,7 +114,7 @@ components:
           type: string
         tier:
           type: string
-          enum: [Preferred, Qualified, Under Review]
+          enum: ["Tier 1", "Tier 2", "Tier 3"]
         lead_time_days:
           type: integer
         quality_score:
@@ -406,6 +406,182 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
+
+  /vendors:
+    get:
+      summary: List suppliers with optional tier filtering, query search, and pagination
+      tags: [Vendors]
+      parameters:
+        - name: tier
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["Tier 1", "Tier 2", "Tier 3"]
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 15
+        - name: sort_by
+          in: query
+          required: false
+          schema:
+            type: string
+            default: created_at
+        - name: sort_dir
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: List of suppliers and pagination metadata
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      metadata:
+                        type: object
+                        properties:
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Supplier'
+    post:
+      summary: Create a new supplier
+      tags: [Vendors]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                contact:
+                  type: string
+                tier:
+                  type: string
+                  enum: ["Tier 1", "Tier 2", "Tier 3"]
+                lead_time_days:
+                  type: integer
+              required: [name, contact, tier, lead_time_days]
+      responses:
+        '201':
+          description: Supplier created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/Supplier'
+
+  /vendors/metrics:
+    get:
+      summary: Retrieve supplier metrics (total active, average on-time delivery rate)
+      tags: [Vendors]
+      responses:
+        '200':
+          description: Supplier metrics
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          total_active_suppliers:
+                            type: integer
+                          on_time_delivery_rate:
+                            type: number
+                            format: float
+
+  /vendors/{id}/sku-mappings:
+    post:
+      summary: Create a new SKU mapping for a supplier
+      tags: [Vendors]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sku:
+                  type: string
+                name:
+                  type: string
+                unit_price:
+                  type: number
+                  format: float
+                lead_time_days:
+                  type: integer
+                min_order_qty:
+                  type: integer
+              required: [sku, name, unit_price, lead_time_days, min_order_qty]
+      responses:
+        '201':
+          description: SKU mapping created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/SkuMapping'
+
+  /vendors/export:
+    get:
+      summary: Export report of suppliers and their SKU mappings as CSV stream
+      tags: [Vendors]
+      responses:
+        '200':
+          description: CSV file download stream
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: attachment; filename="suppliers_report.csv"
+            Content-Type:
+              schema:
+                type: string
+                example: text/csv
+          content:
+            text/csv:
+              schema:
+                type: string
 
   /purchase-orders/draft:
     post:

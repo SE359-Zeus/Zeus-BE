@@ -27,6 +27,43 @@ func (m *MockVendorService) UpdateSupplierMetrics(ctx context.Context, supplierI
 	return args.Error(0)
 }
 
+func (m *MockVendorService) ListSuppliers(ctx context.Context, tier string, params pagination.Params, q string) ([]models.Supplier, *pagination.Meta, error) {
+	args := m.Called(ctx, tier, params, q)
+	var suppliers []models.Supplier
+	if args.Get(0) != nil {
+		suppliers = args.Get(0).([]models.Supplier)
+	}
+	var meta *pagination.Meta
+	if args.Get(1) != nil {
+		meta = args.Get(1).(*pagination.Meta)
+	}
+	return suppliers, meta, args.Error(2)
+}
+
+func (m *MockVendorService) CreateSupplier(ctx context.Context, supplier *models.Supplier) error {
+	args := m.Called(ctx, supplier)
+	return args.Error(0)
+}
+
+func (m *MockVendorService) CreateSkuMapping(ctx context.Context, mapping *models.SkuMapping) error {
+	args := m.Called(ctx, mapping)
+	return args.Error(0)
+}
+
+func (m *MockVendorService) GetSupplierMetrics(ctx context.Context) (int64, float64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Get(1).(float64), args.Error(2)
+}
+
+func (m *MockVendorService) FindAllSuppliersWithMappings(ctx context.Context) ([]models.Supplier, error) {
+	args := m.Called(ctx)
+	var suppliers []models.Supplier
+	if args.Get(0) != nil {
+		suppliers = args.Get(0).([]models.Supplier)
+	}
+	return suppliers, args.Error(1)
+}
+
 type MockPOService struct {
 	mock.Mock
 }
