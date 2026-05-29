@@ -71,6 +71,13 @@ type IShipmentRepository interface {
 	UpdateShipment(ctx context.Context, shipment *models.Shipment) error
 	UpdateShipmentFields(ctx context.Context, id string, fields map[string]interface{}) error
 	GetShipmentItemsByShipmentID(ctx context.Context, shipmentID string) ([]models.ShipmentItem, error)
+	ListShipments(ctx context.Context, status string, params pagination.Params) ([]models.Shipment, *pagination.Meta, error)
+	CreateShipment(ctx context.Context, shipment *models.Shipment) error
+	GetShipmentMetrics(ctx context.Context) (total int64, inTransit int64, delayed int64, onTimeRate float64, err error)
+}
+
+type ICarrierRepository interface {
+	ListCarriers(ctx context.Context) ([]models.Carrier, error)
 }
 
 type IStockRepository interface {

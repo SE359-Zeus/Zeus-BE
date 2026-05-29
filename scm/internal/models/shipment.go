@@ -31,7 +31,8 @@ type Shipment struct {
 	UpdatedAt  time.Time      `gorm:"autoUpdateTime"`
 	DeletedAt  gorm.DeletedAt `gorm:"index"`
 
-	Items []ShipmentItem `gorm:"foreignKey:ShipmentID"`
+	Items    []ShipmentItem `gorm:"foreignKey:ShipmentID"`
+	Supplier *Supplier      `gorm:"foreignKey:SupplierID;references:ID"`
 }
 
 type ShipmentItem struct {

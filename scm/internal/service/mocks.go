@@ -284,6 +284,45 @@ func (m *MockShipmentService) DispatchShipment(ctx context.Context, shipmentID s
 	return args.Error(0)
 }
 
+func (m *MockShipmentService) ListShipments(ctx context.Context, status string, params pagination.Params) ([]models.Shipment, *pagination.Meta, error) {
+	args := m.Called(ctx, status, params)
+	var shipments []models.Shipment
+	if args.Get(0) != nil {
+		shipments = args.Get(0).([]models.Shipment)
+	}
+	var meta *pagination.Meta
+	if args.Get(1) != nil {
+		meta = args.Get(1).(*pagination.Meta)
+	}
+	return shipments, meta, args.Error(2)
+}
+
+func (m *MockShipmentService) GetShipment(ctx context.Context, shipmentID string) (*models.Shipment, error) {
+	args := m.Called(ctx, shipmentID)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Shipment), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockShipmentService) CreateShipment(ctx context.Context, shipment *models.Shipment) error {
+	args := m.Called(ctx, shipment)
+	return args.Error(0)
+}
+
+func (m *MockShipmentService) GetMetrics(ctx context.Context) (total int64, inTransit int64, delayed int64, onTimeRate float64, err error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Get(1).(int64), args.Get(2).(int64), args.Get(3).(float64), args.Error(4)
+}
+
+func (m *MockShipmentService) ListCarriers(ctx context.Context) ([]models.Carrier, error) {
+	args := m.Called(ctx)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.Carrier), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 type MockGoodsReceiptService struct {
 	mock.Mock
 }
