@@ -6,7 +6,6 @@ import (
 	"time"
 	"zeus-scm-service/internal/models"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -53,8 +52,12 @@ func seedCatalogs(db *gorm.DB, data *PartsFile) (map[string]int32, map[string]mo
 			continue
 		}
 		desc := pc.Description
+		// Use a stable, deterministic UUID derived from part_number+mfg_number so
+		// the same part always gets the same UUID across re-seeds, ensuring the
+		// exported scm-manifest.json IDs match what is stored in the database.
+		stableID := stableUUID("part_catalog:" + pc.PartNumber + ":" + pc.MfgNumber)
 		cat := models.PartCatalog{
-			ID:            uuid.New(),
+			ID:            stableID,
 			PartNumber:    pc.PartNumber,
 			PartTypesID:   tid,
 			MfgNumber:     pc.MfgNumber,

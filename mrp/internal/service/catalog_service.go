@@ -70,17 +70,28 @@ func (s *ProductionService) GetAssemblyByModelCode(ctx context.Context, modelCod
 	if len(boms) == 0 {
 		return nil, nil
 	}
-	comps := make([]models.ComponentReference, 0, len(boms))
+
+	skuMap := make(map[string]int)
+	skuOrder := []string{}
 	for _, e := range boms {
 		sku, err := s.resolveComponentSKU(ctx, e.ComponentPartID)
 		if err != nil {
 			return nil, err
 		}
+		if _, seen := skuMap[sku]; !seen {
+			skuOrder = append(skuOrder, sku)
+		}
+		skuMap[sku] += e.RequiredQuantityPerUnit
+	}
+
+	comps := make([]models.ComponentReference, 0, len(skuOrder))
+	for _, sku := range skuOrder {
 		comps = append(comps, models.ComponentReference{
 			SKU:      sku,
-			Quantity: e.RequiredQuantityPerUnit,
+			Quantity: skuMap[sku],
 		})
 	}
+
 	var unitPrice float64
 	if s.scmClient != nil {
 		if model, err := s.scmClient.GetProductModelByCode(ctx, modelCode); err == nil && model != nil {
@@ -323,24 +334,36 @@ func (s *ProductionService) DeleteCatalogPart(ctx context.Context, sku string) e
 
 func (s *ProductionService) groupAssemblies(ctx context.Context, boms []models.BomEntry) ([]models.AssemblyResponse, error) {
 	order := []string{}
-	grouped := map[string][]models.ComponentReference{}
+	skuMaps := map[string]map[string]int{}
+	skuOrders := map[string][]string{}
+
 	for _, e := range boms {
-		if _, seen := grouped[e.ParentModelCode]; !seen {
+		if _, seen := skuMaps[e.ParentModelCode]; !seen {
 			order = append(order, e.ParentModelCode)
+			skuMaps[e.ParentModelCode] = map[string]int{}
+			skuOrders[e.ParentModelCode] = []string{}
 		}
 		sku, err := s.resolveComponentSKU(ctx, e.ComponentPartID)
 		if err != nil {
 			return nil, err
 		}
-		grouped[e.ParentModelCode] = append(grouped[e.ParentModelCode], models.ComponentReference{
-			SKU:      sku,
-			Quantity: e.RequiredQuantityPerUnit,
-		})
+		if _, seen := skuMaps[e.ParentModelCode][sku]; !seen {
+			skuOrders[e.ParentModelCode] = append(skuOrders[e.ParentModelCode], sku)
+		}
+		skuMaps[e.ParentModelCode][sku] += e.RequiredQuantityPerUnit
 	}
 
 	result := make([]models.AssemblyResponse, 0, len(order))
 	for _, model := range order {
-		comps := grouped[model]
+		skuMap := skuMaps[model]
+		skuOrder := skuOrders[model]
+		comps := make([]models.ComponentReference, 0, len(skuOrder))
+		for _, sku := range skuOrder {
+			comps = append(comps, models.ComponentReference{
+				SKU:      sku,
+				Quantity: skuMap[sku],
+			})
+		}
 		result = append(result, models.AssemblyResponse{
 			ModelCode:  model,
 			Name:       model,

@@ -135,3 +135,11 @@ func (s *cachedInventoryService) DeletePartCatalogBySKU(ctx context.Context, sku
 func (s *cachedInventoryService) GetPartCatalogBySKU(ctx context.Context, sku string) (*models.PartCatalog, float64, int, error) {
 	return s.base.GetPartCatalogBySKU(ctx, sku)
 }
+
+func (s *cachedInventoryService) ListStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error) {
+	return s.base.ListStocks(ctx, params, q)
+}
+
+func (s *cachedInventoryService) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
+	return s.base.GetStockBySKU(ctx, sku)
+}

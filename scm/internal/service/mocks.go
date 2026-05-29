@@ -191,6 +191,22 @@ func (m *MockInventoryService) GetPartCatalogBySKU(ctx context.Context, sku stri
 	return nil, 0, 0, args.Error(3)
 }
 
+func (m *MockInventoryService) ListStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error) {
+	args := m.Called(ctx, params, q)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.ComponentStock), args.Get(1).(*pagination.Meta), args.Error(2)
+	}
+	return nil, args.Get(1).(*pagination.Meta), args.Error(2)
+}
+
+func (m *MockInventoryService) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
+	args := m.Called(ctx, sku)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.ComponentStock), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 type MockShipmentService struct {
 	mock.Mock
 }

@@ -52,6 +52,7 @@ type IInventoryRepository interface {
 	DeletePartCatalogBySKU(ctx context.Context, sku string) (int64, error)
 	GetPartCatalogBySKU(ctx context.Context, sku string) (*models.PartCatalog, error)
 	GetComponentStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error)
+	ListComponentStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error)
 	CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error
 	UpdateComponentStockFieldsBySKU(ctx context.Context, sku string, updates map[string]interface{}) (int64, error)
 	DeleteComponentStockBySKU(ctx context.Context, sku string) (int64, error)

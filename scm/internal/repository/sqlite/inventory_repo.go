@@ -168,6 +168,20 @@ func (r *inventoryRepository) GetComponentStockBySKU(ctx context.Context, sku st
 	return &s, nil
 }
 
+func (r *inventoryRepository) ListComponentStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error) {
+	query := r.db.WithContext(ctx).Model(&models.ComponentStock{})
+	if q != "" {
+		like := "%" + q + "%"
+		query = query.Where("sku LIKE ? OR name LIKE ? OR category LIKE ?", like, like, like)
+	}
+	var stocks []models.ComponentStock
+	meta, err := pagination.Paginate(query, params, &stocks, "created_at", "updated_at", "sku", "name", "category")
+	if err != nil {
+		return nil, nil, err
+	}
+	return stocks, meta, nil
+}
+
 func (r *inventoryRepository) CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error {
 	return r.db.WithContext(ctx).Create(stock).Error
 }

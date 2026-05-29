@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"zeus-scm-service/internal/infrastructure/messaging"
+	"zeus-scm-service/internal/infrastructure/observability"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/repository"
 
@@ -123,6 +125,35 @@ func (s *poService) AddLineItemWithLock(ctx context.Context, poID string, sku st
 				consumeErr = ErrInsufficientDeficit
 				return
 			}
+
+			// Extract trace context from message headers
+			msgTraceID := ""
+			msgSpanID := ""
+			if msg.Headers != nil {
+				if tpVal, ok := msg.Headers["traceparent"].(string); ok && tpVal != "" {
+					parts := strings.Split(tpVal, "-")
+					if len(parts) == 4 && len(parts[1]) == 32 {
+						msgTraceID = parts[1]
+					}
+				}
+				if msgTraceID == "" {
+					if tidVal, ok := msg.Headers["trace_id"].(string); ok && tidVal != "" {
+						msgTraceID = tidVal
+					}
+				}
+				if sidVal, ok := msg.Headers["span_id"].(string); ok && sidVal != "" {
+					msgSpanID = sidVal
+				}
+			}
+
+			msgCtx := ctx
+			if msgTraceID != "" {
+				msgCtx = observability.WithTraceID(ctx, msgTraceID)
+				if msgSpanID != "" {
+					msgCtx = observability.WithSpanID(msgCtx, msgSpanID)
+				}
+			}
+
 			var d messaging.DeficitMessage
 			if err := json.Unmarshal(msg.Body, &d); err != nil {
 				_ = conn.Nack(msg.DeliveryTag, true)
@@ -138,7 +169,7 @@ func (s *poService) AddLineItemWithLock(ctx context.Context, poID string, sku st
 				SKU: sku,
 				Qty: qty,
 			}
-			if err := conn.PublishToReserved(ctx, reservedMsg); err != nil {
+			if err := conn.PublishToReserved(msgCtx, reservedMsg); err != nil {
 				_ = conn.Nack(msg.DeliveryTag, true)
 				consumeErr = err
 				return

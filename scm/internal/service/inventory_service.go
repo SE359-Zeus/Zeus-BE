@@ -39,6 +39,8 @@ type IInventoryService interface {
 	UpdatePartCatalogBySKU(ctx context.Context, sku string, fields map[string]any) (*models.PartCatalog, error)
 	DeletePartCatalogBySKU(ctx context.Context, sku string) error
 	GetPartCatalogBySKU(ctx context.Context, sku string) (*models.PartCatalog, float64, int, error)
+	ListStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error)
+	GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error)
 }
 
 type inventoryService struct {
@@ -312,6 +314,18 @@ func (s *inventoryServiceRepo) GetPartCatalogBySKU(ctx context.Context, sku stri
 		return pc, 0, 0, ErrNotFound
 	}
 	return pc, stock.UnitCost, stock.StockQty, nil
+}
+
+func (s *inventoryServiceRepo) ListStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error) {
+	return s.repo.ListComponentStocks(ctx, params, q)
+}
+
+func (s *inventoryServiceRepo) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
+	stk, err := s.repo.GetComponentStockBySKU(ctx, sku)
+	if err != nil || stk == nil {
+		return nil, ErrNotFound
+	}
+	return stk, nil
 }
 
 func (s *inventoryService) UpdateProduct(ctx context.Context, id uuid.UUID, fields map[string]any) (*models.Product, error) {
@@ -709,5 +723,27 @@ func (s *inventoryService) ListPartCatalog(ctx context.Context, typeID *int32, p
 		return nil, nil, err
 	}
 	return catalogs, meta, nil
+}
+
+func (s *inventoryService) ListStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error) {
+	query := s.db.WithContext(ctx).Model(&models.ComponentStock{})
+	if q != "" {
+		like := "%" + q + "%"
+		query = query.Where("sku LIKE ? OR name LIKE ? OR category LIKE ?", like, like, like)
+	}
+	var stocks []models.ComponentStock
+	meta, err := pagination.Paginate(query, params, &stocks, "created_at", "updated_at", "sku", "name", "category")
+	if err != nil {
+		return nil, nil, err
+	}
+	return stocks, meta, nil
+}
+
+func (s *inventoryService) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
+	var stock models.ComponentStock
+	if err := s.db.WithContext(ctx).First(&stock, "sku = ?", sku).Error; err != nil {
+		return nil, ErrNotFound
+	}
+	return &stock, nil
 }
 
