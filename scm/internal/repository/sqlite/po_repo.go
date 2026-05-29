@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"zeus-scm-service/internal/models"
+	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/repository"
 
 	"github.com/google/uuid"
@@ -21,7 +22,7 @@ func NewPORepository(db *gorm.DB) repository.IPORepository {
 
 func (r *poRepository) GetPOByID(ctx context.Context, id string) (*models.PurchaseOrder, error) {
 	var po models.PurchaseOrder
-	if err := r.db.WithContext(ctx).First(&po, "id = ?", id).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("LineItems").First(&po, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &po, nil
@@ -69,4 +70,26 @@ func (r *poRepository) FindPOByVendorAndStatuses(ctx context.Context, vendorID u
 		return nil, err
 	}
 	return &po, nil
+}
+
+func (r *poRepository) ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error) {
+	query := r.db.WithContext(ctx).Model(&models.PurchaseOrder{}).Preload("LineItems")
+	if q != "" {
+		like := "%" + q + "%"
+		query = query.Where("id LIKE ? OR target_build LIKE ? OR status LIKE ?", like, like, like)
+	}
+	var pos []models.PurchaseOrder
+	meta, err := pagination.Paginate(query, params, &pos, "created_at", "updated_at", "id", "status")
+	if err != nil {
+		return nil, nil, err
+	}
+	return pos, meta, nil
+}
+
+func (r *poRepository) FindSkuMapping(ctx context.Context, vendorID uuid.UUID, sku string) (*models.SkuMapping, error) {
+	var mapping models.SkuMapping
+	if err := r.db.WithContext(ctx).Where("supplier_id = ? AND sku = ?", vendorID, sku).First(&mapping).Error; err != nil {
+		return nil, err
+	}
+	return &mapping, nil
 }

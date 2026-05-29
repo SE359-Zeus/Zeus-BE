@@ -34,6 +34,8 @@ type IPORepository interface {
 	GetPOLineItemsByPOID(ctx context.Context, poID string) ([]models.POLineItem, error)
 	CountPOsByYearPattern(ctx context.Context, year int, pattern string) (int64, error)
 	FindPOByVendorAndStatuses(ctx context.Context, vendorID uuid.UUID, statuses []models.POStatus) (*models.PurchaseOrder, error)
+	ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error)
+	FindSkuMapping(ctx context.Context, vendorID uuid.UUID, sku string) (*models.SkuMapping, error)
 }
 
 type IInventoryRepository interface {

@@ -159,6 +159,27 @@ func (m *MockPORepository) FindPOByVendorAndStatuses(ctx context.Context, vendor
 	return nil, args.Error(1)
 }
 
+func (m *MockPORepository) ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error) {
+	args := m.Called(ctx, params, q)
+	var pos []models.PurchaseOrder
+	if args.Get(0) != nil {
+		pos = args.Get(0).([]models.PurchaseOrder)
+	}
+	var meta *pagination.Meta
+	if args.Get(1) != nil {
+		meta = args.Get(1).(*pagination.Meta)
+	}
+	return pos, meta, args.Error(2)
+}
+
+func (m *MockPORepository) FindSkuMapping(ctx context.Context, vendorID uuid.UUID, sku string) (*models.SkuMapping, error) {
+	args := m.Called(ctx, vendorID, sku)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.SkuMapping), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 type MockInventoryRepository struct {
 	mock.Mock
 }

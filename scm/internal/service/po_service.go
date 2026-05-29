@@ -11,6 +11,7 @@ import (
 	"zeus-scm-service/internal/infrastructure/messaging"
 	"zeus-scm-service/internal/infrastructure/observability"
 	"zeus-scm-service/internal/models"
+	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/repository"
 
 	"github.com/google/uuid"
@@ -22,6 +23,9 @@ type IPOService interface {
 	AddLineItemWithLock(ctx context.Context, poID string, sku string, qty int) error
 	ApprovePO(ctx context.Context, poID string) error
 	TransitionState(ctx context.Context, poID string, newState models.POStatus) error
+	ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error)
+	GetPO(ctx context.Context, poID string) (*models.PurchaseOrder, error)
+	CreatePO(ctx context.Context, po *models.PurchaseOrder) error
 }
 
 type poService struct {
@@ -399,4 +403,126 @@ func validTransition(current, new models.POStatus) bool {
 		return true
 	}
 	return newIdx > currentIdx
+}
+
+func (s *poService) ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error) {
+	query := s.db.WithContext(ctx).Model(&models.PurchaseOrder{}).Preload("LineItems")
+	if q != "" {
+		like := "%" + q + "%"
+		query = query.Where("id LIKE ? OR target_build LIKE ? OR status LIKE ?", like, like, like)
+	}
+	var pos []models.PurchaseOrder
+	meta, err := pagination.Paginate(query, params, &pos, "created_at", "updated_at", "id", "status")
+	if err != nil {
+		return nil, nil, err
+	}
+	return pos, meta, nil
+}
+
+func (s *poService) GetPO(ctx context.Context, poID string) (*models.PurchaseOrder, error) {
+	var po models.PurchaseOrder
+	if err := s.db.WithContext(ctx).Preload("LineItems").First(&po, "id = ?", poID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &po, nil
+}
+
+func (s *poService) CreatePO(ctx context.Context, po *models.PurchaseOrder) error {
+	var existingPO models.PurchaseOrder
+	if err := s.db.WithContext(ctx).
+		Where("vendor_id = ? AND status IN ?", po.VendorID, []models.POStatus{models.POStatusDraft, models.POStatusApproved, models.POStatusInTransit}).
+		First(&existingPO).Error; err == nil {
+		return ErrMonoVendorViolation
+	}
+
+	if len(po.LineItems) == 0 {
+		return fmt.Errorf("purchase order must have at least one line item")
+	}
+
+	var totalValue float64
+	for i := range po.LineItems {
+		item := &po.LineItems[i]
+		var mapping models.SkuMapping
+		if err := s.db.WithContext(ctx).
+			Where("supplier_id = ? AND sku = ?", po.VendorID, item.SKU).
+			First(&mapping).Error; err != nil {
+			return fmt.Errorf("sku mapping not found for SKU: %s", item.SKU)
+		}
+		item.ID = uuid.New()
+		item.POID = po.ID
+		item.Description = mapping.Name
+		item.UnitPrice = mapping.UnitPrice
+		item.ReceivedQty = 0
+		totalValue += float64(item.OrderedQty) * item.UnitPrice
+	}
+
+	po.Status = models.POStatusDraft
+	po.TotalValue = totalValue
+
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(po).Error; err != nil {
+			return err
+		}
+		for i := range po.LineItems {
+			if err := tx.Create(&po.LineItems[i]).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (s *poServiceRepo) ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error) {
+	return s.poRepo.ListPOs(ctx, params, q)
+}
+
+func (s *poServiceRepo) GetPO(ctx context.Context, poID string) (*models.PurchaseOrder, error) {
+	po, err := s.poRepo.GetPOByID(ctx, poID)
+	if err != nil || po == nil {
+		return nil, ErrNotFound
+	}
+	return po, nil
+}
+
+func (s *poServiceRepo) CreatePO(ctx context.Context, po *models.PurchaseOrder) error {
+	existing, err := s.poRepo.FindPOByVendorAndStatuses(ctx, po.VendorID, []models.POStatus{models.POStatusDraft, models.POStatusApproved, models.POStatusInTransit})
+	if err == nil && existing != nil {
+		return ErrMonoVendorViolation
+	}
+
+	if len(po.LineItems) == 0 {
+		return fmt.Errorf("purchase order must have at least one line item")
+	}
+
+	var totalValue float64
+	for i := range po.LineItems {
+		item := &po.LineItems[i]
+		mapping, err := s.poRepo.FindSkuMapping(ctx, po.VendorID, item.SKU)
+		if err != nil || mapping == nil {
+			return fmt.Errorf("sku mapping not found for SKU: %s", item.SKU)
+		}
+		item.ID = uuid.New()
+		item.POID = po.ID
+		item.Description = mapping.Name
+		item.UnitPrice = mapping.UnitPrice
+		item.ReceivedQty = 0
+		totalValue += float64(item.OrderedQty) * item.UnitPrice
+	}
+
+	po.Status = models.POStatusDraft
+	po.TotalValue = totalValue
+
+	if err := s.poRepo.CreatePO(ctx, po); err != nil {
+		return err
+	}
+
+	for i := range po.LineItems {
+		if err := s.poRepo.CreatePOLineItem(ctx, &po.LineItems[i]); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -91,6 +91,32 @@ func (m *MockPOService) TransitionState(ctx context.Context, poID string, newSta
 	return args.Error(0)
 }
 
+func (m *MockPOService) ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error) {
+	args := m.Called(ctx, params, q)
+	var pos []models.PurchaseOrder
+	if args.Get(0) != nil {
+		pos = args.Get(0).([]models.PurchaseOrder)
+	}
+	var meta *pagination.Meta
+	if args.Get(1) != nil {
+		meta = args.Get(1).(*pagination.Meta)
+	}
+	return pos, meta, args.Error(2)
+}
+
+func (m *MockPOService) GetPO(ctx context.Context, poID string) (*models.PurchaseOrder, error) {
+	args := m.Called(ctx, poID)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.PurchaseOrder), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockPOService) CreatePO(ctx context.Context, po *models.PurchaseOrder) error {
+	args := m.Called(ctx, po)
+	return args.Error(0)
+}
+
 type MockInventoryService struct {
 	mock.Mock
 }

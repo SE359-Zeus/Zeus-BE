@@ -27,6 +27,7 @@ type PurchaseOrder struct {
 	TotalValue       float64            `gorm:"not null"`
 	PaymentTerms     string             `gorm:"type:varchar(100)"`
 	ExpectedDelivery time.Time          `gorm:"not null"`
+	Notes            string             `gorm:"type:text"`
 	CreatedAt        time.Time          `gorm:"autoCreateTime"`
 	UpdatedAt        time.Time          `gorm:"autoUpdateTime"`
 	DeletedAt        gorm.DeletedAt     `gorm:"index"`

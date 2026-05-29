@@ -230,6 +230,9 @@ func main() {
 		api.POST("/purchase-orders/:poId/line-items", middleware.RequireRoles(rolesWorker...), poH.AddLineItemWithLock)
 		api.POST("/purchase-orders/:poId/approve", middleware.RequireRoles(rolesOperator...), poH.ApprovePO)
 		api.PUT("/purchase-orders/:poId/state", middleware.RequireRoles(rolesOperator...), poH.TransitionState)
+		api.GET("/purchase-orders", middleware.RequireRoles(rolesWorker...), poH.ListPOs)
+		api.GET("/purchase-orders/:poId", middleware.RequireRoles(rolesWorker...), poH.GetPO)
+		api.POST("/purchase-orders", middleware.RequireRoles(rolesWorker...), poH.CreatePO)
 
 		api.POST("/goods-receipts/:grId/lock", middleware.RequireRoles(rolesWorker...), grH.AcquireLock)
 		api.POST("/goods-receipts/:grId/process", middleware.RequireRoles(rolesWorker...), grH.ProcessBlindReceipt)
