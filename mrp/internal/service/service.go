@@ -24,6 +24,8 @@ type SCMClient interface {
 	CreateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error)
 	UpdateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error)
 	DeleteCatalogPart(ctx context.Context, sku string) error
+	GetInventoryLedger(ctx context.Context, page, limit int, sortBy, sortDir, txnType, sku string) ([]models.InventoryLedgerEntry, bool, error)
+	GetLUTs(ctx context.Context) (*models.LUTCollection, error)
 }
 
 type ProductionService struct {

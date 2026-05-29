@@ -17,9 +17,11 @@ func (s *ProductionService) GetInventoryLedger(ctx context.Context) ([]models.In
 		return nil, err
 	}
 	if s.scmClient != nil {
-		if txns, err := s.inventoryLedgerFromSCM(ctx); err == nil {
-			return txns, nil
+		txns, err := s.inventoryLedgerFromSCM(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("SCM inventory ledger unavailable: %w", err)
 		}
+		return txns, nil
 	}
 	txns, err := s.repo.GetInventoryTransactions(ctx)
 	if err != nil {
@@ -36,9 +38,11 @@ func (s *ProductionService) GetInventoryMetrics(ctx context.Context) (*models.In
 		return nil, err
 	}
 	if s.scmClient != nil {
-		if metrics, err := s.inventoryMetricsFromSCM(ctx); err == nil {
-			return metrics, nil
+		metrics, err := s.inventoryMetricsFromSCM(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("SCM inventory metrics unavailable: %w", err)
 		}
+		return metrics, nil
 	}
 	m, err := s.repo.GetInventoryMetrics(ctx)
 	if err != nil {
@@ -126,24 +130,24 @@ func (s *ProductionService) inventoryLedgerFromSCM(ctx context.Context) ([]model
 	rows := make([]models.InventoryTransactionDTO, 0)
 
 	for {
-		items, hasMore, err := s.scmClient.ListStocks(ctx, page, limit, "sku", "asc", "")
+		entries, hasMore, err := s.scmClient.GetInventoryLedger(ctx, page, limit, "created_at", "desc", "", "")
 		if err != nil {
 			return nil, err
 		}
-		for _, item := range items {
+		for _, e := range entries {
 			rows = append(rows, models.InventoryTransactionDTO{
-				ID:             item.SKU,
-				SKU:            item.SKU,
-				Type:           "stock_snapshot",
-				QtyChange:      item.StockQty,
-				RunningBalance: item.StockQty,
-				Location:       item.Location,
-				Timestamp:      item.UpdatedAt,
-				Operator:       "SCM",
-				Reference:      item.Name,
+				ID:             e.ID,
+				SKU:            e.SKU,
+				Type:           e.Type,
+				QtyChange:      e.QtyChange,
+				RunningBalance: e.RunningBalance,
+				Location:       e.Location,
+				Timestamp:      e.CreatedAt,
+				Operator:       e.OperatorID,
+				Reference:      e.Reference,
 			})
 		}
-		if !hasMore || len(items) == 0 {
+		if !hasMore || len(entries) == 0 {
 			break
 		}
 		page++

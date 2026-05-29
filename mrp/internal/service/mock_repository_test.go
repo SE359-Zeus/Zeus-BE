@@ -210,6 +210,22 @@ func (m *MockSCMClient) DeleteCatalogPart(ctx context.Context, sku string) error
 	return args.Error(0)
 }
 
+func (m *MockSCMClient) GetInventoryLedger(ctx context.Context, page, limit int, sortBy, sortDir, txnType, sku string) ([]models.InventoryLedgerEntry, bool, error) {
+	args := m.Called(ctx, page, limit, sortBy, sortDir, txnType, sku)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.InventoryLedgerEntry), args.Bool(1), args.Error(2)
+	}
+	return nil, args.Bool(1), args.Error(2)
+}
+
+func (m *MockSCMClient) GetLUTs(ctx context.Context) (*models.LUTCollection, error) {
+	args := m.Called(ctx)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.LUTCollection), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func setupMockSCMClient() *MockSCMClient {
 	m := new(MockSCMClient)
 	return m

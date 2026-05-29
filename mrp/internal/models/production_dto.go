@@ -169,3 +169,32 @@ type Part struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
 }
+
+type LUTCollection struct {
+	PartTypes            []LUTItem `json:"part_types"`
+	PartConditions       []LUTItem `json:"part_conditions"`
+	PartMfgStatuses     []LUTItem `json:"part_mfg_statuses"`
+	ComponentStockStates []LUTItem `json:"component_stock_states"`
+	PurchaseOrderStates []LUTItem `json:"purchase_order_states"`
+	GoodsReceiptStates  []LUTItem `json:"goods_receipt_states"`
+	ShipmentStates      []LUTItem `json:"shipment_states"`
+}
+
+type LUTItem struct {
+	ID   int32  `json:"id"`
+	Name string `json:"name"`
+}
+
+type InventoryLedgerEntry struct {
+	ID             string    `json:"id"`
+	SKU            string    `json:"sku"`
+	Type           string    `json:"type"`
+	QtyChange      int       `json:"qty_change"`
+	RunningBalance int       `json:"running_balance"`
+	Location       string    `json:"location"`
+	OperatorID     string    `json:"operator_id"`
+	Reference      string    `json:"reference"`
+	ReferenceType  string    `json:"reference_type"`
+	ReferenceID    string    `json:"reference_id"`
+	CreatedAt      time.Time `json:"created_at"`
+}
