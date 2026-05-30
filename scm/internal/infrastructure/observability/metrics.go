@@ -150,6 +150,16 @@ const (
 
 	MetricCacheHits   = "cache_hits_total"
 	MetricCacheMisses = "cache_misses_total"
+
+	MetricPOCreated            = "po_created_total"
+	MetricPOStateTransitions   = "po_state_transitions_total"
+	MetricGRCreated            = "gr_created_total"
+	MetricGRProcessed          = "gr_processed_total"
+	MetricShipmentDispatched   = "shipment_dispatched_total"
+	MetricShipmentDelivered    = "shipment_delivered_total"
+	MetricLockAcquisitions     = "lock_acquisitions_total"
+	MetricLockContention       = "lock_contention_total"
+	MetricInventoryLedgerWrite = "inventory_ledger_entries_total"
 )
 
 // DefaultRegistry is the service-wide singleton, initialised by Provider.

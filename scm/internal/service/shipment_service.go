@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"zeus-scm-service/internal/infrastructure/observability"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/repository"
 
@@ -75,38 +76,16 @@ func (s *shipmentService) DispatchShipment(ctx context.Context, shipmentID strin
 		return ErrInvalidTransition
 	}
 
-	var items []models.ShipmentItem
-	if err := s.db.WithContext(ctx).Where("shipment_id = ?", shipmentID).Find(&items).Error; err != nil {
-		return err
-	}
-
 	tx := s.db.WithContext(ctx).Begin()
 
-	for _, item := range items {
-		var stock models.ComponentStock
-		if err := tx.First(&stock, "sku = ?", item.SKU).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
-		if stock.StockQty < item.Qty {
-			tx.Rollback()
-			return ErrInsufficientDeficit
-		}
-		stock.StockQty -= item.Qty
-		if err := tx.Save(&stock).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-
 	shipment.Status = models.ShipmentStatusInTransit
-	now := time.Now()
-	shipment.ShipDate = now
+	shipment.ShipDate = time.Now()
 	if err := tx.Save(&shipment).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
+	observability.DefaultRegistry.Counter(observability.MetricShipmentDispatched).Inc()
 	return tx.Commit().Error
 }
 
@@ -131,27 +110,11 @@ func (s *shipmentServiceRepo) DispatchShipment(ctx context.Context, shipmentID s
 		return ErrInvalidTransition
 	}
 
-	items, err := s.repo.GetShipmentItemsByShipmentID(ctx, shipmentID)
-	if err != nil {
-		return err
-	}
-
-	// emulate transaction by applying changes and failing early on errors
-	for _, item := range items {
-		stock, err := s.stock.GetStockBySKU(ctx, item.SKU)
-		if err != nil {
-			return err
-		}
-		if stock.StockQty < item.Qty {
-			return ErrInsufficientDeficit
-		}
-		stock.StockQty -= item.Qty
-		if err := s.stock.SaveStock(ctx, stock); err != nil {
-			return err
-		}
-	}
-
 	shipment.Status = models.ShipmentStatusInTransit
 	shipment.ShipDate = time.Now()
-	return s.repo.UpdateShipment(ctx, shipment)
+	err = s.repo.UpdateShipment(ctx, shipment)
+	if err == nil {
+		observability.DefaultRegistry.Counter(observability.MetricShipmentDispatched).Inc()
+	}
+	return err
 }
