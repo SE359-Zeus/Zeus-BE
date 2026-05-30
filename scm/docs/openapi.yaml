@@ -612,6 +612,33 @@ paths:
               schema:
                 type: string
 
+  /purchase-orders/export:
+    get:
+      summary: Export all purchase orders with line items as CSV stream
+      tags: [Purchase Orders]
+      responses:
+        '200':
+          description: CSV file download stream
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: attachment; filename="purchase_orders_report.csv"
+            Content-Type:
+              schema:
+                type: string
+                example: text/csv
+          content:
+            text/csv:
+              schema:
+                type: string
+                description: >
+                  CSV with columns: PO ID, Vendor Name, Target Build, Status,
+                  Expected Delivery, Total Value, Notes, Line Item SKU,
+                  Line Item Description, Ordered Qty, Unit Price, Line Item Subtotal.
+                  One row per line item; POs without line items still produce a row
+                  with blank line-item fields.
+
   /purchase-orders:
     get:
       summary: List purchase orders with pagination
