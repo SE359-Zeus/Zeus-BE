@@ -98,6 +98,15 @@ func Setup(cfg Config) (p *Provider, shutdown func()) {
 	// ── Metrics registry ──────────────────────────────────────────────────────
 	registry := NewRegistry()
 	DefaultRegistry = registry // expose as package-level singleton
+
+	// Pre-register all known counters so they appear in /metrics at zero
+	registry.Counter(MetricHTTPRequestsTotal)
+	registry.Counter(MetricHTTPRequestErrors)
+	registry.Counter(MetricHTTPPanicsTotal)
+	registry.Counter(MetricAuthLoginSuccess)
+	registry.Counter(MetricAuthLoginFailure)
+	registry.Counter(MetricUserCreatedTotal)
+
 	// Initialize OTLP tracer provider if endpoint is configured.
 	var tp *sdktrace.TracerProvider
 	var otlpEP string
