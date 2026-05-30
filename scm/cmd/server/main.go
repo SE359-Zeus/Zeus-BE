@@ -107,7 +107,7 @@ func main() {
 	ledgerSvc := service.NewLedgerService(ledgerRepo)
 	poSvc := service.NewPOService(poRepo, stockRepo, vendorRepo, cfg.RabbitMQURL)
 	grSvc := service.NewGoodsReceiptService(grRepo, stockRepo, poRepo, cfg.AgingThresholdYears, ledgerSvc)
-	shipmentSvc := service.NewShipmentService(shipmentRepo, stockRepo, poRepo, vendorRepo, carrierRepo, ledgerSvc)
+	shipmentSvc := service.NewShipmentService(shipmentRepo, stockRepo, poRepo, vendorRepo, carrierRepo, ledgerSvc, grRepo)
 	inventorySvc := service.NewInventoryService(inventoryRepo)
 
 	jwtSvc, err := service.NewJWTService(cfg.JwtPublicKeyPath)
