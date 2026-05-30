@@ -168,7 +168,11 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 			tx.Rollback()
 			return err
 		}
-		stock.StockQty += received
+		goodQty := received - defective
+		if goodQty < 0 {
+			goodQty = 0
+		}
+		stock.StockQty += goodQty
 		if err := tx.Save(&stock).Error; err != nil {
 			tx.Rollback()
 			return err
@@ -181,8 +185,22 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 		return err
 	}
 
+	// Update PO line items' ReceivedQty from GR line items
 	var poItems []models.POLineItem
 	tx.Where("po_id = ?", po.ID).Find(&poItems)
+	receivedBySKU := make(map[string]int)
+	for _, item := range lineItems {
+		if item.ReceivedQty != nil {
+			receivedBySKU[item.SKU] += *item.ReceivedQty
+		}
+	}
+	for i := range poItems {
+		if qty, ok := receivedBySKU[poItems[i].SKU]; ok {
+			poItems[i].ReceivedQty += qty
+			tx.Save(&poItems[i])
+		}
+	}
+
 	allReceived := true
 	for _, li := range poItems {
 		if li.ReceivedQty < li.OrderedQty {
@@ -293,7 +311,11 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 		if err != nil {
 			return err
 		}
-		stock.StockQty += received
+		goodQty := received - defective
+		if goodQty < 0 {
+			goodQty = 0
+		}
+		stock.StockQty += goodQty
 		if err := s.stockRepo.SaveStock(ctx, stock); err != nil {
 			return err
 		}
@@ -304,6 +326,21 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 		return err
 	}
 	poItems, _ := s.poRepo.GetPOLineItemsByPOID(ctx, po.ID)
+
+	// Update PO line items' ReceivedQty from GR line items
+	receivedBySKU := make(map[string]int)
+	for _, item := range items {
+		if item.ReceivedQty != nil {
+			receivedBySKU[item.SKU] += *item.ReceivedQty
+		}
+	}
+	for i := range poItems {
+		if qty, ok := receivedBySKU[poItems[i].SKU]; ok {
+			poItems[i].ReceivedQty += qty
+			_ = s.poRepo.SavePOLineItem(ctx, &poItems[i])
+		}
+	}
+
 	allReceived := true
 	for _, li := range poItems {
 		if li.ReceivedQty < li.OrderedQty {
