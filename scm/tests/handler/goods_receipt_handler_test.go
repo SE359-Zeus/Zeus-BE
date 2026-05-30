@@ -97,7 +97,9 @@ func TestGoodsReceiptHandler_ProcessBlindReceipt_200(t *testing.T) {
 		mock.MatchedBy(func(c map[string]struct {
 			Received  int
 			Defective int
-		}) bool { return c["SOC-001"].Received == 10 })).Return(nil)
+		}) bool {
+			return c["SOC-001"].Received == 10
+		})).Return(nil)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"operator_id": "operator-1",
@@ -175,7 +177,7 @@ func TestGoodsReceiptHandler_ListGRs_200(t *testing.T) {
 	r, mockSvc := setupGRTest()
 
 	grs := []models.GoodsReceipt{
-		{ID: "GR-1", Status: models.GRStatusPending},
+		{ID: "GR-1", Status: models.GRStatusPending, VendorName: "Acme Electronics"},
 	}
 	meta := &pagination.Meta{TotalRows: 1, Page: 1, Limit: 15, TotalPages: 1}
 	mockSvc.On("ListGRs", mock.Anything, "Pending", mock.Anything).Return(grs, meta, nil)
@@ -185,22 +187,26 @@ func TestGoodsReceiptHandler_ListGRs_200(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	
+
 	var resp struct {
-		StatusCode int                  `json:"statusCode"`
-		Data       []models.GoodsReceipt `json:"data"`
+		StatusCode int `json:"statusCode"`
+		Data       []struct {
+			ID         string `json:"id"`
+			VendorName string `json:"vendor_name"`
+		} `json:"data"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.NoError(t, err)
 	assert.Len(t, resp.Data, 1)
 	assert.Equal(t, "GR-1", resp.Data[0].ID)
+	assert.Equal(t, "Acme Electronics", resp.Data[0].VendorName)
 	mockSvc.AssertExpectations(t)
 }
 
 func TestGoodsReceiptHandler_GetGR_200(t *testing.T) {
 	r, mockSvc := setupGRTest()
 
-	gr := &models.GoodsReceipt{ID: "GR-1", Status: models.GRStatusPending}
+	gr := &models.GoodsReceipt{ID: "GR-1", Status: models.GRStatusPending, VendorName: "Acme Electronics"}
 	mockSvc.On("GetGR", mock.Anything, "GR-1").Return(gr, nil)
 
 	w := httptest.NewRecorder()
@@ -208,14 +214,18 @@ func TestGoodsReceiptHandler_GetGR_200(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	
+
 	var resp struct {
-		StatusCode int                 `json:"statusCode"`
-		Data       models.GoodsReceipt `json:"data"`
+		StatusCode int `json:"statusCode"`
+		Data       struct {
+			ID         string `json:"id"`
+			VendorName string `json:"vendor_name"`
+		} `json:"data"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.NoError(t, err)
 	assert.Equal(t, "GR-1", resp.Data.ID)
+	assert.Equal(t, "Acme Electronics", resp.Data.VendorName)
 	mockSvc.AssertExpectations(t)
 }
 
@@ -244,7 +254,7 @@ func TestGoodsReceiptHandler_GetMetrics_200(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	var resp struct {
-		StatusCode int `json:"statusCode"`
+		StatusCode int              `json:"statusCode"`
 		Data       map[string]int64 `json:"data"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)

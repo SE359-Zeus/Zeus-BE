@@ -28,7 +28,8 @@ type InventoryLedger struct {
 	QtyChange      int           `gorm:"not null" json:"qty_change"`
 	RunningBalance int           `gorm:"not null" json:"running_balance"`
 	Location       string        `gorm:"type:varchar(255);not null;default:'WH-A'" json:"location"`
-	OperatorID     string        `gorm:"type:varchar(64);not null" json:"operator_id"`
+	OperatorID     string        `gorm:"type:varchar(64);not null" json:"-"`
+	OperatorName   string        `gorm:"type:varchar(255)" json:"operator_name,omitempty"`
 	Reference      string        `gorm:"type:varchar(255);not null" json:"reference"`
 	ReferenceType  LedgerRefType `gorm:"type:varchar(20);not null" json:"reference_type"`
 	ReferenceID    string        `gorm:"type:varchar(64);not null" json:"reference_id"`
@@ -38,4 +39,3 @@ type InventoryLedger struct {
 func (InventoryLedger) TableName() string {
 	return "inventory_ledger"
 }
-

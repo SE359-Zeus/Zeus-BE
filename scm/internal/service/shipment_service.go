@@ -9,6 +9,7 @@ import (
 	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/repository"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -32,6 +33,7 @@ type shipmentServiceRepo struct {
 	repo        repository.IShipmentRepository
 	poRepo      repository.IPORepository
 	stock       repository.IStockRepository
+	vendorRepo  repository.IVendorRepository
 	carrierRepo repository.ICarrierRepository
 	ledgerSvc   ILedgerService
 }
@@ -54,6 +56,7 @@ func NewShipmentService(arg interface{}, args ...interface{}) IShipmentService {
 			if repoArg, ok := args[0].(repository.IShipmentRepository); ok {
 				var stock repository.IStockRepository
 				var po repository.IPORepository
+				var vendor repository.IVendorRepository
 				if len(args) > 1 {
 					if r, ok := args[1].(repository.IStockRepository); ok {
 						stock = r
@@ -64,13 +67,19 @@ func NewShipmentService(arg interface{}, args ...interface{}) IShipmentService {
 						po = r
 					}
 				}
-				return &shipmentServiceRepo{repo: repoArg, stock: stock, poRepo: po, carrierRepo: carrierRepo, ledgerSvc: ledgerSvc}
+				if len(args) > 3 {
+					if r, ok := args[3].(repository.IVendorRepository); ok {
+						vendor = r
+					}
+				}
+				return &shipmentServiceRepo{repo: repoArg, stock: stock, poRepo: po, vendorRepo: vendor, carrierRepo: carrierRepo, ledgerSvc: ledgerSvc}
 			}
 		}
 		return &shipmentService{db: v, ledgerSvc: ledgerSvc, carrierRepo: carrierRepo}
 	case repository.IShipmentRepository:
 		var stock repository.IStockRepository
 		var po repository.IPORepository
+		var vendor repository.IVendorRepository
 		if len(args) > 0 {
 			if r, ok := args[0].(repository.IStockRepository); ok {
 				stock = r
@@ -81,13 +90,16 @@ func NewShipmentService(arg interface{}, args ...interface{}) IShipmentService {
 				po = r
 			}
 		}
-		return &shipmentServiceRepo{repo: v, stock: stock, poRepo: po, carrierRepo: carrierRepo, ledgerSvc: ledgerSvc}
+		if len(args) > 2 {
+			if r, ok := args[2].(repository.IVendorRepository); ok {
+				vendor = r
+			}
+		}
+		return &shipmentServiceRepo{repo: v, stock: stock, poRepo: po, vendorRepo: vendor, carrierRepo: carrierRepo, ledgerSvc: ledgerSvc}
 	default:
 		panic("invalid NewShipmentService usage")
 	}
 }
-
-// ── db-backed (direct gorm.DB) implementation ────────────────────────────────
 
 func (s *shipmentService) AcquireDispatchLock(ctx context.Context, shipmentID string, operatorID string) error {
 	var shipment models.Shipment
@@ -162,6 +174,7 @@ func (s *shipmentService) ListShipments(ctx context.Context, status string, para
 	if err != nil {
 		return nil, nil, err
 	}
+	hydrateShipmentSupplierNames(shipments)
 	return shipments, meta, nil
 }
 
@@ -173,14 +186,20 @@ func (s *shipmentService) GetShipment(ctx context.Context, shipmentID string) (*
 		}
 		return nil, err
 	}
+	hydrateShipmentSupplierName(&shipment)
 	return &shipment, nil
 }
 
 func (s *shipmentService) CreateShipment(ctx context.Context, shipment *models.Shipment) error {
-	// Validate PO exists
 	var po models.PurchaseOrder
 	if err := s.db.WithContext(ctx).First(&po, "id = ?", shipment.PORef).Error; err != nil {
 		return ErrNotFound
+	}
+	if shipment != nil && shipment.SupplierID != uuid.Nil {
+		var supplier models.Supplier
+		if err := s.db.WithContext(ctx).First(&supplier, "id = ?", shipment.SupplierID).Error; err == nil {
+			shipment.SupplierName = supplier.Name
+		}
 	}
 	return s.db.WithContext(ctx).Create(shipment).Error
 }
@@ -225,8 +244,6 @@ func (s *shipmentService) ListCarriers(ctx context.Context) ([]models.Carrier, e
 	}
 	return s.carrierRepo.ListCarriers(ctx)
 }
-
-// ── repo-backed implementation ────────────────────────────────────────────────
 
 func (s *shipmentServiceRepo) AcquireDispatchLock(ctx context.Context, shipmentID string, operatorID string) error {
 	shipment, err := s.repo.GetShipmentByID(ctx, shipmentID)
@@ -279,7 +296,12 @@ func (s *shipmentServiceRepo) DispatchShipment(ctx context.Context, shipmentID s
 }
 
 func (s *shipmentServiceRepo) ListShipments(ctx context.Context, status string, params pagination.Params) ([]models.Shipment, *pagination.Meta, error) {
-	return s.repo.ListShipments(ctx, status, params)
+	shipments, meta, err := s.repo.ListShipments(ctx, status, params)
+	if err != nil {
+		return nil, nil, err
+	}
+	hydrateShipmentSupplierNames(shipments)
+	return shipments, meta, nil
 }
 
 func (s *shipmentServiceRepo) GetShipment(ctx context.Context, shipmentID string) (*models.Shipment, error) {
@@ -287,14 +309,19 @@ func (s *shipmentServiceRepo) GetShipment(ctx context.Context, shipmentID string
 	if err != nil || shipment == nil {
 		return nil, ErrNotFound
 	}
+	hydrateShipmentSupplierName(shipment)
 	return shipment, nil
 }
 
 func (s *shipmentServiceRepo) CreateShipment(ctx context.Context, shipment *models.Shipment) error {
-	// Validate PO exists
 	if s.poRepo != nil {
 		if _, err := s.poRepo.GetPOByID(ctx, shipment.PORef); err != nil {
 			return ErrNotFound
+		}
+	}
+	if s.vendorRepo != nil && shipment != nil && shipment.SupplierID != uuid.Nil {
+		if supplier, err := s.vendorRepo.GetSupplierByID(ctx, shipment.SupplierID); err == nil && supplier != nil {
+			shipment.SupplierName = supplier.Name
 		}
 	}
 	return s.repo.CreateShipment(ctx, shipment)
@@ -311,9 +338,18 @@ func (s *shipmentServiceRepo) ListCarriers(ctx context.Context) ([]models.Carrie
 	return s.carrierRepo.ListCarriers(ctx)
 }
 
-// generateShipmentID creates a readable shipment ID like SHP-2026-001
+func hydrateShipmentSupplierNames(shipments []models.Shipment) {
+	for i := range shipments {
+		hydrateShipmentSupplierName(&shipments[i])
+	}
+}
+
+func hydrateShipmentSupplierName(shipment *models.Shipment) {
+	if shipment != nil && shipment.Supplier != nil {
+		shipment.SupplierName = shipment.Supplier.Name
+	}
+}
+
 func generateShipmentID(year int, count int64) string {
 	return fmt.Sprintf("SHP-%d-%03d", year, count+1)
 }
-
-

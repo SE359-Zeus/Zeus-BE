@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"zeus-scm-service/internal/exception"
+	"zeus-scm-service/internal/handler/middleware"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/service"
@@ -32,7 +34,8 @@ func (h *ShipmentHandler) AcquireDispatchLock(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
-	if err := h.svc.AcquireDispatchLock(c.Request.Context(), shipmentID, req.OperatorID); err != nil {
+	ctx := context.WithValue(c.Request.Context(), middleware.ContextKeyFullName, c.GetString(middleware.ContextKeyFullName))
+	if err := h.svc.AcquireDispatchLock(ctx, shipmentID, req.OperatorID); err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			exception.WriteError(c, appErr)
 			return
@@ -56,7 +59,8 @@ func (h *ShipmentHandler) DispatchShipment(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
-	if err := h.svc.DispatchShipment(c.Request.Context(), shipmentID, req.OperatorID); err != nil {
+	ctx := context.WithValue(c.Request.Context(), middleware.ContextKeyFullName, c.GetString(middleware.ContextKeyFullName))
+	if err := h.svc.DispatchShipment(ctx, shipmentID, req.OperatorID); err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			exception.WriteError(c, appErr)
 			return
@@ -173,4 +177,3 @@ func (h *ShipmentHandler) ListCarriers(c *gin.Context) {
 	}
 	writeJSON(c, 200, carriers)
 }
-

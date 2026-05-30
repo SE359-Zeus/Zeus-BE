@@ -356,7 +356,7 @@ func TestInventoryHandler_ListPartCatalog_200(t *testing.T) {
 
 func TestInventoryHandler_ListStocks_WithStatus_200(t *testing.T) {
 	r, mockSvc := setupInventoryTest()
-	stocks := []models.ComponentStock{{SKU: "SOC-XM100-PRO", Status: models.ComponentStatusLowStock}}
+	stocks := []models.ComponentStock{{SKU: "SOC-XM100-PRO", Status: models.ComponentStatusLowStock, PrimarySupplier: "Intel Corporation"}}
 	meta := &pagination.Meta{Page: 1, Limit: 15, TotalRows: 1}
 
 	mockSvc.On("ListStocks", mock.Anything, mock.AnythingOfType("pagination.Params"), "Low Stock", "").Return(stocks, meta, nil)
@@ -366,6 +366,15 @@ func TestInventoryHandler_ListStocks_WithStatus_200(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data []struct {
+			SKU             string `json:"sku"`
+			PrimarySupplier string `json:"primary_supplier"`
+		} `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, "Intel Corporation", resp.Data[0].PrimarySupplier)
 	mockSvc.AssertExpectations(t)
 }
 

@@ -21,7 +21,7 @@ func NewGoodsReceiptRepository(db *gorm.DB) repository.IGoodsReceiptRepository {
 
 func (r *goodsReceiptRepository) GetGRByID(ctx context.Context, id string) (*models.GoodsReceipt, error) {
 	var gr models.GoodsReceipt
-	if err := r.db.WithContext(ctx).Preload("LineItems").First(&gr, "id = ?", id).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("LineItems").Preload("Vendor").First(&gr, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &gr, nil
@@ -48,7 +48,7 @@ func (r *goodsReceiptRepository) SaveGRLineItem(ctx context.Context, item *model
 }
 
 func (r *goodsReceiptRepository) ListGRs(ctx context.Context, status string, params pagination.Params) ([]models.GoodsReceipt, *pagination.Meta, error) {
-	query := r.db.WithContext(ctx).Model(&models.GoodsReceipt{}).Preload("LineItems")
+	query := r.db.WithContext(ctx).Model(&models.GoodsReceipt{}).Preload("LineItems").Preload("Vendor")
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}

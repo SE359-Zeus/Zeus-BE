@@ -27,7 +27,7 @@ type ComponentStock struct {
 	UnitCost          float64             `gorm:"not null;default:0.0" json:"unit_cost"`
 	Status            ComponentStatus     `gorm:"type:varchar(50);not null" json:"status"`
 	State             ComponentStockState `gorm:"foreignKey:Status;references:Name" json:"-"`
-	PrimarySupplierID uuid.UUID           `gorm:"type:uuid" json:"primary_supplier_id"`
+	PrimarySupplierID uuid.UUID           `gorm:"type:uuid" json:"-"`
 	PrimarySupplier   string              `gorm:"-" json:"primary_supplier,omitempty"`
 	LeadTimeDays      int                 `gorm:"not null;default:0" json:"lead_time_days"`
 	Location          string              `gorm:"type:varchar(255)" json:"location"`

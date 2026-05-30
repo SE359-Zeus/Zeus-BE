@@ -29,6 +29,7 @@ func (s *ledgerService) RecordEntry(ctx context.Context, sku string, txnType mod
 	if err != nil {
 		return nil, err
 	}
+	operatorName := operatorNameFromContext(ctx)
 
 	entry := &models.InventoryLedger{
 		ID:             uuid.NewString(),
@@ -38,6 +39,7 @@ func (s *ledgerService) RecordEntry(ctx context.Context, sku string, txnType mod
 		RunningBalance: prevBalance + qtyChange,
 		Location:       "WH-A",
 		OperatorID:     operatorID,
+		OperatorName:   operatorName,
 		Reference:      reference,
 		ReferenceType:  refType,
 		ReferenceID:    refID,

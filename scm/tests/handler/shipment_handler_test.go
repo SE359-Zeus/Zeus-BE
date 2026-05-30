@@ -143,7 +143,7 @@ func TestShipmentHandler_ListShipments_200(t *testing.T) {
 
 	params := pagination.Params{Page: 1, Limit: 15, Sort: "created_at", Order: "desc"}
 	shipments := []models.Shipment{
-		{ID: "SHP-2026-001", PORef: "PO-2026-001", Status: models.ShipmentStatusScheduled},
+		{ID: "SHP-2026-001", PORef: "PO-2026-001", Status: models.ShipmentStatusScheduled, SupplierName: "DHL Logistics"},
 	}
 	meta := &pagination.Meta{Page: 1, Limit: 15, TotalRows: 1, TotalPages: 1}
 	mockSvc.On("ListShipments", mock.Anything, "", params).Return(shipments, meta, nil)
@@ -153,6 +153,16 @@ func TestShipmentHandler_ListShipments_200(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data []struct {
+			ID           string `json:"id"`
+			SupplierName string `json:"supplier_name"`
+		} `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, "SHP-2026-001", resp.Data[0].ID)
+	assert.Equal(t, "DHL Logistics", resp.Data[0].SupplierName)
 	mockSvc.AssertExpectations(t)
 }
 
@@ -161,7 +171,7 @@ func TestShipmentHandler_ListShipments_WithStatusFilter(t *testing.T) {
 
 	params := pagination.Params{Page: 1, Limit: 15, Sort: "created_at", Order: "desc"}
 	shipments := []models.Shipment{
-		{ID: "SHP-2026-001", PORef: "PO-2026-001", Status: models.ShipmentStatusInTransit},
+		{ID: "SHP-2026-001", PORef: "PO-2026-001", Status: models.ShipmentStatusInTransit, SupplierName: "DHL Logistics"},
 	}
 	meta := &pagination.Meta{Page: 1, Limit: 15, TotalRows: 1, TotalPages: 1}
 	mockSvc.On("ListShipments", mock.Anything, "In Transit", params).Return(shipments, meta, nil)
@@ -171,6 +181,15 @@ func TestShipmentHandler_ListShipments_WithStatusFilter(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data []struct {
+			ID           string `json:"id"`
+			SupplierName string `json:"supplier_name"`
+		} `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, "DHL Logistics", resp.Data[0].SupplierName)
 	mockSvc.AssertExpectations(t)
 }
 
@@ -180,14 +199,15 @@ func TestShipmentHandler_GetShipment_200(t *testing.T) {
 	shipmentID := "SHP-2026-001"
 	supplierID := uuid.New()
 	shipment := &models.Shipment{
-		ID:         shipmentID,
-		PORef:      "PO-2026-001",
-		SupplierID: supplierID,
-		Status:     models.ShipmentStatusScheduled,
-		Carrier:    "DHL Express",
-		TrackingNo: "TRACK-001",
-		Origin:     "Hillsboro, OR",
-		ShipDate:   time.Now(),
+		ID:           shipmentID,
+		PORef:        "PO-2026-001",
+		SupplierID:   supplierID,
+		SupplierName: "DHL Express",
+		Status:       models.ShipmentStatusScheduled,
+		Carrier:      "DHL Express",
+		TrackingNo:   "TRACK-001",
+		Origin:       "Hillsboro, OR",
+		ShipDate:     time.Now(),
 		Items: []models.ShipmentItem{
 			{SKU: "SKU-001", Description: "Laptop Module", Qty: 10},
 		},
@@ -199,6 +219,16 @@ func TestShipmentHandler_GetShipment_200(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data struct {
+			ID           string `json:"id"`
+			SupplierName string `json:"supplier_name"`
+		} `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, shipmentID, resp.Data.ID)
+	assert.Equal(t, "DHL Express", resp.Data.SupplierName)
 	mockSvc.AssertExpectations(t)
 }
 

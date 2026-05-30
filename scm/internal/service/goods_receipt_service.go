@@ -110,6 +110,7 @@ func (s *goodsReceiptService) AcquireLock(ctx context.Context, grID string, oper
 	if err := s.db.WithContext(ctx).First(&gr, "id = ?", grID).Error; err != nil {
 		return ErrNotFound
 	}
+	operatorName := operatorNameFromContext(ctx)
 	if gr.LockedBy != nil && *gr.LockedBy != operatorID {
 		if gr.LockExpiresAt != nil && gr.LockExpiresAt.After(time.Now()) {
 			return ErrAlreadyLocked
@@ -119,6 +120,8 @@ func (s *goodsReceiptService) AcquireLock(ctx context.Context, grID string, oper
 	expiresAt := now.Add(60 * time.Minute)
 	return s.db.WithContext(ctx).Model(&gr).Updates(map[string]interface{}{
 		"locked_by":       operatorID,
+		"operator_id":     operatorID,
+		"operator_name":   operatorName,
 		"lock_expires_at": expiresAt,
 	}).Error
 }
@@ -131,6 +134,7 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 	if err := s.db.WithContext(ctx).First(&gr, "id = ?", grID).Error; err != nil {
 		return ErrNotFound
 	}
+	operatorName := operatorNameFromContext(ctx)
 	if gr.LockedBy == nil || *gr.LockedBy != operatorID {
 		return ErrAlreadyLocked
 	}
@@ -210,6 +214,8 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 	} else {
 		gr.Status = models.GRStatusComplete
 	}
+	gr.OperatorID = operatorID
+	gr.OperatorName = operatorName
 	if err := tx.Save(&gr).Error; err != nil {
 		tx.Rollback()
 		return err
@@ -245,6 +251,7 @@ func (s *goodsReceiptServiceRepo) AcquireLock(ctx context.Context, grID string, 
 	if err != nil || gr == nil {
 		return ErrNotFound
 	}
+	operatorName := operatorNameFromContext(ctx)
 	if gr.LockedBy != nil && *gr.LockedBy != operatorID {
 		if gr.LockExpiresAt != nil && gr.LockExpiresAt.After(time.Now()) {
 			return ErrAlreadyLocked
@@ -252,7 +259,7 @@ func (s *goodsReceiptServiceRepo) AcquireLock(ctx context.Context, grID string, 
 	}
 	now := time.Now()
 	expiresAt := now.Add(60 * time.Minute)
-	return s.repo.UpdateGRFields(ctx, grID, map[string]interface{}{"locked_by": operatorID, "lock_expires_at": expiresAt})
+	return s.repo.UpdateGRFields(ctx, grID, map[string]interface{}{"locked_by": operatorID, "operator_id": operatorID, "operator_name": operatorName, "lock_expires_at": expiresAt})
 }
 
 func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID string, operatorID string, counts map[string]struct {
@@ -263,6 +270,7 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 	if err != nil || gr == nil {
 		return ErrNotFound
 	}
+	operatorName := operatorNameFromContext(ctx)
 	if gr.LockedBy == nil || *gr.LockedBy != operatorID {
 		return ErrAlreadyLocked
 	}
@@ -334,6 +342,8 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 	} else {
 		gr.Status = models.GRStatusComplete
 	}
+	gr.OperatorID = operatorID
+	gr.OperatorName = operatorName
 	if err := s.repo.UpdateGR(ctx, gr); err != nil {
 		return err
 	}
@@ -358,7 +368,7 @@ func (s *goodsReceiptServiceRepo) ReleaseLock(ctx context.Context, grID string) 
 }
 
 func (s *goodsReceiptService) ListGRs(ctx context.Context, status string, params pagination.Params) ([]models.GoodsReceipt, *pagination.Meta, error) {
-	query := s.db.WithContext(ctx).Model(&models.GoodsReceipt{}).Preload("LineItems")
+	query := s.db.WithContext(ctx).Model(&models.GoodsReceipt{}).Preload("LineItems").Preload("Vendor")
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}
@@ -367,17 +377,19 @@ func (s *goodsReceiptService) ListGRs(ctx context.Context, status string, params
 	if err != nil {
 		return nil, nil, err
 	}
+	hydrateGoodsReceiptVendorNames(grs)
 	return grs, meta, nil
 }
 
 func (s *goodsReceiptService) GetGR(ctx context.Context, grID string) (*models.GoodsReceipt, error) {
 	var gr models.GoodsReceipt
-	if err := s.db.WithContext(ctx).Preload("LineItems").First(&gr, "id = ?", grID).Error; err != nil {
+	if err := s.db.WithContext(ctx).Preload("LineItems").Preload("Vendor").First(&gr, "id = ?", grID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
+	hydrateGoodsReceiptVendorName(&gr)
 	return &gr, nil
 }
 
@@ -409,7 +421,12 @@ func rdbCountQueue(db *gorm.DB, ctx context.Context, queue *int64) error {
 }
 
 func (s *goodsReceiptServiceRepo) ListGRs(ctx context.Context, status string, params pagination.Params) ([]models.GoodsReceipt, *pagination.Meta, error) {
-	return s.repo.ListGRs(ctx, status, params)
+	grs, meta, err := s.repo.ListGRs(ctx, status, params)
+	if err != nil {
+		return nil, nil, err
+	}
+	hydrateGoodsReceiptVendorNames(grs)
+	return grs, meta, nil
 }
 
 func (s *goodsReceiptServiceRepo) GetGR(ctx context.Context, grID string) (*models.GoodsReceipt, error) {
@@ -417,7 +434,20 @@ func (s *goodsReceiptServiceRepo) GetGR(ctx context.Context, grID string) (*mode
 	if err != nil || gr == nil {
 		return nil, ErrNotFound
 	}
+	hydrateGoodsReceiptVendorName(gr)
 	return gr, nil
+}
+
+func hydrateGoodsReceiptVendorNames(grs []models.GoodsReceipt) {
+	for i := range grs {
+		hydrateGoodsReceiptVendorName(&grs[i])
+	}
+}
+
+func hydrateGoodsReceiptVendorName(gr *models.GoodsReceipt) {
+	if gr != nil && gr.Vendor != nil {
+		gr.VendorName = gr.Vendor.Name
+	}
 }
 
 func (s *goodsReceiptServiceRepo) GetMetrics(ctx context.Context) (pending int64, completedToday int64, discrepancies int64, queue int64, err error) {

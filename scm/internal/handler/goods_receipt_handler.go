@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"zeus-scm-service/internal/exception"
+	"zeus-scm-service/internal/handler/middleware"
 	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/service"
 
@@ -27,7 +29,8 @@ func (h *GoodsReceiptHandler) AcquireLock(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
-	if err := h.svc.AcquireLock(c.Request.Context(), grID, req.OperatorID); err != nil {
+	ctx := context.WithValue(c.Request.Context(), middleware.ContextKeyFullName, c.GetString(middleware.ContextKeyFullName))
+	if err := h.svc.AcquireLock(ctx, grID, req.OperatorID); err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			exception.WriteError(c, appErr)
 			return
@@ -55,6 +58,7 @@ func (h *GoodsReceiptHandler) ProcessBlindReceipt(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
+	ctx := context.WithValue(c.Request.Context(), middleware.ContextKeyFullName, c.GetString(middleware.ContextKeyFullName))
 	counts := make(map[string]struct {
 		Received  int
 		Defective int
@@ -65,7 +69,7 @@ func (h *GoodsReceiptHandler) ProcessBlindReceipt(c *gin.Context) {
 			Defective int
 		}{Received: cnt.Received, Defective: cnt.Defective}
 	}
-	if err := h.svc.ProcessBlindReceipt(c.Request.Context(), grID, req.OperatorID, counts); err != nil {
+	if err := h.svc.ProcessBlindReceipt(ctx, grID, req.OperatorID, counts); err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			exception.WriteError(c, appErr)
 			return
