@@ -84,6 +84,7 @@ func seedInventory(db *gorm.DB, catMap map[string]models.PartCatalog, suppliers 
 				RunningBalance: qty,
 				Location:       "WH-A",
 				OperatorID:     "system",
+				OperatorName:   "System",
 				Reference:      "Initial stock load",
 				ReferenceType:  models.LedgerRefInitial,
 				ReferenceID:    stk.SKU,
