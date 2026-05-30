@@ -119,6 +119,19 @@ func Setup(cfg Config) (p *Provider, shutdown func()) {
 	registry := NewRegistry()
 	DefaultRegistry = registry // expose as package-level singleton
 
+	// Pre-register all known counters so they appear in /metrics at zero
+	registry.Counter(MetricHTTPRequestsTotal)
+	registry.Counter(MetricHTTPRequestErrors)
+	registry.Counter(MetricHTTPPanicsTotal)
+	registry.Counter(MetricPOCreated)
+	registry.Counter(MetricPOStateTransitions)
+	registry.Counter(MetricGRCreated)
+	registry.Counter(MetricGRProcessed)
+	registry.Counter(MetricShipmentDispatched)
+	registry.Counter(MetricShipmentDelivered)
+	registry.Counter(MetricLockAcquisitions)
+	registry.Counter(MetricLockContention)
+
 	// Set up Tracer
 	var otlpEP string
 	if val := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); val != "" {
