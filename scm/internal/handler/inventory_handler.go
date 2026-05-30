@@ -39,6 +39,24 @@ func (h *InventoryHandler) GetProduct(c *gin.Context) {
 	writeJSON(c, 200, p)
 }
 
+func (h *InventoryHandler) GetProductBySerialNumber(c *gin.Context) {
+	serialNumber := c.Param("serialNumber")
+	if serialNumber == "" {
+		exception.WriteError(c, exception.ErrInvalidInput)
+		return
+	}
+	p, err := h.svc.GetProductBySerialNumber(c.Request.Context(), serialNumber)
+	if err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
+		return
+	}
+	writeJSON(c, 200, p)
+}
+
 func parsePaginationParams(c *gin.Context) pagination.Params {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "15"))

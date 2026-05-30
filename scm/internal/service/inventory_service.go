@@ -19,6 +19,7 @@ import (
 
 type IInventoryService interface {
 	GetProduct(ctx context.Context, id uuid.UUID) (*models.Product, error)
+	GetProductBySerialNumber(ctx context.Context, serialNumber string) (*models.Product, error)
 	ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error)
 	CreateProduct(ctx context.Context, p *models.Product) error
 	UpdateProduct(ctx context.Context, id uuid.UUID, fields map[string]any) (*models.Product, error)
@@ -99,6 +100,14 @@ func (s *inventoryService) GetProduct(ctx context.Context, id uuid.UUID) (*model
 	return &p, nil
 }
 
+func (s *inventoryService) GetProductBySerialNumber(ctx context.Context, serialNumber string) (*models.Product, error) {
+	var p models.Product
+	if err := s.db.WithContext(ctx).First(&p, "serial_number = ?", serialNumber).Error; err != nil {
+		return nil, ErrNotFound
+	}
+	return &p, nil
+}
+
 func (s *inventoryService) ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error) {
 	query := s.db.WithContext(ctx).Model(&models.Product{})
 	if q != "" {
@@ -119,6 +128,14 @@ func (s *inventoryService) ListProducts(ctx context.Context, params pagination.P
 // repo-backed implementation (used by unit tests with mocks)
 func (s *inventoryServiceRepo) GetProduct(ctx context.Context, id uuid.UUID) (*models.Product, error) {
 	p, err := s.repo.GetProductByID(ctx, id)
+	if err != nil || p == nil {
+		return nil, ErrNotFound
+	}
+	return p, nil
+}
+
+func (s *inventoryServiceRepo) GetProductBySerialNumber(ctx context.Context, serialNumber string) (*models.Product, error) {
+	p, err := s.repo.GetProductBySerialNumber(ctx, serialNumber)
 	if err != nil || p == nil {
 		return nil, ErrNotFound
 	}

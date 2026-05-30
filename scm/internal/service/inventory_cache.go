@@ -47,6 +47,10 @@ func (s *cachedInventoryService) GetProduct(ctx context.Context, id uuid.UUID) (
 	return product, nil
 }
 
+func (s *cachedInventoryService) GetProductBySerialNumber(ctx context.Context, serialNumber string) (*models.Product, error) {
+	return s.base.GetProductBySerialNumber(ctx, serialNumber)
+}
+
 func (s *cachedInventoryService) ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error) {
 	return s.base.ListProducts(ctx, params, q)
 }

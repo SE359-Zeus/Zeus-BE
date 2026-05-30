@@ -253,6 +253,7 @@ func main() {
 		api.POST("/shipments", middleware.RequireRoles(rolesWorker...), shipmentH.CreateShipment)
 
 		api.GET("/inventory/products", middleware.RequireRoles(rolesWorker...), inventoryH.ListProducts)
+		api.GET("/inventory/products/serial/:serialNumber", middleware.RequireRoles(rolesWorker...), inventoryH.GetProductBySerialNumber)
 		api.GET("/inventory/products/:id", middleware.RequireRoles(rolesWorker...), inventoryH.GetProduct)
 		api.POST("/inventory/products", middleware.RequireRoles(rolesOperator...), inventoryH.CreateProduct)
 		api.POST("/inventory/products/register", middleware.RequireRoles(rolesOperator...), inventoryH.RegisterProduct)

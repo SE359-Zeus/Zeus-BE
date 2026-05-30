@@ -138,6 +138,14 @@ func (m *MockInventoryService) GetProduct(ctx context.Context, id uuid.UUID) (*m
 	return nil, args.Error(1)
 }
 
+func (m *MockInventoryService) GetProductBySerialNumber(ctx context.Context, serialNumber string) (*models.Product, error) {
+	args := m.Called(ctx, serialNumber)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Product), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockInventoryService) ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error) {
 	args := m.Called(ctx, params, q)
 	if args.Get(0) != nil {

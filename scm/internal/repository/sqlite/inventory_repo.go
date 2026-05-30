@@ -46,6 +46,14 @@ func (r *inventoryRepository) GetProductByID(ctx context.Context, id uuid.UUID) 
 	return &p, nil
 }
 
+func (r *inventoryRepository) GetProductBySerialNumber(ctx context.Context, serialNumber string) (*models.Product, error) {
+	var p models.Product
+	if err := r.db.WithContext(ctx).First(&p, "serial_number = ?", serialNumber).Error; err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
 func (r *inventoryRepository) ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error) {
 	query := r.db.WithContext(ctx).Model(&models.Product{})
 	if q != "" {
