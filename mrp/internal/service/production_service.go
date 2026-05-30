@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"zeus-mrp-service/internal/infrastructure/messaging"
+	"zeus-mrp-service/internal/infrastructure/observability"
 	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
@@ -48,12 +49,14 @@ func (s *ProductionService) PlanProduction(ctx context.Context, req models.Creat
 	if err := s.repo.CreateProductionOrder(ctx, order); err != nil {
 		return nil, err
 	}
+	observability.DefaultRegistry.Counter(observability.MetricProductionOrdersCreated).Inc()
 
 	// Run BOM explosion to check readiness and detect shortages
 	results, err := s.RunBOMExplosion(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to run BOM explosion: %w", err)
 	}
+	observability.DefaultRegistry.Counter(observability.MetricBOMExplosions).Inc()
 
 	var shortageLogs []models.ShortageLog
 	status := deriveReadinessStatus(results)
@@ -92,6 +95,7 @@ func (s *ProductionService) PlanProduction(ctx context.Context, req models.Creat
 						"qty":      shortageQty,
 						"order_id": id.String(),
 					})
+					observability.DefaultRegistry.Counter(observability.MetricDeficitsDetected).Inc()
 				}
 			}
 		}

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"zeus-mrp-service/internal/infrastructure/observability"
 )
 
 var (
@@ -74,6 +76,7 @@ func ErrorHandler(next http.Handler) http.Handler {
 		recorder := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		defer func() {
 			if recovered := recover(); recovered != nil {
+				observability.DefaultRegistry.Counter(observability.MetricHTTPPanicsTotal).Inc()
 				httpError := normalizeError(recovered)
 				recorder.Header().Set("Content-Type", "application/json")
 				recorder.WriteHeader(httpError.Status)
@@ -101,9 +104,11 @@ func ErrorHandler(next http.Handler) http.Handler {
 			logFunc := slog.InfoContext
 			if status >= 500 {
 				logFunc = slog.ErrorContext
+				observability.DefaultRegistry.Counter(observability.MetricHTTPRequestErrors).Inc()
 			} else if status >= 400 {
 				logFunc = slog.WarnContext
 			}
+			observability.DefaultRegistry.Counter(observability.MetricHTTPRequestsTotal).Inc()
 			logFunc(r.Context(), "request completed",
 				slog.String("service", "mrp"),
 				slog.String("event", "http_request_completed"),

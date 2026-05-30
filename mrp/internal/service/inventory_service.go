@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"zeus-mrp-service/internal/infrastructure/observability"
 	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
@@ -16,6 +18,7 @@ func (s *ProductionService) GetInventoryLedger(ctx context.Context) ([]models.In
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	observability.DefaultRegistry.Counter(observability.MetricInventoryLedgerReads).Inc()
 	if s.scmClient != nil {
 		txns, err := s.inventoryLedgerFromSCM(ctx)
 		if err != nil {
