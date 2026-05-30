@@ -2,6 +2,11 @@ package handler
 
 import (
 	"context"
+	"encoding/csv"
+	"net/http"
+	"strconv"
+	"time"
+
 	"zeus-scm-service/internal/exception"
 	"zeus-scm-service/internal/handler/middleware"
 	"zeus-scm-service/internal/pagination"
@@ -139,4 +144,68 @@ func (h *GoodsReceiptHandler) GetMetrics(c *gin.Context) {
 		"active_discrepancies": discrepancies,
 		"inspection_queue":     queue,
 	})
+}
+
+func (h *GoodsReceiptHandler) ExportGRReport(c *gin.Context) {
+	grs, err := h.svc.FindAllGRs(c.Request.Context())
+	if err != nil {
+		exception.WriteError(c, exception.Resolve(err))
+		return
+	}
+
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Disposition", `attachment; filename="goods_receipts_report.csv"`)
+	c.Header("Content-Type", "text/csv")
+	c.Header("Transfer-Encoding", "chunked")
+	c.Writer.WriteHeader(http.StatusOK)
+
+	csvWriter := csv.NewWriter(c.Writer)
+	header := []string{
+		"GR ID", "PO Ref", "Vendor", "Status", "Arrival Date",
+		"Operator", "Line Item SKU", "Line Item Name",
+		"Ordered Qty", "Received Qty", "Defective Qty",
+	}
+	if err := csvWriter.Write(header); err != nil {
+		return
+	}
+	csvWriter.Flush()
+	c.Writer.Flush()
+
+	for _, gr := range grs {
+		if len(gr.LineItems) == 0 {
+			receivedQty := ""
+			defectiveQty := ""
+			row := []string{
+				gr.ID, gr.PORef, gr.VendorName, string(gr.Status),
+				gr.ArrivalDate.Format(time.RFC3339), gr.OperatorName,
+				"", "", "", receivedQty, defectiveQty,
+			}
+			if err := csvWriter.Write(row); err != nil {
+				return
+			}
+			continue
+		}
+		for _, item := range gr.LineItems {
+			receivedQty := ""
+			if item.ReceivedQty != nil {
+				receivedQty = strconv.Itoa(*item.ReceivedQty)
+			}
+			defectiveQty := ""
+			if item.DefectiveQty != nil {
+				defectiveQty = strconv.Itoa(*item.DefectiveQty)
+			}
+			row := []string{
+				gr.ID, gr.PORef, gr.VendorName, string(gr.Status),
+				gr.ArrivalDate.Format(time.RFC3339), gr.OperatorName,
+				item.SKU, item.Name,
+				strconv.Itoa(item.OrderedQty), receivedQty, defectiveQty,
+			}
+			if err := csvWriter.Write(row); err != nil {
+				return
+			}
+		}
+	}
+
+	csvWriter.Flush()
+	c.Writer.Flush()
 }

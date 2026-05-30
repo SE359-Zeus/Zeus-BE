@@ -31,6 +31,7 @@ type IPORepository interface {
 	SavePO(ctx context.Context, po *models.PurchaseOrder) error
 	UpdatePOStatus(ctx context.Context, id string, status models.POStatus) error
 	CreatePOLineItem(ctx context.Context, item *models.POLineItem) error
+	SavePOLineItem(ctx context.Context, item *models.POLineItem) error
 	GetPOLineItemsByPOID(ctx context.Context, poID string) ([]models.POLineItem, error)
 	CountPOsByYearPattern(ctx context.Context, year int, pattern string) (int64, error)
 	FindPOByVendorAndStatuses(ctx context.Context, vendorID uuid.UUID, statuses []models.POStatus) (*models.PurchaseOrder, error)
@@ -74,10 +75,12 @@ type IInventoryRepository interface {
 
 type IShipmentRepository interface {
 	GetShipmentByID(ctx context.Context, id string) (*models.Shipment, error)
+	CreateShipmentItem(ctx context.Context, item *models.ShipmentItem) error
 	UpdateShipment(ctx context.Context, shipment *models.Shipment) error
 	UpdateShipmentFields(ctx context.Context, id string, fields map[string]interface{}) error
 	GetShipmentItemsByShipmentID(ctx context.Context, shipmentID string) ([]models.ShipmentItem, error)
 	ListShipments(ctx context.Context, status string, params pagination.Params) ([]models.Shipment, *pagination.Meta, error)
+	FindAllShipments(ctx context.Context) ([]models.Shipment, error)
 	CreateShipment(ctx context.Context, shipment *models.Shipment) error
 	GetShipmentMetrics(ctx context.Context) (total int64, inTransit int64, delayed int64, onTimeRate float64, err error)
 }
@@ -101,6 +104,7 @@ type IGoodsReceiptRepository interface {
 	FindGRLineItemsByGRID(ctx context.Context, grID string) ([]models.GRLineItem, error)
 	SaveGRLineItem(ctx context.Context, item *models.GRLineItem) error
 	ListGRs(ctx context.Context, status string, params pagination.Params) ([]models.GoodsReceipt, *pagination.Meta, error)
+	FindAllGRs(ctx context.Context) ([]models.GoodsReceipt, error)
 	CountByPOIDAndNotStatus(ctx context.Context, poID string, status models.GRStatus) (int64, error)
 	GetMetrics(ctx context.Context) (pending int64, completedToday int64, discrepancies int64, queue int64, err error)
 }

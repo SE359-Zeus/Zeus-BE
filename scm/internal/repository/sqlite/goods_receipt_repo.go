@@ -27,18 +27,6 @@ func (r *goodsReceiptRepository) GetGRByID(ctx context.Context, id string) (*mod
 	return &gr, nil
 }
 
-func (r *goodsReceiptRepository) CreateGR(ctx context.Context, gr *models.GoodsReceipt) error {
-	return r.db.WithContext(ctx).Create(gr).Error
-}
-
-func (r *goodsReceiptRepository) FindGRsByPOID(ctx context.Context, poID string) ([]models.GoodsReceipt, error) {
-	var grs []models.GoodsReceipt
-	if err := r.db.WithContext(ctx).Where("po_ref = ?", poID).Find(&grs).Error; err != nil {
-		return nil, err
-	}
-	return grs, nil
-}
-
 func (r *goodsReceiptRepository) UpdateGR(ctx context.Context, gr *models.GoodsReceipt) error {
 	return r.db.WithContext(ctx).Save(gr).Error
 }
@@ -70,6 +58,26 @@ func (r *goodsReceiptRepository) ListGRs(ctx context.Context, status string, par
 		return nil, nil, err
 	}
 	return grs, meta, nil
+}
+
+func (r *goodsReceiptRepository) CreateGR(ctx context.Context, gr *models.GoodsReceipt) error {
+	return r.db.WithContext(ctx).Create(gr).Error
+}
+
+func (r *goodsReceiptRepository) FindGRsByPOID(ctx context.Context, poID string) ([]models.GoodsReceipt, error) {
+	var grs []models.GoodsReceipt
+	if err := r.db.WithContext(ctx).Where("po_ref = ?", poID).Find(&grs).Error; err != nil {
+		return nil, err
+	}
+	return grs, nil
+}
+
+func (r *goodsReceiptRepository) FindAllGRs(ctx context.Context) ([]models.GoodsReceipt, error) {
+	var grs []models.GoodsReceipt
+	if err := r.db.WithContext(ctx).Preload("LineItems").Preload("Vendor").Order("created_at DESC").Find(&grs).Error; err != nil {
+		return nil, err
+	}
+	return grs, nil
 }
 
 func (r *goodsReceiptRepository) CountByPOIDAndNotStatus(ctx context.Context, poID string, status models.GRStatus) (int64, error) {

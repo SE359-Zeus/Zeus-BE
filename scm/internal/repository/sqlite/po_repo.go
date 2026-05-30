@@ -44,6 +44,10 @@ func (r *poRepository) CreatePOLineItem(ctx context.Context, item *models.POLine
 	return r.db.WithContext(ctx).Create(item).Error
 }
 
+func (r *poRepository) SavePOLineItem(ctx context.Context, item *models.POLineItem) error {
+	return r.db.WithContext(ctx).Save(item).Error
+}
+
 func (r *poRepository) GetPOLineItemsByPOID(ctx context.Context, poID string) ([]models.POLineItem, error) {
 	var items []models.POLineItem
 	if err := r.db.WithContext(ctx).Where("po_id = ?", poID).Find(&items).Error; err != nil {

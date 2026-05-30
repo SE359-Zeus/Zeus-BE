@@ -20,6 +20,7 @@ type IGoodsReceiptService interface {
 	}) error
 	ReleaseLock(ctx context.Context, grID string) error
 	ListGRs(ctx context.Context, status string, params pagination.Params) ([]models.GoodsReceipt, *pagination.Meta, error)
+	FindAllGRs(ctx context.Context) ([]models.GoodsReceipt, error)
 	GetGR(ctx context.Context, grID string) (*models.GoodsReceipt, error)
 	GetMetrics(ctx context.Context) (pending int64, completedToday int64, discrepancies int64, queue int64, err error)
 }
@@ -207,6 +208,24 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 
 	var poItems []models.POLineItem
 	tx.Where("po_id = ?", po.ID).Find(&poItems)
+
+	// Update PO line items' ReceivedQty from GR line items
+	receivedBySKU := make(map[string]int)
+	for _, item := range lineItems {
+		if item.ReceivedQty != nil {
+			receivedBySKU[item.SKU] += *item.ReceivedQty
+		}
+	}
+	for i := range poItems {
+		if qty, ok := receivedBySKU[poItems[i].SKU]; ok {
+			poItems[i].ReceivedQty += qty
+			if err := tx.Save(&poItems[i]).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+	}
+
 	allReceived := true
 	for _, li := range poItems {
 		if li.ReceivedQty < li.OrderedQty {
@@ -347,6 +366,21 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 		return err
 	}
 	poItems, _ := s.poRepo.GetPOLineItemsByPOID(ctx, po.ID)
+
+	// Update PO line items' ReceivedQty from GR line items
+	receivedBySKU := make(map[string]int)
+	for _, item := range items {
+		if item.ReceivedQty != nil {
+			receivedBySKU[item.SKU] += *item.ReceivedQty
+		}
+	}
+	for i := range poItems {
+		if qty, ok := receivedBySKU[poItems[i].SKU]; ok {
+			poItems[i].ReceivedQty += qty
+			_ = s.poRepo.SavePOLineItem(ctx, &poItems[i])
+		}
+	}
+
 	allReceived := true
 	for _, li := range poItems {
 		if li.ReceivedQty < li.OrderedQty {
@@ -403,6 +437,15 @@ func (s *goodsReceiptService) ListGRs(ctx context.Context, status string, params
 	return grs, meta, nil
 }
 
+func (s *goodsReceiptService) FindAllGRs(ctx context.Context) ([]models.GoodsReceipt, error) {
+	var grs []models.GoodsReceipt
+	if err := s.db.WithContext(ctx).Preload("LineItems").Preload("Vendor").Order("created_at DESC").Find(&grs).Error; err != nil {
+		return nil, err
+	}
+	hydrateGoodsReceiptVendorNames(grs)
+	return grs, nil
+}
+
 func (s *goodsReceiptService) GetGR(ctx context.Context, grID string) (*models.GoodsReceipt, error) {
 	var gr models.GoodsReceipt
 	if err := s.db.WithContext(ctx).Preload("LineItems").Preload("Vendor").First(&gr, "id = ?", grID).Error; err != nil {
@@ -449,6 +492,10 @@ func (s *goodsReceiptServiceRepo) ListGRs(ctx context.Context, status string, pa
 	}
 	hydrateGoodsReceiptVendorNames(grs)
 	return grs, meta, nil
+}
+
+func (s *goodsReceiptServiceRepo) FindAllGRs(ctx context.Context) ([]models.GoodsReceipt, error) {
+	return s.repo.FindAllGRs(ctx)
 }
 
 func (s *goodsReceiptServiceRepo) GetGR(ctx context.Context, grID string) (*models.GoodsReceipt, error) {

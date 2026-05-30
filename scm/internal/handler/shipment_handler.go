@@ -2,7 +2,10 @@ package handler
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
+	"net/http"
+	"strconv"
 	"time"
 
 	"zeus-scm-service/internal/exception"
@@ -221,4 +224,61 @@ func (h *ShipmentHandler) ListCarriers(c *gin.Context) {
 		return
 	}
 	writeJSON(c, 200, carriers)
+}
+
+func (h *ShipmentHandler) ExportShipmentReport(c *gin.Context) {
+	shipments, err := h.svc.FindAllShipments(c.Request.Context())
+	if err != nil {
+		exception.WriteError(c, exception.Resolve(err))
+		return
+	}
+
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Disposition", `attachment; filename="shipments_report.csv"`)
+	c.Header("Content-Type", "text/csv")
+	c.Header("Transfer-Encoding", "chunked")
+	c.Writer.WriteHeader(http.StatusOK)
+
+	csvWriter := csv.NewWriter(c.Writer)
+	header := []string{
+		"Shipment ID", "PO Ref", "Supplier", "Status", "Carrier",
+		"Tracking No", "Origin", "Ship Date", "ETA",
+		"Item SKU", "Item Description", "Item Qty",
+	}
+	if err := csvWriter.Write(header); err != nil {
+		return
+	}
+	csvWriter.Flush()
+	c.Writer.Flush()
+
+	for _, s := range shipments {
+		if len(s.Items) == 0 {
+			row := []string{
+				s.ID, s.PORef, s.SupplierName, string(s.Status),
+				s.Carrier, s.TrackingNo, s.Origin,
+				s.ShipDate.Format(time.RFC3339),
+				s.ETA.Format(time.RFC3339),
+				"", "", "",
+			}
+			if err := csvWriter.Write(row); err != nil {
+				return
+			}
+			continue
+		}
+		for _, item := range s.Items {
+			row := []string{
+				s.ID, s.PORef, s.SupplierName, string(s.Status),
+				s.Carrier, s.TrackingNo, s.Origin,
+				s.ShipDate.Format(time.RFC3339),
+				s.ETA.Format(time.RFC3339),
+				item.SKU, item.Description, strconv.Itoa(item.Qty),
+			}
+			if err := csvWriter.Write(row); err != nil {
+				return
+			}
+		}
+	}
+
+	csvWriter.Flush()
+	c.Writer.Flush()
 }
