@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"encoding/csv"
+	"net/http"
+	"strconv"
 	"time"
 	"zeus-scm-service/internal/exception"
 	"zeus-scm-service/internal/models"
@@ -130,6 +133,74 @@ func (h *POHandler) GetPO(c *gin.Context) {
 	writeJSON(c, 200, po)
 }
 
+func (h *POHandler) ExportPOReport(c *gin.Context) {
+	pos, err := h.svc.FindAllPOs(c.Request.Context())
+	if err != nil {
+		exception.WriteError(c, exception.Resolve(err))
+		return
+	}
+
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Disposition", `attachment; filename="purchase_orders_report.csv"`)
+	c.Header("Content-Type", "text/csv")
+	c.Header("Transfer-Encoding", "chunked")
+	c.Writer.WriteHeader(http.StatusOK)
+
+	csvWriter := csv.NewWriter(c.Writer)
+	header := []string{
+		"PO ID", "Vendor Name", "Target Build", "Status", "Expected Delivery",
+		"Total Value", "Notes", "Line Item SKU", "Line Item Description",
+		"Ordered Qty", "Unit Price", "Line Item Subtotal",
+	}
+	if err := csvWriter.Write(header); err != nil {
+		return
+	}
+	csvWriter.Flush()
+	c.Writer.Flush()
+
+	for _, po := range pos {
+		if len(po.LineItems) == 0 {
+			row := []string{
+				po.ID,
+				po.VendorName,
+				po.TargetBuild,
+				string(po.Status),
+				po.ExpectedDelivery.Format(time.RFC3339),
+				strconv.FormatFloat(po.TotalValue, 'f', 2, 64),
+				po.Notes,
+				"", "", "", "", "",
+			}
+			if err := csvWriter.Write(row); err != nil {
+				return
+			}
+			continue
+		}
+
+		for _, item := range po.LineItems {
+			row := []string{
+				po.ID,
+				po.VendorName,
+				po.TargetBuild,
+				string(po.Status),
+				po.ExpectedDelivery.Format(time.RFC3339),
+				strconv.FormatFloat(po.TotalValue, 'f', 2, 64),
+				po.Notes,
+				item.SKU,
+				item.Description,
+				strconv.Itoa(item.OrderedQty),
+				strconv.FormatFloat(item.UnitPrice, 'f', 2, 64),
+				strconv.FormatFloat(float64(item.OrderedQty)*item.UnitPrice, 'f', 2, 64),
+			}
+			if err := csvWriter.Write(row); err != nil {
+				return
+			}
+		}
+	}
+
+	csvWriter.Flush()
+	c.Writer.Flush()
+}
+
 type createPOLineItemRequest struct {
 	SKU string `json:"sku" binding:"required"`
 	Qty int    `json:"qty" binding:"required,min=1"`
@@ -139,6 +210,7 @@ type createPORequest struct {
 	ID               string                    `json:"id" binding:"required"`
 	ExpectedDelivery time.Time                 `json:"expected_delivery" binding:"required"`
 	VendorID         string                    `json:"vendor_id" binding:"required"`
+	TargetBuild      string                    `json:"target_build"`
 	Items            []createPOLineItemRequest `json:"items" binding:"required,min=1"`
 	Notes            string                    `json:"notes"`
 }
@@ -167,6 +239,7 @@ func (h *POHandler) CreatePO(c *gin.Context) {
 	poModel := &models.PurchaseOrder{
 		ID:               req.ID,
 		VendorID:         vendorUUID,
+		TargetBuild:      req.TargetBuild,
 		ExpectedDelivery: req.ExpectedDelivery,
 		Notes:            req.Notes,
 		LineItems:        lineItems,

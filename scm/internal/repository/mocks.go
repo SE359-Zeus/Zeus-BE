@@ -172,6 +172,15 @@ func (m *MockPORepository) ListPOs(ctx context.Context, params pagination.Params
 	return pos, meta, args.Error(2)
 }
 
+func (m *MockPORepository) FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, error) {
+	args := m.Called(ctx)
+	var pos []models.PurchaseOrder
+	if args.Get(0) != nil {
+		pos = args.Get(0).([]models.PurchaseOrder)
+	}
+	return pos, args.Error(1)
+}
+
 func (m *MockPORepository) FindSkuMapping(ctx context.Context, vendorID uuid.UUID, sku string) (*models.SkuMapping, error) {
 	args := m.Called(ctx, vendorID, sku)
 	if args.Get(0) != nil {

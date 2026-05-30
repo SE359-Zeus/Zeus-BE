@@ -22,7 +22,7 @@ func NewPORepository(db *gorm.DB) repository.IPORepository {
 
 func (r *poRepository) GetPOByID(ctx context.Context, id string) (*models.PurchaseOrder, error) {
 	var po models.PurchaseOrder
-	if err := r.db.WithContext(ctx).Preload("LineItems").First(&po, "id = ?", id).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("LineItems").Preload("Vendor").First(&po, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &po, nil
@@ -73,7 +73,7 @@ func (r *poRepository) FindPOByVendorAndStatuses(ctx context.Context, vendorID u
 }
 
 func (r *poRepository) ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error) {
-	query := r.db.WithContext(ctx).Model(&models.PurchaseOrder{}).Preload("LineItems")
+	query := r.db.WithContext(ctx).Model(&models.PurchaseOrder{}).Preload("LineItems").Preload("Vendor")
 	if q != "" {
 		like := "%" + q + "%"
 		query = query.Where("id LIKE ? OR target_build LIKE ? OR status LIKE ?", like, like, like)
@@ -84,6 +84,14 @@ func (r *poRepository) ListPOs(ctx context.Context, params pagination.Params, q 
 		return nil, nil, err
 	}
 	return pos, meta, nil
+}
+
+func (r *poRepository) FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, error) {
+	var pos []models.PurchaseOrder
+	if err := r.db.WithContext(ctx).Preload("LineItems").Preload("Vendor").Order("created_at DESC").Find(&pos).Error; err != nil {
+		return nil, err
+	}
+	return pos, nil
 }
 
 func (r *poRepository) FindSkuMapping(ctx context.Context, vendorID uuid.UUID, sku string) (*models.SkuMapping, error) {

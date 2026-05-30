@@ -25,6 +25,7 @@ type IPOService interface {
 	TransitionState(ctx context.Context, poID string, newState models.POStatus) error
 	ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error)
 	GetPO(ctx context.Context, poID string) (*models.PurchaseOrder, error)
+	FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, error)
 	CreatePO(ctx context.Context, po *models.PurchaseOrder) error
 }
 
@@ -39,12 +40,31 @@ type poServiceRepo struct {
 	mqURL     string
 }
 
+func hydratePurchaseOrder(po *models.PurchaseOrder) {
+	if po != nil && po.Vendor != nil {
+		po.VendorName = po.Vendor.Name
+	}
+}
+
+func hydratePurchaseOrders(pos []models.PurchaseOrder) {
+	for i := range pos {
+		hydratePurchaseOrder(&pos[i])
+	}
+}
+
+func cloneAndHydratePurchaseOrders(pos []models.PurchaseOrder) []models.PurchaseOrder {
+	out := make([]models.PurchaseOrder, len(pos))
+	copy(out, pos)
+	hydratePurchaseOrders(out)
+	return out
+}
+
 func NewPOService(arg interface{}, args ...interface{}) IPOService {
 	switch v := arg.(type) {
 	case *gorm.DB:
 		mqURL := ""
-		if len(args) > 0 {
-			if s, ok := args[0].(string); ok {
+		for _, a := range args {
+			if s, ok := a.(string); ok {
 				mqURL = s
 			}
 		}
@@ -52,14 +72,12 @@ func NewPOService(arg interface{}, args ...interface{}) IPOService {
 	case repository.IPORepository:
 		var stock repository.IStockRepository
 		var mqURL string
-		if len(args) > 0 {
-			if r, ok := args[0].(repository.IStockRepository); ok {
-				stock = r
-			}
-		}
-		if len(args) > 1 {
-			if s, ok := args[1].(string); ok {
-				mqURL = s
+		for _, a := range args {
+			switch typed := a.(type) {
+			case repository.IStockRepository:
+				stock = typed
+			case string:
+				mqURL = typed
 			}
 		}
 		return &poServiceRepo{poRepo: v, stockRepo: stock, mqURL: mqURL}
@@ -406,7 +424,7 @@ func validTransition(current, new models.POStatus) bool {
 }
 
 func (s *poService) ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error) {
-	query := s.db.WithContext(ctx).Model(&models.PurchaseOrder{}).Preload("LineItems")
+	query := s.db.WithContext(ctx).Model(&models.PurchaseOrder{}).Preload("LineItems").Preload("Vendor")
 	if q != "" {
 		like := "%" + q + "%"
 		query = query.Where("id LIKE ? OR target_build LIKE ? OR status LIKE ?", like, like, like)
@@ -416,18 +434,28 @@ func (s *poService) ListPOs(ctx context.Context, params pagination.Params, q str
 	if err != nil {
 		return nil, nil, err
 	}
+	hydratePurchaseOrders(pos)
 	return pos, meta, nil
 }
 
 func (s *poService) GetPO(ctx context.Context, poID string) (*models.PurchaseOrder, error) {
 	var po models.PurchaseOrder
-	if err := s.db.WithContext(ctx).Preload("LineItems").First(&po, "id = ?", poID).Error; err != nil {
+	if err := s.db.WithContext(ctx).Preload("LineItems").Preload("Vendor").First(&po, "id = ?", poID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
+	hydratePurchaseOrder(&po)
 	return &po, nil
+}
+
+func (s *poService) FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, error) {
+	var pos []models.PurchaseOrder
+	if err := s.db.WithContext(ctx).Preload("LineItems").Preload("Vendor").Order("created_at DESC").Find(&pos).Error; err != nil {
+		return nil, err
+	}
+	return cloneAndHydratePurchaseOrders(pos), nil
 }
 
 func (s *poService) CreatePO(ctx context.Context, po *models.PurchaseOrder) error {
@@ -476,7 +504,12 @@ func (s *poService) CreatePO(ctx context.Context, po *models.PurchaseOrder) erro
 }
 
 func (s *poServiceRepo) ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error) {
-	return s.poRepo.ListPOs(ctx, params, q)
+	pos, meta, err := s.poRepo.ListPOs(ctx, params, q)
+	if err != nil {
+		return nil, nil, err
+	}
+	hydratePurchaseOrders(pos)
+	return pos, meta, nil
 }
 
 func (s *poServiceRepo) GetPO(ctx context.Context, poID string) (*models.PurchaseOrder, error) {
@@ -484,7 +517,16 @@ func (s *poServiceRepo) GetPO(ctx context.Context, poID string) (*models.Purchas
 	if err != nil || po == nil {
 		return nil, ErrNotFound
 	}
+	hydratePurchaseOrder(po)
 	return po, nil
+}
+
+func (s *poServiceRepo) FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, error) {
+	pos, err := s.poRepo.FindAllPOs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return cloneAndHydratePurchaseOrders(pos), nil
 }
 
 func (s *poServiceRepo) CreatePO(ctx context.Context, po *models.PurchaseOrder) error {

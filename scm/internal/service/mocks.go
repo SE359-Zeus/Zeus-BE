@@ -112,6 +112,15 @@ func (m *MockPOService) GetPO(ctx context.Context, poID string) (*models.Purchas
 	return nil, args.Error(1)
 }
 
+func (m *MockPOService) FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, error) {
+	args := m.Called(ctx)
+	var pos []models.PurchaseOrder
+	if args.Get(0) != nil {
+		pos = args.Get(0).([]models.PurchaseOrder)
+	}
+	return pos, args.Error(1)
+}
+
 func (m *MockPOService) CreatePO(ctx context.Context, po *models.PurchaseOrder) error {
 	args := m.Called(ctx, po)
 	return args.Error(0)
