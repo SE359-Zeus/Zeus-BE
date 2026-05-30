@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"zeus-be/pkg/exception"
+	"zeus-system-service/internal/infrastructure/observability"
 	"zeus-system-service/internal/models"
 	"zeus-system-service/internal/service"
 
@@ -63,6 +64,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	result, err := h.authSvc.Login(c.Request.Context(), req)
 	if err != nil {
+		observability.DefaultRegistry.Counter(observability.MetricAuthLoginFailure).Inc()
 		if appErr := exception.Resolve(err); appErr != nil {
 			WriteAppError(c, appErr)
 			return
@@ -90,6 +92,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	setRefreshCookie(c, result.Tokens.RefreshToken)
 
+	observability.DefaultRegistry.Counter(observability.MetricAuthLoginSuccess).Inc()
 	WriteJSON(c, 200, models.AuthResponse{
 		AccessToken: result.Tokens.AccessToken,
 		TokenType:   result.Tokens.TokenType,

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"zeus-system-service/internal/handler"
+	"zeus-system-service/internal/infrastructure/observability"
 
 	"zeus-be/pkg/exception"
 
@@ -78,6 +79,10 @@ func RequestLogger() gin.HandlerFunc {
 			slog.String("role", role),
 			slog.String("auth_method", authMethod),
 		)
+		observability.DefaultRegistry.Counter(observability.MetricHTTPRequestsTotal).Inc()
+		if status >= 500 {
+			observability.DefaultRegistry.Counter(observability.MetricHTTPRequestErrors).Inc()
+		}
 	}
 }
 
@@ -85,6 +90,7 @@ func Recovery() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if r := recover(); r != nil {
+				observability.DefaultRegistry.Counter(observability.MetricHTTPPanicsTotal).Inc()
 				slog.Error("panic recovered",
 					slog.String("service", "system"),
 					slog.String("event", "panic_recovered"),

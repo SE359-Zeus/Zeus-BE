@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"zeus-be/pkg/exception"
+	"zeus-system-service/internal/infrastructure/observability"
 	"zeus-system-service/internal/models"
 	"zeus-system-service/internal/service"
 
@@ -64,6 +65,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		}
 	}
 
+	observability.DefaultRegistry.Counter(observability.MetricUserCreatedTotal).Inc()
 	WriteEnvelope(c, 201, "created", gin.H{}, models.ToUserResponse(user))
 }
 
