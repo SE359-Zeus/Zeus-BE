@@ -193,7 +193,7 @@ type InventoryLedgerEntry struct {
 	QtyChange      int       `json:"qty_change"`
 	RunningBalance int       `json:"running_balance"`
 	Location       string    `json:"location"`
-	OperatorID     string    `json:"operator_id"`
+	OperatorName   string    `json:"operator_name"`
 	Reference      string    `json:"reference"`
 	ReferenceType  string    `json:"reference_type"`
 	ReferenceID    string    `json:"reference_id"`

@@ -143,7 +143,7 @@ func (s *ProductionService) inventoryLedgerFromSCM(ctx context.Context) ([]model
 				RunningBalance: e.RunningBalance,
 				Location:       e.Location,
 				Timestamp:      e.CreatedAt,
-				Operator:       e.OperatorID,
+				Operator:       e.OperatorName,
 				Reference:      e.Reference,
 			})
 		}
