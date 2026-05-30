@@ -298,6 +298,16 @@ func (m *MockShipmentService) DispatchShipment(ctx context.Context, shipmentID s
 	return args.Error(0)
 }
 
+func (m *MockShipmentService) MarkDelivered(ctx context.Context, shipmentID string, operatorID string) error {
+	args := m.Called(ctx, shipmentID, operatorID)
+	return args.Error(0)
+}
+
+func (m *MockShipmentService) TransitionState(ctx context.Context, shipmentID string, newState models.ShipmentStatus) error {
+	args := m.Called(ctx, shipmentID, newState)
+	return args.Error(0)
+}
+
 func (m *MockShipmentService) ListShipments(ctx context.Context, status string, params pagination.Params) ([]models.Shipment, *pagination.Meta, error) {
 	args := m.Called(ctx, status, params)
 	var shipments []models.Shipment
@@ -309,6 +319,15 @@ func (m *MockShipmentService) ListShipments(ctx context.Context, status string, 
 		meta = args.Get(1).(*pagination.Meta)
 	}
 	return shipments, meta, args.Error(2)
+}
+
+func (m *MockShipmentService) FindAllShipments(ctx context.Context) ([]models.Shipment, error) {
+	args := m.Called(ctx)
+	var shipments []models.Shipment
+	if args.Get(0) != nil {
+		shipments = args.Get(0).([]models.Shipment)
+	}
+	return shipments, args.Error(1)
 }
 
 func (m *MockShipmentService) GetShipment(ctx context.Context, shipmentID string) (*models.Shipment, error) {
@@ -370,6 +389,15 @@ func (m *MockGoodsReceiptService) ListGRs(ctx context.Context, status string, pa
 		meta = args.Get(1).(*pagination.Meta)
 	}
 	return grs, meta, args.Error(2)
+}
+
+func (m *MockGoodsReceiptService) FindAllGRs(ctx context.Context) ([]models.GoodsReceipt, error) {
+	args := m.Called(ctx)
+	var grs []models.GoodsReceipt
+	if args.Get(0) != nil {
+		grs = args.Get(0).([]models.GoodsReceipt)
+	}
+	return grs, args.Error(1)
 }
 
 func (m *MockGoodsReceiptService) GetGR(ctx context.Context, grID string) (*models.GoodsReceipt, error) {

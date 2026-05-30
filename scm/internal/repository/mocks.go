@@ -138,6 +138,11 @@ func (m *MockPORepository) CreatePOLineItem(ctx context.Context, item *models.PO
 	return args.Error(0)
 }
 
+func (m *MockPORepository) SavePOLineItem(ctx context.Context, item *models.POLineItem) error {
+	args := m.Called(ctx, item)
+	return args.Error(0)
+}
+
 func (m *MockPORepository) GetPOLineItemsByPOID(ctx context.Context, poID string) ([]models.POLineItem, error) {
 	args := m.Called(ctx, poID)
 	if args.Get(0) != nil {
@@ -361,6 +366,11 @@ func (m *MockShipmentRepository) GetShipmentByID(ctx context.Context, id string)
 	return nil, args.Error(1)
 }
 
+func (m *MockShipmentRepository) CreateShipmentItem(ctx context.Context, item *models.ShipmentItem) error {
+	args := m.Called(ctx, item)
+	return args.Error(0)
+}
+
 func (m *MockShipmentRepository) UpdateShipment(ctx context.Context, shipment *models.Shipment) error {
 	args := m.Called(ctx, shipment)
 	return args.Error(0)
@@ -390,6 +400,15 @@ func (m *MockShipmentRepository) ListShipments(ctx context.Context, status strin
 		meta = args.Get(1).(*pagination.Meta)
 	}
 	return shipments, meta, args.Error(2)
+}
+
+func (m *MockShipmentRepository) FindAllShipments(ctx context.Context) ([]models.Shipment, error) {
+	args := m.Called(ctx)
+	var shipments []models.Shipment
+	if args.Get(0) != nil {
+		shipments = args.Get(0).([]models.Shipment)
+	}
+	return shipments, args.Error(1)
 }
 
 func (m *MockShipmentRepository) CreateShipment(ctx context.Context, shipment *models.Shipment) error {
@@ -446,6 +465,34 @@ func (m *MockGoodsReceiptRepository) GetGRByID(ctx context.Context, id string) (
 		return args.Get(0).(*models.GoodsReceipt), args.Error(1)
 	}
 	return nil, args.Error(1)
+}
+
+func (m *MockGoodsReceiptRepository) CreateGR(ctx context.Context, gr *models.GoodsReceipt) error {
+	args := m.Called(ctx, gr)
+	return args.Error(0)
+}
+
+func (m *MockGoodsReceiptRepository) FindGRsByPOID(ctx context.Context, poID string) ([]models.GoodsReceipt, error) {
+	args := m.Called(ctx, poID)
+	var grs []models.GoodsReceipt
+	if args.Get(0) != nil {
+		grs = args.Get(0).([]models.GoodsReceipt)
+	}
+	return grs, args.Error(1)
+}
+
+func (m *MockGoodsReceiptRepository) FindAllGRs(ctx context.Context) ([]models.GoodsReceipt, error) {
+	args := m.Called(ctx)
+	var grs []models.GoodsReceipt
+	if args.Get(0) != nil {
+		grs = args.Get(0).([]models.GoodsReceipt)
+	}
+	return grs, args.Error(1)
+}
+
+func (m *MockGoodsReceiptRepository) CountByPOIDAndNotStatus(ctx context.Context, poID string, status models.GRStatus) (int64, error) {
+	args := m.Called(ctx, poID, status)
+	return args.Get(0).(int64), args.Error(1)
 }
 
 func (m *MockGoodsReceiptRepository) UpdateGR(ctx context.Context, gr *models.GoodsReceipt) error {

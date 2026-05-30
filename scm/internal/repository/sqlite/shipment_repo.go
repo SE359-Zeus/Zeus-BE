@@ -26,6 +26,10 @@ func (r *shipmentRepository) GetShipmentByID(ctx context.Context, id string) (*m
 	return &s, nil
 }
 
+func (r *shipmentRepository) CreateShipmentItem(ctx context.Context, item *models.ShipmentItem) error {
+	return r.db.WithContext(ctx).Create(item).Error
+}
+
 func (r *shipmentRepository) UpdateShipment(ctx context.Context, shipment *models.Shipment) error {
 	return r.db.WithContext(ctx).Save(shipment).Error
 }
@@ -53,6 +57,14 @@ func (r *shipmentRepository) ListShipments(ctx context.Context, status string, p
 		return nil, nil, err
 	}
 	return shipments, meta, nil
+}
+
+func (r *shipmentRepository) FindAllShipments(ctx context.Context) ([]models.Shipment, error) {
+	var shipments []models.Shipment
+	if err := r.db.WithContext(ctx).Preload("Items").Preload("Supplier").Order("created_at DESC").Find(&shipments).Error; err != nil {
+		return nil, err
+	}
+	return shipments, nil
 }
 
 func (r *shipmentRepository) CreateShipment(ctx context.Context, shipment *models.Shipment) error {
