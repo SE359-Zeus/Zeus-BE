@@ -7,12 +7,13 @@ import (
 )
 
 type Product struct {
-	ID               uuid.UUID `gorm:"type:uuid;primaryKey"`
-	ProductModelCode string    `gorm:"type:varchar;not null"`
-	CustomerID       uuid.UUID `gorm:"type:uuid;not null"`
-	ProductName      string    `gorm:"type:varchar;not null"`
-	SerialNumber     string    `gorm:"type:varchar;not null"`
-	CreatedAt        time.Time `gorm:"not null"`
-	UpdatedAt        time.Time `gorm:"not null"`
-	DeletedAt        *time.Time
+	ID               uuid.UUID     `gorm:"type:uuid;primaryKey" json:"id"`
+	ProductModelCode string        `gorm:"type:varchar;not null" json:"product_model_code"`
+	CustomerID       uuid.UUID     `gorm:"type:uuid;not null" json:"customer_id"`
+	ProductName      string        `gorm:"type:varchar;not null" json:"product_name"`
+	SerialNumber     string        `gorm:"type:varchar;not null" json:"serial_number"`
+	CreatedAt        time.Time     `gorm:"not null" json:"created_at"`
+	UpdatedAt        time.Time     `gorm:"not null" json:"updated_at"`
+	DeletedAt        *time.Time    `json:"deleted_at,omitempty"`
+	ProductModel     *ProductModel `gorm:"foreignKey:ProductModelCode;references:ModelCode" json:"product_model,omitempty"`
 }

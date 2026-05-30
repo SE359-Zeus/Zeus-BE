@@ -102,14 +102,14 @@ func (s *inventoryService) GetProduct(ctx context.Context, id uuid.UUID) (*model
 
 func (s *inventoryService) GetProductBySerialNumber(ctx context.Context, serialNumber string) (*models.Product, error) {
 	var p models.Product
-	if err := s.db.WithContext(ctx).First(&p, "serial_number = ?", serialNumber).Error; err != nil {
+	if err := s.db.WithContext(ctx).Preload("ProductModel").First(&p, "serial_number = ?", serialNumber).Error; err != nil {
 		return nil, ErrNotFound
 	}
 	return &p, nil
 }
 
 func (s *inventoryService) ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error) {
-	query := s.db.WithContext(ctx).Model(&models.Product{})
+	query := s.db.WithContext(ctx).Model(&models.Product{}).Preload("ProductModel")
 	if q != "" {
 		like := "%" + q + "%"
 		query = query.Where(

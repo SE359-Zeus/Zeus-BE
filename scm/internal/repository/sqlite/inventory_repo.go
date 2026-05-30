@@ -40,7 +40,7 @@ func (r *inventoryRepository) FindSkuMappingsBySKU(ctx context.Context, sku stri
 
 func (r *inventoryRepository) GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error) {
 	var p models.Product
-	if err := r.db.WithContext(ctx).First(&p, "id = ?", id).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("ProductModel").First(&p, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &p, nil
@@ -48,14 +48,14 @@ func (r *inventoryRepository) GetProductByID(ctx context.Context, id uuid.UUID) 
 
 func (r *inventoryRepository) GetProductBySerialNumber(ctx context.Context, serialNumber string) (*models.Product, error) {
 	var p models.Product
-	if err := r.db.WithContext(ctx).First(&p, "serial_number = ?", serialNumber).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("ProductModel").First(&p, "serial_number = ?", serialNumber).Error; err != nil {
 		return nil, err
 	}
 	return &p, nil
 }
 
 func (r *inventoryRepository) ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error) {
-	query := r.db.WithContext(ctx).Model(&models.Product{})
+	query := r.db.WithContext(ctx).Model(&models.Product{}).Preload("ProductModel")
 	if q != "" {
 		like := "%" + q + "%"
 		query = query.Where(
