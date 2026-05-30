@@ -105,9 +105,9 @@ func main() {
 	vendorSvc := service.NewVendorService(vendorRepo)
 	lutSvc := service.NewLUTService(lutRepo)
 	ledgerSvc := service.NewLedgerService(ledgerRepo)
-	poSvc := service.NewPOService(poRepo, stockRepo, vendorRepo, cfg.RabbitMQURL)
+	poSvc := service.NewPOService(poRepo, stockRepo, grRepo, cfg.RabbitMQURL)
 	grSvc := service.NewGoodsReceiptService(grRepo, stockRepo, poRepo, cfg.AgingThresholdYears, ledgerSvc)
-	shipmentSvc := service.NewShipmentService(shipmentRepo, stockRepo, poRepo, vendorRepo, carrierRepo, ledgerSvc)
+	shipmentSvc := service.NewShipmentService(shipmentRepo, stockRepo, poRepo, vendorRepo, carrierRepo, ledgerSvc, grRepo)
 	inventorySvc := service.NewInventoryService(inventoryRepo)
 
 	jwtSvc, err := service.NewJWTService(cfg.JwtPublicKeyPath)
@@ -244,6 +244,8 @@ func main() {
 
 		api.POST("/shipments/:shipmentId/lock", middleware.RequireRoles(rolesWorker...), shipmentH.AcquireDispatchLock)
 		api.POST("/shipments/:shipmentId/dispatch", middleware.RequireRoles(rolesWorker...), shipmentH.DispatchShipment)
+		api.POST("/shipments/:shipmentId/deliver", middleware.RequireRoles(rolesWorker...), shipmentH.MarkDelivered)
+		api.PUT("/shipments/:shipmentId/state", middleware.RequireRoles(rolesWorker...), shipmentH.TransitionState)
 		api.GET("/shipments", middleware.RequireRoles(rolesWorker...), shipmentH.ListShipments)
 		api.GET("/shipments/metrics", middleware.RequireRoles(rolesWorker...), shipmentH.GetMetrics)
 		api.GET("/shipments/carriers", middleware.RequireRoles(rolesWorker...), shipmentH.ListCarriers)

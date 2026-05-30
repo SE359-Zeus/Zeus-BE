@@ -298,6 +298,16 @@ func (m *MockShipmentService) DispatchShipment(ctx context.Context, shipmentID s
 	return args.Error(0)
 }
 
+func (m *MockShipmentService) MarkDelivered(ctx context.Context, shipmentID string, operatorID string) error {
+	args := m.Called(ctx, shipmentID, operatorID)
+	return args.Error(0)
+}
+
+func (m *MockShipmentService) TransitionState(ctx context.Context, shipmentID string, newState models.ShipmentStatus) error {
+	args := m.Called(ctx, shipmentID, newState)
+	return args.Error(0)
+}
+
 func (m *MockShipmentService) ListShipments(ctx context.Context, status string, params pagination.Params) ([]models.Shipment, *pagination.Meta, error) {
 	args := m.Called(ctx, status, params)
 	var shipments []models.Shipment

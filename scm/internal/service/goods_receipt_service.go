@@ -221,14 +221,20 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 		return err
 	}
 
-	if allReceived {
-		po.Status = models.POStatusReceived
-	} else {
-		po.Status = models.POStatusPartial
-	}
-	if err := tx.Save(&po).Error; err != nil {
-		tx.Rollback()
-		return err
+	var incompleteGRs int64
+	tx.Model(&models.GoodsReceipt{}).
+		Where("po_ref = ? AND status != ?", po.ID, models.GRStatusComplete).
+		Count(&incompleteGRs)
+	if incompleteGRs == 0 {
+		if allReceived {
+			po.Status = models.POStatusReceived
+		} else {
+			po.Status = models.POStatusPartial
+		}
+		if err := tx.Save(&po).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
 	}
 
 	return tx.Commit().Error
@@ -348,13 +354,16 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 		return err
 	}
 
-	if allReceived {
-		po.Status = models.POStatusReceived
-	} else {
-		po.Status = models.POStatusPartial
-	}
-	if err := s.poRepo.SavePO(ctx, po); err != nil {
-		return err
+	incompleteGRs, _ := s.repo.CountByPOIDAndNotStatus(ctx, po.ID, models.GRStatusComplete)
+	if incompleteGRs == 0 {
+		if allReceived {
+			po.Status = models.POStatusReceived
+		} else {
+			po.Status = models.POStatusPartial
+		}
+		if err := s.poRepo.SavePO(ctx, po); err != nil {
+			return err
+		}
 	}
 	return nil
 }

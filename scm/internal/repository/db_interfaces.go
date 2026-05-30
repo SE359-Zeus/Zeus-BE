@@ -92,11 +92,14 @@ type IStockRepository interface {
 
 type IGoodsReceiptRepository interface {
 	GetGRByID(ctx context.Context, id string) (*models.GoodsReceipt, error)
+	CreateGR(ctx context.Context, gr *models.GoodsReceipt) error
+	FindGRsByPOID(ctx context.Context, poID string) ([]models.GoodsReceipt, error)
 	UpdateGR(ctx context.Context, gr *models.GoodsReceipt) error
 	UpdateGRFields(ctx context.Context, id string, fields map[string]interface{}) error
 	FindGRLineItemsByGRID(ctx context.Context, grID string) ([]models.GRLineItem, error)
 	SaveGRLineItem(ctx context.Context, item *models.GRLineItem) error
 	ListGRs(ctx context.Context, status string, params pagination.Params) ([]models.GoodsReceipt, *pagination.Meta, error)
+	CountByPOIDAndNotStatus(ctx context.Context, poID string, status models.GRStatus) (int64, error)
 	GetMetrics(ctx context.Context) (pending int64, completedToday int64, discrepancies int64, queue int64, err error)
 }
 

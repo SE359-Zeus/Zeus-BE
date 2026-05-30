@@ -30,13 +30,15 @@ type IPOService interface {
 }
 
 type poService struct {
-	db    *gorm.DB
-	mqURL string
+	db     *gorm.DB
+	grRepo repository.IGoodsReceiptRepository
+	mqURL  string
 }
 
 type poServiceRepo struct {
 	poRepo    repository.IPORepository
 	stockRepo repository.IStockRepository
+	grRepo    repository.IGoodsReceiptRepository
 	mqURL     string
 }
 
@@ -63,14 +65,19 @@ func NewPOService(arg interface{}, args ...interface{}) IPOService {
 	switch v := arg.(type) {
 	case *gorm.DB:
 		mqURL := ""
+		var grRepo repository.IGoodsReceiptRepository
 		for _, a := range args {
-			if s, ok := a.(string); ok {
-				mqURL = s
+			switch typed := a.(type) {
+			case string:
+				mqURL = typed
+			case repository.IGoodsReceiptRepository:
+				grRepo = typed
 			}
 		}
-		return &poService{db: v, mqURL: mqURL}
+		return &poService{db: v, grRepo: grRepo, mqURL: mqURL}
 	case repository.IPORepository:
 		var stock repository.IStockRepository
+		var grRepo repository.IGoodsReceiptRepository
 		var mqURL string
 		for _, a := range args {
 			switch typed := a.(type) {
@@ -78,9 +85,11 @@ func NewPOService(arg interface{}, args ...interface{}) IPOService {
 				stock = typed
 			case string:
 				mqURL = typed
+			case repository.IGoodsReceiptRepository:
+				grRepo = typed
 			}
 		}
-		return &poServiceRepo{poRepo: v, stockRepo: stock, mqURL: mqURL}
+		return &poServiceRepo{poRepo: v, stockRepo: stock, grRepo: grRepo, mqURL: mqURL}
 	default:
 		panic("invalid NewPOService usage")
 	}
@@ -357,6 +366,15 @@ func (s *poServiceRepo) TransitionState(ctx context.Context, poID string, newSta
 	if !validTransition(po.Status, newState) {
 		return ErrStateRegression
 	}
+	if newState != models.POStatusVoid && s.grRepo != nil {
+		incomplete, err := s.grRepo.CountByPOIDAndNotStatus(ctx, poID, models.GRStatusComplete)
+		if err != nil {
+			return err
+		}
+		if incomplete > 0 {
+			return ErrIncompleteGRs
+		}
+	}
 	return s.poRepo.UpdatePOStatus(ctx, poID, newState)
 }
 
@@ -390,6 +408,16 @@ func (s *poService) TransitionState(ctx context.Context, poID string, newState m
 	valid := validTransition(po.Status, newState)
 	if !valid {
 		return ErrStateRegression
+	}
+
+	if newState != models.POStatusVoid && s.grRepo != nil {
+		incomplete, err := s.grRepo.CountByPOIDAndNotStatus(ctx, poID, models.GRStatusComplete)
+		if err != nil {
+			return err
+		}
+		if incomplete > 0 {
+			return ErrIncompleteGRs
+		}
 	}
 
 	return s.db.WithContext(ctx).Model(&po).Update("status", newState).Error

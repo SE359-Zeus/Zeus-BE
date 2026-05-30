@@ -71,6 +71,51 @@ func (h *ShipmentHandler) DispatchShipment(c *gin.Context) {
 	writeJSON(c, 200, gin.H{"message": "shipment dispatched"})
 }
 
+type markDeliveredRequest struct {
+	OperatorID string `json:"operator_id" binding:"required"`
+}
+
+func (h *ShipmentHandler) MarkDelivered(c *gin.Context) {
+	shipmentID := c.Param("shipmentId")
+	var req markDeliveredRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		exception.WriteError(c, exception.ErrInvalidBody)
+		return
+	}
+	ctx := context.WithValue(c.Request.Context(), middleware.ContextKeyFullName, c.GetString(middleware.ContextKeyFullName))
+	if err := h.svc.MarkDelivered(ctx, shipmentID, req.OperatorID); err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
+		return
+	}
+	writeJSON(c, 200, gin.H{"message": "shipment delivered"})
+}
+
+type transitionShipmentStateRequest struct {
+	NewState string `json:"new_state" binding:"required"`
+}
+
+func (h *ShipmentHandler) TransitionState(c *gin.Context) {
+	shipmentID := c.Param("shipmentId")
+	var req transitionShipmentStateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		exception.WriteError(c, exception.ErrInvalidBody)
+		return
+	}
+	if err := h.svc.TransitionState(c.Request.Context(), shipmentID, models.ShipmentStatus(req.NewState)); err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
+		return
+	}
+	writeJSON(c, 200, gin.H{"message": "state transitioned"})
+}
+
 func (h *ShipmentHandler) ListShipments(c *gin.Context) {
 	status := c.Query("status")
 	params := parsePaginationParams(c)

@@ -448,6 +448,20 @@ func (m *MockGoodsReceiptRepository) GetGRByID(ctx context.Context, id string) (
 	return nil, args.Error(1)
 }
 
+func (m *MockGoodsReceiptRepository) CreateGR(ctx context.Context, gr *models.GoodsReceipt) error {
+	args := m.Called(ctx, gr)
+	return args.Error(0)
+}
+
+func (m *MockGoodsReceiptRepository) FindGRsByPOID(ctx context.Context, poID string) ([]models.GoodsReceipt, error) {
+	args := m.Called(ctx, poID)
+	var grs []models.GoodsReceipt
+	if args.Get(0) != nil {
+		grs = args.Get(0).([]models.GoodsReceipt)
+	}
+	return grs, args.Error(1)
+}
+
 func (m *MockGoodsReceiptRepository) UpdateGR(ctx context.Context, gr *models.GoodsReceipt) error {
 	args := m.Called(ctx, gr)
 	return args.Error(0)
@@ -482,6 +496,11 @@ func (m *MockGoodsReceiptRepository) ListGRs(ctx context.Context, status string,
 		meta = args.Get(1).(*pagination.Meta)
 	}
 	return grs, meta, args.Error(2)
+}
+
+func (m *MockGoodsReceiptRepository) CountByPOIDAndNotStatus(ctx context.Context, poID string, status models.GRStatus) (int64, error) {
+	args := m.Called(ctx, poID, status)
+	return args.Get(0).(int64), args.Error(1)
 }
 
 func (m *MockGoodsReceiptRepository) GetMetrics(ctx context.Context) (pending int64, completedToday int64, discrepancies int64, queue int64, err error) {

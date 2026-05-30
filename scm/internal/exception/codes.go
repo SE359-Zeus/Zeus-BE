@@ -49,4 +49,5 @@ var (
 	ErrInsufficientDeficit = New("INV_002", "Insufficient deficit in pool for this SKU", http.StatusBadRequest)
 	ErrNoOptimalSupplier   = New("VEN_001", "No optimal supplier found for the given SKU", http.StatusNotFound)
 	ErrStateRegression     = New("PO_003", "State regression is not allowed", http.StatusBadRequest)
+	ErrIncompleteGRs       = New("PO_004", "Purchase order cannot advance until all goods receipts are complete", http.StatusConflict)
 )

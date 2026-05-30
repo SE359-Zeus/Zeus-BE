@@ -16,6 +16,8 @@ import (
 type IShipmentService interface {
 	AcquireDispatchLock(ctx context.Context, shipmentID string, operatorID string) error
 	DispatchShipment(ctx context.Context, shipmentID string, operatorID string) error
+	MarkDelivered(ctx context.Context, shipmentID string, operatorID string) error
+	TransitionState(ctx context.Context, shipmentID string, newState models.ShipmentStatus) error
 	ListShipments(ctx context.Context, status string, params pagination.Params) ([]models.Shipment, *pagination.Meta, error)
 	GetShipment(ctx context.Context, shipmentID string) (*models.Shipment, error)
 	CreateShipment(ctx context.Context, shipment *models.Shipment) error
@@ -27,6 +29,7 @@ type shipmentService struct {
 	db          *gorm.DB
 	ledgerSvc   ILedgerService
 	carrierRepo repository.ICarrierRepository
+	grRepo      repository.IGoodsReceiptRepository
 }
 
 type shipmentServiceRepo struct {
@@ -35,18 +38,23 @@ type shipmentServiceRepo struct {
 	stock       repository.IStockRepository
 	vendorRepo  repository.IVendorRepository
 	carrierRepo repository.ICarrierRepository
+	grRepo      repository.IGoodsReceiptRepository
 	ledgerSvc   ILedgerService
 }
 
 func NewShipmentService(arg interface{}, args ...interface{}) IShipmentService {
 	var ledgerSvc ILedgerService
 	var carrierRepo repository.ICarrierRepository
+	var grRepo repository.IGoodsReceiptRepository
 	for _, a := range args {
 		if ls, ok := a.(ILedgerService); ok {
 			ledgerSvc = ls
 		}
 		if cr, ok := a.(repository.ICarrierRepository); ok {
 			carrierRepo = cr
+		}
+		if gr, ok := a.(repository.IGoodsReceiptRepository); ok {
+			grRepo = gr
 		}
 	}
 
@@ -72,10 +80,10 @@ func NewShipmentService(arg interface{}, args ...interface{}) IShipmentService {
 						vendor = r
 					}
 				}
-				return &shipmentServiceRepo{repo: repoArg, stock: stock, poRepo: po, vendorRepo: vendor, carrierRepo: carrierRepo, ledgerSvc: ledgerSvc}
+				return &shipmentServiceRepo{repo: repoArg, stock: stock, poRepo: po, vendorRepo: vendor, carrierRepo: carrierRepo, grRepo: grRepo, ledgerSvc: ledgerSvc}
 			}
 		}
-		return &shipmentService{db: v, ledgerSvc: ledgerSvc, carrierRepo: carrierRepo}
+		return &shipmentService{db: v, ledgerSvc: ledgerSvc, carrierRepo: carrierRepo, grRepo: grRepo}
 	case repository.IShipmentRepository:
 		var stock repository.IStockRepository
 		var po repository.IPORepository
@@ -95,7 +103,7 @@ func NewShipmentService(arg interface{}, args ...interface{}) IShipmentService {
 				vendor = r
 			}
 		}
-		return &shipmentServiceRepo{repo: v, stock: stock, poRepo: po, vendorRepo: vendor, carrierRepo: carrierRepo, ledgerSvc: ledgerSvc}
+		return &shipmentServiceRepo{repo: v, stock: stock, poRepo: po, vendorRepo: vendor, carrierRepo: carrierRepo, grRepo: grRepo, ledgerSvc: ledgerSvc}
 	default:
 		panic("invalid NewShipmentService usage")
 	}
@@ -336,6 +344,191 @@ func (s *shipmentServiceRepo) ListCarriers(ctx context.Context) ([]models.Carrie
 		return nil, nil
 	}
 	return s.carrierRepo.ListCarriers(ctx)
+}
+
+func (s *shipmentService) MarkDelivered(ctx context.Context, shipmentID string, operatorID string) error {
+	var shipment models.Shipment
+	if err := s.db.WithContext(ctx).First(&shipment, "id = ?", shipmentID).Error; err != nil {
+		return ErrNotFound
+	}
+	if shipment.Status != models.ShipmentStatusInTransit {
+		return ErrInvalidTransition
+	}
+
+	tx := s.db.WithContext(ctx).Begin()
+
+	shipment.Status = models.ShipmentStatusDelivered
+	if err := tx.Save(&shipment).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if s.grRepo != nil {
+		if err := s.createGRFromShipment(tx, ctx, &shipment, operatorID); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit().Error
+}
+
+func (s *shipmentServiceRepo) MarkDelivered(ctx context.Context, shipmentID string, operatorID string) error {
+	shipment, err := s.repo.GetShipmentByID(ctx, shipmentID)
+	if err != nil || shipment == nil {
+		return ErrNotFound
+	}
+	if shipment.Status != models.ShipmentStatusInTransit {
+		return ErrInvalidTransition
+	}
+
+	shipment.Status = models.ShipmentStatusDelivered
+	if err := s.repo.UpdateShipment(ctx, shipment); err != nil {
+		return err
+	}
+
+	if s.grRepo != nil && s.poRepo != nil {
+		if err := s.createGRFromShipmentRepo(ctx, shipment, operatorID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *shipmentService) createGRFromShipment(tx *gorm.DB, ctx context.Context, shipment *models.Shipment, operatorID string) error {
+	var poItems []models.POLineItem
+	if err := tx.Where("po_id = ?", shipment.PORef).Find(&poItems).Error; err != nil {
+		return err
+	}
+
+	var existingGRs []models.GoodsReceipt
+	tx.Where("po_ref = ?", shipment.PORef).Find(&existingGRs)
+	grIdx := len(existingGRs) + 1
+	grID := fmt.Sprintf("%s-GR-%03d", shipment.PORef, grIdx)
+
+	operatorName := operatorNameFromContext(ctx)
+
+	gr := models.GoodsReceipt{
+		ID:           grID,
+		PORef:        shipment.PORef,
+		VendorID:     shipment.SupplierID,
+		Status:       models.GRStatusPending,
+		ArrivalDate:  time.Now(),
+		OperatorID:   operatorID,
+		OperatorName: operatorName,
+	}
+	if err := tx.Create(&gr).Error; err != nil {
+		return err
+	}
+
+	for _, item := range poItems {
+		grLine := models.GRLineItem{
+			ID:         uuid.New(),
+			GRID:       grID,
+			SKU:        item.SKU,
+			Name:       item.Description,
+			OrderedQty: item.OrderedQty,
+		}
+		if err := tx.Create(&grLine).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *shipmentServiceRepo) createGRFromShipmentRepo(ctx context.Context, shipment *models.Shipment, operatorID string) error {
+	poItems, err := s.poRepo.GetPOLineItemsByPOID(ctx, shipment.PORef)
+	if err != nil {
+		return err
+	}
+
+	existingGRs, _ := s.grRepo.FindGRsByPOID(ctx, shipment.PORef)
+	grIdx := len(existingGRs) + 1
+	grID := fmt.Sprintf("%s-GR-%03d", shipment.PORef, grIdx)
+
+	operatorName := operatorNameFromContext(ctx)
+
+	gr := &models.GoodsReceipt{
+		ID:           grID,
+		PORef:        shipment.PORef,
+		VendorID:     shipment.SupplierID,
+		Status:       models.GRStatusPending,
+		ArrivalDate:  time.Now(),
+		OperatorID:   operatorID,
+		OperatorName: operatorName,
+	}
+	if err := s.grRepo.CreateGR(ctx, gr); err != nil {
+		return err
+	}
+
+	for _, item := range poItems {
+		grLine := &models.GRLineItem{
+			ID:         uuid.New(),
+			GRID:       grID,
+			SKU:        item.SKU,
+			Name:       item.Description,
+			OrderedQty: item.OrderedQty,
+		}
+		if err := s.grRepo.SaveGRLineItem(ctx, grLine); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *shipmentService) TransitionState(ctx context.Context, shipmentID string, newState models.ShipmentStatus) error {
+	var shipment models.Shipment
+	if err := s.db.WithContext(ctx).First(&shipment, "id = ?", shipmentID).Error; err != nil {
+		return ErrNotFound
+	}
+	if !validShipmentTransition(shipment.Status, newState) {
+		return ErrStateRegression
+	}
+	return s.db.WithContext(ctx).Model(&shipment).Update("status", newState).Error
+}
+
+func (s *shipmentServiceRepo) TransitionState(ctx context.Context, shipmentID string, newState models.ShipmentStatus) error {
+	shipment, err := s.repo.GetShipmentByID(ctx, shipmentID)
+	if err != nil || shipment == nil {
+		return ErrNotFound
+	}
+	if !validShipmentTransition(shipment.Status, newState) {
+		return ErrStateRegression
+	}
+	shipment.Status = newState
+	return s.repo.UpdateShipment(ctx, shipment)
+}
+
+func validShipmentTransition(current, new models.ShipmentStatus) bool {
+	order := []models.ShipmentStatus{
+		models.ShipmentStatusScheduled,
+		models.ShipmentStatusInTransit,
+		models.ShipmentStatusDelivered,
+		models.ShipmentStatusDelayed,
+	}
+	currentIdx := -1
+	newIdx := -1
+	for i, s := range order {
+		if s == current {
+			currentIdx = i
+		}
+		if s == new {
+			newIdx = i
+		}
+	}
+	if currentIdx == -1 || newIdx == -1 {
+		return false
+	}
+	if new == models.ShipmentStatusDelayed {
+		return current == models.ShipmentStatusInTransit
+	}
+	if current == models.ShipmentStatusDelayed {
+		return new == models.ShipmentStatusInTransit
+	}
+	return newIdx > currentIdx
 }
 
 func hydrateShipmentSupplierNames(shipments []models.Shipment) {
