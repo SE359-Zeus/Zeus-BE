@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"encoding/csv"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -662,4 +664,50 @@ func (h *InventoryHandler) GetInventoryMetrics(c *gin.Context) {
 		"out_of_stock": outOfStock,
 		"stock_value":  stockValue,
 	})
+}
+
+func (h *InventoryHandler) ExportInventoryReport(c *gin.Context) {
+	stocks, err := h.svc.FindAllStocks(c.Request.Context())
+	if err != nil {
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Disposition", `attachment; filename="inventory_report.csv"`)
+	c.Header("Content-Type", "text/csv")
+	c.Header("Transfer-Encoding", "chunked")
+	c.Writer.WriteHeader(http.StatusOK)
+
+	csvWriter := csv.NewWriter(c.Writer)
+	header := []string{
+		"SKU", "Name", "Category", "Stock Qty", "Reorder Point",
+		"Unit Cost", "Status", "Primary Supplier", "Lead Time Days", "Location",
+	}
+	if err := csvWriter.Write(header); err != nil {
+		return
+	}
+	csvWriter.Flush()
+	c.Writer.Flush()
+
+	for _, s := range stocks {
+		row := []string{
+			s.SKU,
+			s.Name,
+			s.Category,
+			strconv.Itoa(s.StockQty),
+			strconv.Itoa(s.ReorderPoint),
+			strconv.FormatFloat(s.UnitCost, 'f', 2, 64),
+			string(s.Status),
+			s.PrimarySupplier,
+			strconv.Itoa(s.LeadTimeDays),
+			s.Location,
+		}
+		if err := csvWriter.Write(row); err != nil {
+			return
+		}
+	}
+
+	csvWriter.Flush()
+	c.Writer.Flush()
 }

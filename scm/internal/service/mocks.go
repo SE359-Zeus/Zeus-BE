@@ -284,6 +284,14 @@ func (m *MockInventoryService) ListStocks(ctx context.Context, params pagination
 	return nil, args.Get(1).(*pagination.Meta), args.Error(2)
 }
 
+func (m *MockInventoryService) FindAllStocks(ctx context.Context) ([]models.ComponentStock, error) {
+	args := m.Called(ctx)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.ComponentStock), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockInventoryService) CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error {
 	args := m.Called(ctx, stock)
 	return args.Error(0)

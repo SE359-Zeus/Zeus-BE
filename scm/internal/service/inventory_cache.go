@@ -144,6 +144,10 @@ func (s *cachedInventoryService) ListStocks(ctx context.Context, params paginati
 	return s.base.ListStocks(ctx, params, status, q)
 }
 
+func (s *cachedInventoryService) FindAllStocks(ctx context.Context) ([]models.ComponentStock, error) {
+	return s.base.FindAllStocks(ctx)
+}
+
 func (s *cachedInventoryService) CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error {
 	return s.base.CreateComponentStock(ctx, stock)
 }

@@ -2028,7 +2028,62 @@ paths:
               schema:
                 allOf:
                   - $ref: '#/components/schemas/SuccessResponse'
-                  - properties:
+                    - properties:
                       data:
                         $ref: '#/components/schemas/InventoryLedger'
+
+  /inventory/metrics:
+    get:
+      summary: Get inventory KPI metrics
+      tags: [Inventory]
+      responses:
+        '200':
+          description: Inventory metrics
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          total_skus:
+                            type: integer
+                            example: 42
+                          low_stock:
+                            type: integer
+                            example: 5
+                          out_of_stock:
+                            type: integer
+                            example: 3
+                          stock_value:
+                            type: number
+                            format: double
+                            example: 125000.50
+
+  /inventory/export:
+    get:
+      summary: Export full inventory (component stocks) as CSV stream
+      tags: [Inventory]
+      responses:
+        '200':
+          description: CSV file download stream
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: attachment; filename="inventory_report.csv"
+            Content-Type:
+              schema:
+                type: string
+                example: text/csv
+          content:
+            text/csv:
+              schema:
+                type: string
+                description: >
+                  CSV with columns: SKU, Name, Category, Stock Qty, Reorder Point,
+                  Unit Cost, Status, Primary Supplier, Lead Time Days, Location.
+                  One row per SKU.
 

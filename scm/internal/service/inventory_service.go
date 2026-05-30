@@ -43,6 +43,7 @@ type IInventoryService interface {
 	DeletePartCatalogBySKU(ctx context.Context, sku string) error
 	GetPartCatalogBySKU(ctx context.Context, sku string) (*models.PartCatalog, float64, int, error)
 	ListStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error)
+	FindAllStocks(ctx context.Context) ([]models.ComponentStock, error)
 	CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error
 	GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error)
 	GetInventoryMetrics(ctx context.Context) (totalSKUs int64, lowStock int64, outOfStock int64, stockValue float64, err error)
@@ -444,6 +445,18 @@ func (s *inventoryServiceRepo) ListStocks(ctx context.Context, params pagination
 		return nil, nil, err
 	}
 	return hydrated, meta, nil
+}
+
+func (s *inventoryServiceRepo) FindAllStocks(ctx context.Context) ([]models.ComponentStock, error) {
+	stocks, _, err := s.repo.ListComponentStocks(ctx, pagination.Params{Page: 1, Limit: 100000}, "", "")
+	if err != nil {
+		return nil, err
+	}
+	hydrated, err := s.hydrateStockSuppliers(ctx, stocks)
+	if err != nil {
+		return nil, err
+	}
+	return hydrated, nil
 }
 
 func (s *inventoryServiceRepo) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
@@ -937,6 +950,18 @@ func (s *inventoryService) ListStocks(ctx context.Context, params pagination.Par
 		return nil, nil, err
 	}
 	return hydrated, meta, nil
+}
+
+func (s *inventoryService) FindAllStocks(ctx context.Context) ([]models.ComponentStock, error) {
+	var stocks []models.ComponentStock
+	if err := s.db.WithContext(ctx).Order("sku ASC").Find(&stocks).Error; err != nil {
+		return nil, err
+	}
+	hydrated, err := s.hydrateStockSuppliers(ctx, stocks)
+	if err != nil {
+		return nil, err
+	}
+	return hydrated, nil
 }
 
 func (s *inventoryService) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
