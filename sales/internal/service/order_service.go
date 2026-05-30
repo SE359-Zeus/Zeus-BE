@@ -179,6 +179,7 @@ func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrder
 
 	svc.publishAudit(ctx, "CREATE", "sales/orders/"+order.ID.String(), fmt.Sprintf("Created sales order %s for client %s", order.ID.String(), client.Name), client)
 
+	observability.DefaultRegistry.Counter(observability.MetricOrdersCreated).Inc()
 	return svc.buildResponse(ctx, order, items)
 }
 
@@ -479,6 +480,7 @@ func (svc *OrderService) CancelOrder(ctx context.Context, id uuid.UUID) error {
 		"order_id": order.ID.String(),
 		"status":   models.SalesOrderStatusCancelledCode,
 	})
+	observability.DefaultRegistry.Counter(observability.MetricOrdersCancelled).Inc()
 	return nil
 }
 

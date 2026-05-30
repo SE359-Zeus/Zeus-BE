@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"zeus-sales-service/internal/infrastructure/observability"
 	"zeus-sales-service/internal/middlewares"
 	"zeus-sales-service/internal/models"
 	"zeus-sales-service/internal/repository"
@@ -104,6 +105,7 @@ func (svc *FulfillmentService) ProcessQueue(ctx context.Context) ([]models.Fulfi
 			return manifests, err
 		}
 		manifests = append(manifests, *manifest)
+		observability.DefaultRegistry.Counter(observability.MetricOrdersFulfilled).Inc()
 	}
 	return manifests, nil
 }

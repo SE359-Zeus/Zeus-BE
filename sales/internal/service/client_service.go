@@ -7,6 +7,7 @@ import (
 	"time"
 
 	infraMessaging "zeus-sales-service/internal/infrastructure/messaging"
+	"zeus-sales-service/internal/infrastructure/observability"
 	"zeus-sales-service/internal/middlewares"
 	"zeus-sales-service/internal/models"
 	"zeus-sales-service/internal/repository"
@@ -100,6 +101,7 @@ func (svc *ClientService) CreateClient(ctx context.Context, req models.CreateCli
 		_ = svc.infra.Publisher.Publish(ctx, "sales.client.created", client)
 		svc.publishAudit(ctx, "CREATE", "sales/clients/"+client.ID.String(), "Created client "+client.Name)
 	}
+	observability.DefaultRegistry.Counter(observability.MetricClientsCreated).Inc()
 	return client, nil
 }
 
