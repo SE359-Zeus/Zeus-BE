@@ -225,3 +225,18 @@ func (r *inventoryRepository) DeleteComponentStockBySKU(ctx context.Context, sku
 	res := r.db.WithContext(ctx).Where("sku = ?", sku).Delete(&models.ComponentStock{})
 	return res.RowsAffected, res.Error
 }
+
+func (r *inventoryRepository) GetInventoryMetrics(ctx context.Context) (totalSKUs int64, lowStock int64, outOfStock int64, stockValue float64, err error) {
+	db := r.db.WithContext(ctx).Model(&models.ComponentStock{})
+	if err = db.Count(&totalSKUs).Error; err != nil {
+		return
+	}
+	if err = db.Where("stock_qty > 0 AND stock_qty <= reorder_point").Count(&lowStock).Error; err != nil {
+		return
+	}
+	if err = db.Where("stock_qty = 0").Count(&outOfStock).Error; err != nil {
+		return
+	}
+	err = db.Select("COALESCE(SUM(stock_qty * unit_cost), 0)").Scan(&stockValue).Error
+	return
+}

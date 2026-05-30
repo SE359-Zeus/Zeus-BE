@@ -45,6 +45,7 @@ type IInventoryService interface {
 	ListStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error)
 	CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error
 	GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error)
+	GetInventoryMetrics(ctx context.Context) (totalSKUs int64, lowStock int64, outOfStock int64, stockValue float64, err error)
 }
 
 type inventoryService struct {
@@ -950,4 +951,23 @@ func (s *inventoryService) GetStockBySKU(ctx context.Context, sku string) (*mode
 		}
 	}
 	return &stock, nil
+}
+
+func (s *inventoryService) GetInventoryMetrics(ctx context.Context) (totalSKUs int64, lowStock int64, outOfStock int64, stockValue float64, err error) {
+	db := s.db.WithContext(ctx).Model(&models.ComponentStock{})
+	if err = db.Count(&totalSKUs).Error; err != nil {
+		return
+	}
+	if err = db.Where("stock_qty > 0 AND stock_qty <= reorder_point").Count(&lowStock).Error; err != nil {
+		return
+	}
+	if err = db.Where("stock_qty = 0").Count(&outOfStock).Error; err != nil {
+		return
+	}
+	err = db.Select("COALESCE(SUM(stock_qty * unit_cost), 0)").Scan(&stockValue).Error
+	return
+}
+
+func (s *inventoryServiceRepo) GetInventoryMetrics(ctx context.Context) (int64, int64, int64, float64, error) {
+	return s.repo.GetInventoryMetrics(ctx)
 }

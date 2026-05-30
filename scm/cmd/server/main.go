@@ -264,6 +264,7 @@ func main() {
 		api.GET("/inventory/stocks", middleware.RequireRoles(rolesWorker...), inventoryH.ListStocks)
 		api.POST("/inventory/stocks", middleware.RequireRoles(rolesOperator...), inventoryH.CreateComponentStock)
 		api.GET("/inventory/stocks/:sku", middleware.RequireRoles(rolesWorker...), inventoryH.GetStockBySKU)
+		api.GET("/inventory/metrics", middleware.RequireRoles(rolesWorker...), inventoryH.GetInventoryMetrics)
 		api.GET("/inventory/parts", middleware.RequireRoles(rolesWorker...), inventoryH.ListParts)
 		api.GET("/inventory/parts/:id", middleware.RequireRoles(rolesWorker...), inventoryH.GetPart)
 		api.POST("/inventory/parts", middleware.RequireRoles(rolesOperator...), inventoryH.CreatePart)

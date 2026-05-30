@@ -71,6 +71,7 @@ type IInventoryRepository interface {
 	CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error
 	UpdateComponentStockFieldsBySKU(ctx context.Context, sku string, updates map[string]interface{}) (int64, error)
 	DeleteComponentStockBySKU(ctx context.Context, sku string) (int64, error)
+	GetInventoryMetrics(ctx context.Context) (totalSKUs int64, lowStock int64, outOfStock int64, stockValue float64, err error)
 }
 
 type IShipmentRepository interface {

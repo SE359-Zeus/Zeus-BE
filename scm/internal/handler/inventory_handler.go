@@ -184,6 +184,16 @@ func (h *InventoryHandler) CreatePart(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
+	if p.ID == uuid.Nil {
+		p.ID = uuid.New()
+	}
+	now := time.Now()
+	if p.CreatedAt.IsZero() {
+		p.CreatedAt = now
+	}
+	if p.UpdatedAt.IsZero() {
+		p.UpdatedAt = now
+	}
 	if err := h.svc.CreatePart(c.Request.Context(), &p); err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			exception.WriteError(c, appErr)
@@ -638,4 +648,18 @@ func (h *InventoryHandler) GetStockBySKU(c *gin.Context) {
 		return
 	}
 	writeJSON(c, 200, stock)
+}
+
+func (h *InventoryHandler) GetInventoryMetrics(c *gin.Context) {
+	totalSKUs, lowStock, outOfStock, stockValue, err := h.svc.GetInventoryMetrics(c.Request.Context())
+	if err != nil {
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+	writeJSON(c, 200, gin.H{
+		"total_skus":   totalSKUs,
+		"low_stock":    lowStock,
+		"out_of_stock": outOfStock,
+		"stock_value":  stockValue,
+	})
 }

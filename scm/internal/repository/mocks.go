@@ -367,6 +367,11 @@ func (m *MockInventoryRepository) DeleteComponentStockBySKU(ctx context.Context,
 	return args.Get(0).(int64), args.Error(1)
 }
 
+func (m *MockInventoryRepository) GetInventoryMetrics(ctx context.Context) (int64, int64, int64, float64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Get(1).(int64), args.Get(2).(int64), args.Get(3).(float64), args.Error(4)
+}
+
 type MockShipmentRepository struct {
 	mock.Mock
 }

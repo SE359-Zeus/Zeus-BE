@@ -151,3 +151,7 @@ func (s *cachedInventoryService) CreateComponentStock(ctx context.Context, stock
 func (s *cachedInventoryService) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
 	return s.base.GetStockBySKU(ctx, sku)
 }
+
+func (s *cachedInventoryService) GetInventoryMetrics(ctx context.Context) (int64, int64, int64, float64, error) {
+	return s.base.GetInventoryMetrics(ctx)
+}
