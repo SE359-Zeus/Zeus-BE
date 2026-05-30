@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"zeus-scm-service/internal/infrastructure/observability"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/repository"
@@ -113,17 +114,22 @@ func (s *goodsReceiptService) AcquireLock(ctx context.Context, grID string, oper
 	operatorName := operatorNameFromContext(ctx)
 	if gr.LockedBy != nil && *gr.LockedBy != operatorID {
 		if gr.LockExpiresAt != nil && gr.LockExpiresAt.After(time.Now()) {
+			observability.DefaultRegistry.Counter(observability.MetricLockContention).Inc()
 			return ErrAlreadyLocked
 		}
 	}
 	now := time.Now()
 	expiresAt := now.Add(60 * time.Minute)
-	return s.db.WithContext(ctx).Model(&gr).Updates(map[string]interface{}{
+	err := s.db.WithContext(ctx).Model(&gr).Updates(map[string]interface{}{
 		"locked_by":       operatorID,
 		"operator_id":     operatorID,
 		"operator_name":   operatorName,
 		"lock_expires_at": expiresAt,
 	}).Error
+	if err == nil {
+		observability.DefaultRegistry.Counter(observability.MetricLockAcquisitions).Inc()
+	}
+	return err
 }
 
 func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID string, operatorID string, counts map[string]struct {
@@ -237,6 +243,7 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 		}
 	}
 
+	observability.DefaultRegistry.Counter(observability.MetricGRProcessed).Inc()
 	return tx.Commit().Error
 }
 
@@ -260,12 +267,17 @@ func (s *goodsReceiptServiceRepo) AcquireLock(ctx context.Context, grID string, 
 	operatorName := operatorNameFromContext(ctx)
 	if gr.LockedBy != nil && *gr.LockedBy != operatorID {
 		if gr.LockExpiresAt != nil && gr.LockExpiresAt.After(time.Now()) {
+			observability.DefaultRegistry.Counter(observability.MetricLockContention).Inc()
 			return ErrAlreadyLocked
 		}
 	}
 	now := time.Now()
 	expiresAt := now.Add(60 * time.Minute)
-	return s.repo.UpdateGRFields(ctx, grID, map[string]interface{}{"locked_by": operatorID, "operator_id": operatorID, "operator_name": operatorName, "lock_expires_at": expiresAt})
+	err = s.repo.UpdateGRFields(ctx, grID, map[string]interface{}{"locked_by": operatorID, "operator_id": operatorID, "operator_name": operatorName, "lock_expires_at": expiresAt})
+	if err == nil {
+		observability.DefaultRegistry.Counter(observability.MetricLockAcquisitions).Inc()
+	}
+	return err
 }
 
 func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID string, operatorID string, counts map[string]struct {
@@ -365,6 +377,7 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 			return err
 		}
 	}
+	observability.DefaultRegistry.Counter(observability.MetricGRProcessed).Inc()
 	return nil
 }
 

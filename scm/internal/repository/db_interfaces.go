@@ -37,6 +37,7 @@ type IPORepository interface {
 	ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error)
 	FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, error)
 	FindSkuMapping(ctx context.Context, vendorID uuid.UUID, sku string) (*models.SkuMapping, error)
+	GetPOMetrics(ctx context.Context) (total int64, draft int64, approved int64, inTransit int64, received int64, partial int64, void int64, err error)
 }
 
 type IInventoryRepository interface {

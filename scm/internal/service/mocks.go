@@ -126,6 +126,11 @@ func (m *MockPOService) CreatePO(ctx context.Context, po *models.PurchaseOrder) 
 	return args.Error(0)
 }
 
+func (m *MockPOService) GetMetrics(ctx context.Context) (int64, int64, int64, int64, int64, int64, int64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Get(1).(int64), args.Get(2).(int64), args.Get(3).(int64), args.Get(4).(int64), args.Get(5).(int64), args.Get(6).(int64), args.Error(7)
+}
+
 type MockInventoryService struct {
 	mock.Mock
 }

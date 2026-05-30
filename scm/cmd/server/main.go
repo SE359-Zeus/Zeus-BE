@@ -231,6 +231,7 @@ func main() {
 		api.POST("/purchase-orders/:poId/approve", middleware.RequireRoles(rolesOperator...), poH.ApprovePO)
 		api.PUT("/purchase-orders/:poId/state", middleware.RequireRoles(rolesOperator...), poH.TransitionState)
 		api.GET("/purchase-orders/export", middleware.RequireRoles(rolesWorker...), poH.ExportPOReport)
+		api.GET("/purchase-orders/metrics", middleware.RequireRoles(rolesWorker...), poH.GetMetrics)
 		api.GET("/purchase-orders", middleware.RequireRoles(rolesWorker...), poH.ListPOs)
 		api.GET("/purchase-orders/:poId", middleware.RequireRoles(rolesWorker...), poH.GetPO)
 		api.POST("/purchase-orders", middleware.RequireRoles(rolesWorker...), poH.CreatePO)

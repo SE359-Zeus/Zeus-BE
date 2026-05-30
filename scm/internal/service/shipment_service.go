@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"zeus-scm-service/internal/infrastructure/observability"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/repository"
@@ -169,6 +170,7 @@ func (s *shipmentService) DispatchShipment(ctx context.Context, shipmentID strin
 		return err
 	}
 
+	observability.DefaultRegistry.Counter(observability.MetricShipmentDispatched).Inc()
 	return tx.Commit().Error
 }
 
@@ -300,7 +302,11 @@ func (s *shipmentServiceRepo) DispatchShipment(ctx context.Context, shipmentID s
 
 	shipment.Status = models.ShipmentStatusInTransit
 	shipment.ShipDate = time.Now()
-	return s.repo.UpdateShipment(ctx, shipment)
+	err = s.repo.UpdateShipment(ctx, shipment)
+	if err == nil {
+		observability.DefaultRegistry.Counter(observability.MetricShipmentDispatched).Inc()
+	}
+	return err
 }
 
 func (s *shipmentServiceRepo) ListShipments(ctx context.Context, status string, params pagination.Params) ([]models.Shipment, *pagination.Meta, error) {
@@ -370,6 +376,8 @@ func (s *shipmentService) MarkDelivered(ctx context.Context, shipmentID string, 
 		}
 	}
 
+	observability.DefaultRegistry.Counter(observability.MetricShipmentDelivered).Inc()
+	observability.DefaultRegistry.Counter(observability.MetricGRCreated).Inc()
 	return tx.Commit().Error
 }
 
@@ -393,6 +401,8 @@ func (s *shipmentServiceRepo) MarkDelivered(ctx context.Context, shipmentID stri
 		}
 	}
 
+	observability.DefaultRegistry.Counter(observability.MetricShipmentDelivered).Inc()
+	observability.DefaultRegistry.Counter(observability.MetricGRCreated).Inc()
 	return nil
 }
 
