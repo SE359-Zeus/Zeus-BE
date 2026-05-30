@@ -58,7 +58,6 @@ func main() {
 		slog.String("valkey_addr", cfg.ValkeyAddr),
 	)
 
-
 	db, err := sqliteRepo.NewDB(cfg.DBPath)
 	if err != nil {
 		slog.Error("failed to connect to database",
@@ -99,11 +98,16 @@ func main() {
 	shipmentRepo := sqliteRepo.NewShipmentRepository(db)
 	inventoryRepo := sqliteRepo.NewInventoryRepository(db)
 	stockRepo := sqliteRepo.NewStockRepository(db)
+	lutRepo := sqliteRepo.NewLUTRepository(db)
+	ledgerRepo := sqliteRepo.NewLedgerRepository(db)
+	carrierRepo := sqliteRepo.NewCarrierRepository(db)
 
 	vendorSvc := service.NewVendorService(vendorRepo)
-	poSvc := service.NewPOService(poRepo, stockRepo, cfg.RabbitMQURL)
-	grSvc := service.NewGoodsReceiptService(grRepo, stockRepo, poRepo, cfg.AgingThresholdYears)
-	shipmentSvc := service.NewShipmentService(shipmentRepo, stockRepo)
+	lutSvc := service.NewLUTService(lutRepo)
+	ledgerSvc := service.NewLedgerService(ledgerRepo)
+	poSvc := service.NewPOService(poRepo, stockRepo, vendorRepo, cfg.RabbitMQURL)
+	grSvc := service.NewGoodsReceiptService(grRepo, stockRepo, poRepo, cfg.AgingThresholdYears, ledgerSvc)
+	shipmentSvc := service.NewShipmentService(shipmentRepo, stockRepo, poRepo, vendorRepo, carrierRepo, ledgerSvc)
 	inventorySvc := service.NewInventoryService(inventoryRepo)
 
 	jwtSvc, err := service.NewJWTService(cfg.JwtPublicKeyPath)
@@ -153,6 +157,8 @@ func main() {
 	grH := handler.NewGoodsReceiptHandler(grSvc)
 	shipmentH := handler.NewShipmentHandler(shipmentSvc)
 	inventoryH := handler.NewInventoryHandler(inventorySvc)
+	lutH := handler.NewLUTHandler(lutSvc)
+	ledgerH := handler.NewLedgerHandler(ledgerSvc)
 
 	r := gin.New()
 	// Disable trailing-slash redirect: prevents Gin from issuing a 301/302
@@ -160,6 +166,7 @@ func main() {
 	// and fall through to the catch-all "Success!" location.
 	r.RedirectTrailingSlash = false
 	r.Use(
+		middleware.CORS(),
 		observability.Tracing("scm"), // inject trace_id / span_id
 		middleware.RequestLogger(),
 		middleware.Recovery(),
@@ -167,7 +174,6 @@ func main() {
 
 	// Internal metrics endpoint — Alloy scrapes this.
 	r.GET("/metrics", gin.WrapF(observability.MetricsHTTPHandler(obs.Metrics)))
-
 
 	// ── Public routes (no auth) ──────────────────────────────────────────────
 	{
@@ -214,18 +220,35 @@ func main() {
 	{
 		api.GET("/vendors/optimal", middleware.RequireRoles(rolesOperator...), vendorH.GetOptimalSupplier)
 		api.POST("/vendors/:id/recalc-metrics", middleware.RequireRoles(rolesOperator...), vendorH.UpdateSupplierMetrics)
+		api.GET("/vendors", middleware.RequireRoles(rolesWorker...), vendorH.ListSuppliers)
+		api.GET("/vendors/metrics", middleware.RequireRoles(rolesWorker...), vendorH.GetSupplierMetrics)
+		api.POST("/vendors", middleware.RequireRoles(rolesOperator...), vendorH.CreateSupplier)
+		api.POST("/vendors/:id/sku-mappings", middleware.RequireRoles(rolesOperator...), vendorH.CreateSkuMapping)
+		api.GET("/vendors/export", middleware.RequireRoles(rolesWorker...), vendorH.ExportSuppliersReport)
 
 		api.POST("/purchase-orders/draft", middleware.RequireRoles(rolesWorker...), poH.CreateDraft)
 		api.POST("/purchase-orders/:poId/line-items", middleware.RequireRoles(rolesWorker...), poH.AddLineItemWithLock)
 		api.POST("/purchase-orders/:poId/approve", middleware.RequireRoles(rolesOperator...), poH.ApprovePO)
 		api.PUT("/purchase-orders/:poId/state", middleware.RequireRoles(rolesOperator...), poH.TransitionState)
+		api.GET("/purchase-orders/export", middleware.RequireRoles(rolesWorker...), poH.ExportPOReport)
+		api.GET("/purchase-orders", middleware.RequireRoles(rolesWorker...), poH.ListPOs)
+		api.GET("/purchase-orders/:poId", middleware.RequireRoles(rolesWorker...), poH.GetPO)
+		api.POST("/purchase-orders", middleware.RequireRoles(rolesWorker...), poH.CreatePO)
 
 		api.POST("/goods-receipts/:grId/lock", middleware.RequireRoles(rolesWorker...), grH.AcquireLock)
 		api.POST("/goods-receipts/:grId/process", middleware.RequireRoles(rolesWorker...), grH.ProcessBlindReceipt)
 		api.DELETE("/goods-receipts/:grId/lock", middleware.RequireRoles(rolesWorker...), grH.ReleaseLock)
+		api.GET("/goods-receipts", middleware.RequireRoles(rolesWorker...), grH.ListGRs)
+		api.GET("/goods-receipts/metrics", middleware.RequireRoles(rolesWorker...), grH.GetMetrics)
+		api.GET("/goods-receipts/:grId", middleware.RequireRoles(rolesWorker...), grH.GetGR)
 
 		api.POST("/shipments/:shipmentId/lock", middleware.RequireRoles(rolesWorker...), shipmentH.AcquireDispatchLock)
 		api.POST("/shipments/:shipmentId/dispatch", middleware.RequireRoles(rolesWorker...), shipmentH.DispatchShipment)
+		api.GET("/shipments", middleware.RequireRoles(rolesWorker...), shipmentH.ListShipments)
+		api.GET("/shipments/metrics", middleware.RequireRoles(rolesWorker...), shipmentH.GetMetrics)
+		api.GET("/shipments/carriers", middleware.RequireRoles(rolesWorker...), shipmentH.ListCarriers)
+		api.GET("/shipments/:shipmentId", middleware.RequireRoles(rolesWorker...), shipmentH.GetShipment)
+		api.POST("/shipments", middleware.RequireRoles(rolesWorker...), shipmentH.CreateShipment)
 
 		api.GET("/inventory/products", middleware.RequireRoles(rolesWorker...), inventoryH.ListProducts)
 		api.GET("/inventory/products/:id", middleware.RequireRoles(rolesWorker...), inventoryH.GetProduct)
@@ -235,6 +258,7 @@ func main() {
 		api.GET("/inventory/product-models/:code", middleware.RequireRoles(rolesWorker...), inventoryH.GetProductModel)
 		api.POST("/inventory/product-models", middleware.RequireRoles(rolesOperator...), inventoryH.CreateProductModel)
 		api.GET("/inventory/stocks", middleware.RequireRoles(rolesWorker...), inventoryH.ListStocks)
+		api.POST("/inventory/stocks", middleware.RequireRoles(rolesOperator...), inventoryH.CreateComponentStock)
 		api.GET("/inventory/stocks/:sku", middleware.RequireRoles(rolesWorker...), inventoryH.GetStockBySKU)
 		api.GET("/inventory/parts", middleware.RequireRoles(rolesWorker...), inventoryH.ListParts)
 		api.GET("/inventory/parts/:id", middleware.RequireRoles(rolesWorker...), inventoryH.GetPart)
@@ -250,6 +274,11 @@ func main() {
 		api.PUT("/inventory/part-catalog/:sku", middleware.RequireRoles(rolesOperator...), inventoryH.UpdatePartCatalog)
 		api.DELETE("/inventory/part-catalog/:sku", middleware.RequireRoles(rolesOperator...), inventoryH.DeletePartCatalog)
 		api.GET("/inventory/part-catalog/sku/:sku", middleware.RequireRoles(rolesWorker...), inventoryH.GetPartCatalogBySKU)
+
+		api.GET("/luts", middleware.RequireRoles(rolesWorker...), lutH.GetAllLUTs)
+
+		api.GET("/inventory/ledger", middleware.RequireRoles(rolesWorker...), ledgerH.ListEntries)
+		api.GET("/inventory/ledger/:id", middleware.RequireRoles(rolesWorker...), ledgerH.GetEntryByID)
 	}
 
 	slog.Info("scm service listening",
@@ -267,8 +296,6 @@ func main() {
 		os.Exit(1)
 	}
 }
-
-
 
 func findOpenAPISpec() string {
 	paths := []string{"docs/openapi.yaml", "./docs/openapi.yaml", filepath.Join(".", "docs", "openapi.yaml")}

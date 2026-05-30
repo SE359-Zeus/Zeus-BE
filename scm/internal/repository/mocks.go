@@ -64,6 +64,48 @@ func (m *MockVendorRepository) FindGRLineItemsByGRID(ctx context.Context, grID s
 	return nil, args.Error(1)
 }
 
+func (m *MockVendorRepository) ListSuppliers(ctx context.Context, tier string, params pagination.Params, q string) ([]models.Supplier, *pagination.Meta, error) {
+	args := m.Called(ctx, tier, params, q)
+	var suppliers []models.Supplier
+	if args.Get(0) != nil {
+		suppliers = args.Get(0).([]models.Supplier)
+	}
+	var meta *pagination.Meta
+	if args.Get(1) != nil {
+		meta = args.Get(1).(*pagination.Meta)
+	}
+	return suppliers, meta, args.Error(2)
+}
+
+func (m *MockVendorRepository) CreateSupplier(ctx context.Context, supplier *models.Supplier) error {
+	args := m.Called(ctx, supplier)
+	return args.Error(0)
+}
+
+func (m *MockVendorRepository) CreateSkuMapping(ctx context.Context, mapping *models.SkuMapping) error {
+	args := m.Called(ctx, mapping)
+	return args.Error(0)
+}
+
+func (m *MockVendorRepository) CountSuppliers(ctx context.Context) (int64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockVendorRepository) GetAverageOnTimeRate(ctx context.Context) (float64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(float64), args.Error(1)
+}
+
+func (m *MockVendorRepository) FindAllSuppliersWithMappings(ctx context.Context) ([]models.Supplier, error) {
+	args := m.Called(ctx)
+	var suppliers []models.Supplier
+	if args.Get(0) != nil {
+		suppliers = args.Get(0).([]models.Supplier)
+	}
+	return suppliers, args.Error(1)
+}
+
 type MockPORepository struct {
 	mock.Mock
 }
@@ -117,8 +159,54 @@ func (m *MockPORepository) FindPOByVendorAndStatuses(ctx context.Context, vendor
 	return nil, args.Error(1)
 }
 
+func (m *MockPORepository) ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error) {
+	args := m.Called(ctx, params, q)
+	var pos []models.PurchaseOrder
+	if args.Get(0) != nil {
+		pos = args.Get(0).([]models.PurchaseOrder)
+	}
+	var meta *pagination.Meta
+	if args.Get(1) != nil {
+		meta = args.Get(1).(*pagination.Meta)
+	}
+	return pos, meta, args.Error(2)
+}
+
+func (m *MockPORepository) FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, error) {
+	args := m.Called(ctx)
+	var pos []models.PurchaseOrder
+	if args.Get(0) != nil {
+		pos = args.Get(0).([]models.PurchaseOrder)
+	}
+	return pos, args.Error(1)
+}
+
+func (m *MockPORepository) FindSkuMapping(ctx context.Context, vendorID uuid.UUID, sku string) (*models.SkuMapping, error) {
+	args := m.Called(ctx, vendorID, sku)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.SkuMapping), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 type MockInventoryRepository struct {
 	mock.Mock
+}
+
+func (m *MockInventoryRepository) GetSupplierByID(ctx context.Context, id uuid.UUID) (*models.Supplier, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Supplier), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockInventoryRepository) FindSkuMappingsBySKU(ctx context.Context, sku string) ([]models.SkuMapping, error) {
+	args := m.Called(ctx, sku)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.SkuMapping), args.Error(1)
+	}
+	return nil, args.Error(1)
 }
 
 func (m *MockInventoryRepository) GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error) {
@@ -238,8 +326,8 @@ func (m *MockInventoryRepository) GetComponentStockBySKU(ctx context.Context, sk
 	return nil, args.Error(1)
 }
 
-func (m *MockInventoryRepository) ListComponentStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error) {
-	args := m.Called(ctx, params, q)
+func (m *MockInventoryRepository) ListComponentStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error) {
+	args := m.Called(ctx, params, status, q)
 	if args.Get(0) != nil {
 		return args.Get(0).([]models.ComponentStock), args.Get(1).(*pagination.Meta), args.Error(2)
 	}
@@ -287,6 +375,41 @@ func (m *MockShipmentRepository) GetShipmentItemsByShipmentID(ctx context.Contex
 	args := m.Called(ctx, shipmentID)
 	if args.Get(0) != nil {
 		return args.Get(0).([]models.ShipmentItem), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockShipmentRepository) ListShipments(ctx context.Context, status string, params pagination.Params) ([]models.Shipment, *pagination.Meta, error) {
+	args := m.Called(ctx, status, params)
+	var shipments []models.Shipment
+	if args.Get(0) != nil {
+		shipments = args.Get(0).([]models.Shipment)
+	}
+	var meta *pagination.Meta
+	if args.Get(1) != nil {
+		meta = args.Get(1).(*pagination.Meta)
+	}
+	return shipments, meta, args.Error(2)
+}
+
+func (m *MockShipmentRepository) CreateShipment(ctx context.Context, shipment *models.Shipment) error {
+	args := m.Called(ctx, shipment)
+	return args.Error(0)
+}
+
+func (m *MockShipmentRepository) GetShipmentMetrics(ctx context.Context) (total int64, inTransit int64, delayed int64, onTimeRate float64, err error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Get(1).(int64), args.Get(2).(int64), args.Get(3).(float64), args.Error(4)
+}
+
+type MockCarrierRepository struct {
+	mock.Mock
+}
+
+func (m *MockCarrierRepository) ListCarriers(ctx context.Context) ([]models.Carrier, error) {
+	args := m.Called(ctx)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.Carrier), args.Error(1)
 	}
 	return nil, args.Error(1)
 }
@@ -346,4 +469,22 @@ func (m *MockGoodsReceiptRepository) FindGRLineItemsByGRID(ctx context.Context, 
 func (m *MockGoodsReceiptRepository) SaveGRLineItem(ctx context.Context, item *models.GRLineItem) error {
 	args := m.Called(ctx, item)
 	return args.Error(0)
+}
+
+func (m *MockGoodsReceiptRepository) ListGRs(ctx context.Context, status string, params pagination.Params) ([]models.GoodsReceipt, *pagination.Meta, error) {
+	args := m.Called(ctx, status, params)
+	var grs []models.GoodsReceipt
+	if args.Get(0) != nil {
+		grs = args.Get(0).([]models.GoodsReceipt)
+	}
+	var meta *pagination.Meta
+	if args.Get(1) != nil {
+		meta = args.Get(1).(*pagination.Meta)
+	}
+	return grs, meta, args.Error(2)
+}
+
+func (m *MockGoodsReceiptRepository) GetMetrics(ctx context.Context) (pending int64, completedToday int64, discrepancies int64, queue int64, err error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Get(1).(int64), args.Get(2).(int64), args.Get(3).(int64), args.Error(4)
 }

@@ -17,6 +17,12 @@ type IVendorRepository interface {
 	FindGoodsReceiptsByVendor(ctx context.Context, vendorID uuid.UUID) ([]models.GoodsReceipt, error)
 	CountGoodsReceiptsByVendor(ctx context.Context, vendorID uuid.UUID) (int64, error)
 	FindGRLineItemsByGRID(ctx context.Context, grID string) ([]models.GRLineItem, error)
+	ListSuppliers(ctx context.Context, tier string, params pagination.Params, q string) ([]models.Supplier, *pagination.Meta, error)
+	CreateSupplier(ctx context.Context, supplier *models.Supplier) error
+	CreateSkuMapping(ctx context.Context, mapping *models.SkuMapping) error
+	CountSuppliers(ctx context.Context) (int64, error)
+	GetAverageOnTimeRate(ctx context.Context) (float64, error)
+	FindAllSuppliersWithMappings(ctx context.Context) ([]models.Supplier, error)
 }
 
 type IPORepository interface {
@@ -28,9 +34,15 @@ type IPORepository interface {
 	GetPOLineItemsByPOID(ctx context.Context, poID string) ([]models.POLineItem, error)
 	CountPOsByYearPattern(ctx context.Context, year int, pattern string) (int64, error)
 	FindPOByVendorAndStatuses(ctx context.Context, vendorID uuid.UUID, statuses []models.POStatus) (*models.PurchaseOrder, error)
+	ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error)
+	FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, error)
+	FindSkuMapping(ctx context.Context, vendorID uuid.UUID, sku string) (*models.SkuMapping, error)
 }
 
 type IInventoryRepository interface {
+	GetSupplierByID(ctx context.Context, id uuid.UUID) (*models.Supplier, error)
+	FindSkuMappingsBySKU(ctx context.Context, sku string) ([]models.SkuMapping, error)
+
 	GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error)
 	ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error)
 	CreateProduct(ctx context.Context, p *models.Product) error
@@ -52,7 +64,7 @@ type IInventoryRepository interface {
 	DeletePartCatalogBySKU(ctx context.Context, sku string) (int64, error)
 	GetPartCatalogBySKU(ctx context.Context, sku string) (*models.PartCatalog, error)
 	GetComponentStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error)
-	ListComponentStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error)
+	ListComponentStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error)
 	CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error
 	UpdateComponentStockFieldsBySKU(ctx context.Context, sku string, updates map[string]interface{}) (int64, error)
 	DeleteComponentStockBySKU(ctx context.Context, sku string) (int64, error)
@@ -63,6 +75,13 @@ type IShipmentRepository interface {
 	UpdateShipment(ctx context.Context, shipment *models.Shipment) error
 	UpdateShipmentFields(ctx context.Context, id string, fields map[string]interface{}) error
 	GetShipmentItemsByShipmentID(ctx context.Context, shipmentID string) ([]models.ShipmentItem, error)
+	ListShipments(ctx context.Context, status string, params pagination.Params) ([]models.Shipment, *pagination.Meta, error)
+	CreateShipment(ctx context.Context, shipment *models.Shipment) error
+	GetShipmentMetrics(ctx context.Context) (total int64, inTransit int64, delayed int64, onTimeRate float64, err error)
+}
+
+type ICarrierRepository interface {
+	ListCarriers(ctx context.Context) ([]models.Carrier, error)
 }
 
 type IStockRepository interface {
@@ -77,4 +96,23 @@ type IGoodsReceiptRepository interface {
 	UpdateGRFields(ctx context.Context, id string, fields map[string]interface{}) error
 	FindGRLineItemsByGRID(ctx context.Context, grID string) ([]models.GRLineItem, error)
 	SaveGRLineItem(ctx context.Context, item *models.GRLineItem) error
+	ListGRs(ctx context.Context, status string, params pagination.Params) ([]models.GoodsReceipt, *pagination.Meta, error)
+	GetMetrics(ctx context.Context) (pending int64, completedToday int64, discrepancies int64, queue int64, err error)
+}
+
+type ILUTRepository interface {
+	ListPartTypes(ctx context.Context) ([]models.PartType, error)
+	ListPartConditions(ctx context.Context) ([]models.PartCondition, error)
+	ListPartMfgStatuses(ctx context.Context) ([]models.PartMfgStatus, error)
+	ListComponentStockStates(ctx context.Context) ([]models.ComponentStockState, error)
+	ListPurchaseOrderStates(ctx context.Context) ([]models.PurchaseOrderState, error)
+	ListGoodsReceiptStates(ctx context.Context) ([]models.GoodsReceiptState, error)
+	ListShipmentStates(ctx context.Context) ([]models.ShipmentState, error)
+}
+
+type ILedgerRepository interface {
+	CreateEntry(ctx context.Context, entry *models.InventoryLedger) error
+	ListEntries(ctx context.Context, params pagination.Params, txnType, sku string) ([]models.InventoryLedger, *pagination.Meta, error)
+	GetEntryByID(ctx context.Context, id string) (*models.InventoryLedger, error)
+	GetLatestBalance(ctx context.Context, sku string) (int, error)
 }

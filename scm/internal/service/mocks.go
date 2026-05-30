@@ -27,6 +27,43 @@ func (m *MockVendorService) UpdateSupplierMetrics(ctx context.Context, supplierI
 	return args.Error(0)
 }
 
+func (m *MockVendorService) ListSuppliers(ctx context.Context, tier string, params pagination.Params, q string) ([]models.Supplier, *pagination.Meta, error) {
+	args := m.Called(ctx, tier, params, q)
+	var suppliers []models.Supplier
+	if args.Get(0) != nil {
+		suppliers = args.Get(0).([]models.Supplier)
+	}
+	var meta *pagination.Meta
+	if args.Get(1) != nil {
+		meta = args.Get(1).(*pagination.Meta)
+	}
+	return suppliers, meta, args.Error(2)
+}
+
+func (m *MockVendorService) CreateSupplier(ctx context.Context, supplier *models.Supplier) error {
+	args := m.Called(ctx, supplier)
+	return args.Error(0)
+}
+
+func (m *MockVendorService) CreateSkuMapping(ctx context.Context, mapping *models.SkuMapping) error {
+	args := m.Called(ctx, mapping)
+	return args.Error(0)
+}
+
+func (m *MockVendorService) GetSupplierMetrics(ctx context.Context) (int64, float64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Get(1).(float64), args.Error(2)
+}
+
+func (m *MockVendorService) FindAllSuppliersWithMappings(ctx context.Context) ([]models.Supplier, error) {
+	args := m.Called(ctx)
+	var suppliers []models.Supplier
+	if args.Get(0) != nil {
+		suppliers = args.Get(0).([]models.Supplier)
+	}
+	return suppliers, args.Error(1)
+}
+
 type MockPOService struct {
 	mock.Mock
 }
@@ -51,6 +88,41 @@ func (m *MockPOService) ApprovePO(ctx context.Context, poID string) error {
 
 func (m *MockPOService) TransitionState(ctx context.Context, poID string, newState models.POStatus) error {
 	args := m.Called(ctx, poID, newState)
+	return args.Error(0)
+}
+
+func (m *MockPOService) ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error) {
+	args := m.Called(ctx, params, q)
+	var pos []models.PurchaseOrder
+	if args.Get(0) != nil {
+		pos = args.Get(0).([]models.PurchaseOrder)
+	}
+	var meta *pagination.Meta
+	if args.Get(1) != nil {
+		meta = args.Get(1).(*pagination.Meta)
+	}
+	return pos, meta, args.Error(2)
+}
+
+func (m *MockPOService) GetPO(ctx context.Context, poID string) (*models.PurchaseOrder, error) {
+	args := m.Called(ctx, poID)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.PurchaseOrder), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockPOService) FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, error) {
+	args := m.Called(ctx)
+	var pos []models.PurchaseOrder
+	if args.Get(0) != nil {
+		pos = args.Get(0).([]models.PurchaseOrder)
+	}
+	return pos, args.Error(1)
+}
+
+func (m *MockPOService) CreatePO(ctx context.Context, po *models.PurchaseOrder) error {
+	args := m.Called(ctx, po)
 	return args.Error(0)
 }
 
@@ -191,12 +263,17 @@ func (m *MockInventoryService) GetPartCatalogBySKU(ctx context.Context, sku stri
 	return nil, 0, 0, args.Error(3)
 }
 
-func (m *MockInventoryService) ListStocks(ctx context.Context, params pagination.Params, q string) ([]models.ComponentStock, *pagination.Meta, error) {
-	args := m.Called(ctx, params, q)
+func (m *MockInventoryService) ListStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error) {
+	args := m.Called(ctx, params, status, q)
 	if args.Get(0) != nil {
 		return args.Get(0).([]models.ComponentStock), args.Get(1).(*pagination.Meta), args.Error(2)
 	}
 	return nil, args.Get(1).(*pagination.Meta), args.Error(2)
+}
+
+func (m *MockInventoryService) CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error {
+	args := m.Called(ctx, stock)
+	return args.Error(0)
 }
 
 func (m *MockInventoryService) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
@@ -221,6 +298,45 @@ func (m *MockShipmentService) DispatchShipment(ctx context.Context, shipmentID s
 	return args.Error(0)
 }
 
+func (m *MockShipmentService) ListShipments(ctx context.Context, status string, params pagination.Params) ([]models.Shipment, *pagination.Meta, error) {
+	args := m.Called(ctx, status, params)
+	var shipments []models.Shipment
+	if args.Get(0) != nil {
+		shipments = args.Get(0).([]models.Shipment)
+	}
+	var meta *pagination.Meta
+	if args.Get(1) != nil {
+		meta = args.Get(1).(*pagination.Meta)
+	}
+	return shipments, meta, args.Error(2)
+}
+
+func (m *MockShipmentService) GetShipment(ctx context.Context, shipmentID string) (*models.Shipment, error) {
+	args := m.Called(ctx, shipmentID)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Shipment), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockShipmentService) CreateShipment(ctx context.Context, shipment *models.Shipment) error {
+	args := m.Called(ctx, shipment)
+	return args.Error(0)
+}
+
+func (m *MockShipmentService) GetMetrics(ctx context.Context) (total int64, inTransit int64, delayed int64, onTimeRate float64, err error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Get(1).(int64), args.Get(2).(int64), args.Get(3).(float64), args.Error(4)
+}
+
+func (m *MockShipmentService) ListCarriers(ctx context.Context) ([]models.Carrier, error) {
+	args := m.Called(ctx)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.Carrier), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 type MockGoodsReceiptService struct {
 	mock.Mock
 }
@@ -241,4 +357,30 @@ func (m *MockGoodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID 
 func (m *MockGoodsReceiptService) ReleaseLock(ctx context.Context, grID string) error {
 	args := m.Called(ctx, grID)
 	return args.Error(0)
+}
+
+func (m *MockGoodsReceiptService) ListGRs(ctx context.Context, status string, params pagination.Params) ([]models.GoodsReceipt, *pagination.Meta, error) {
+	args := m.Called(ctx, status, params)
+	var grs []models.GoodsReceipt
+	if args.Get(0) != nil {
+		grs = args.Get(0).([]models.GoodsReceipt)
+	}
+	var meta *pagination.Meta
+	if args.Get(1) != nil {
+		meta = args.Get(1).(*pagination.Meta)
+	}
+	return grs, meta, args.Error(2)
+}
+
+func (m *MockGoodsReceiptService) GetGR(ctx context.Context, grID string) (*models.GoodsReceipt, error) {
+	args := m.Called(ctx, grID)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.GoodsReceipt), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockGoodsReceiptService) GetMetrics(ctx context.Context) (pending int64, completedToday int64, discrepancies int64, queue int64, err error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Get(1).(int64), args.Get(2).(int64), args.Get(3).(int64), args.Error(4)
 }

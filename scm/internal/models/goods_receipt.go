@@ -19,11 +19,13 @@ const (
 type GoodsReceipt struct {
 	ID            string            `gorm:"type:varchar(50);primary_key"`
 	PORef         string            `gorm:"type:varchar(50);not null"`
-	VendorID      uuid.UUID         `gorm:"type:uuid;not null"`
+	VendorID      uuid.UUID         `gorm:"type:uuid;not null" json:"-"`
+	VendorName    string            `gorm:"-" json:"vendor_name,omitempty"`
 	Status        GRStatus          `gorm:"type:varchar(50);not null"`
 	State         GoodsReceiptState `gorm:"foreignKey:Status;references:Name"`
 	ArrivalDate   time.Time         `gorm:"not null"`
-	OperatorID    string            `gorm:"type:varchar(100)"`
+	OperatorID    string            `gorm:"type:varchar(100)" json:"-"`
+	OperatorName  string            `gorm:"type:varchar(255)" json:"operator_name,omitempty"`
 	LockedBy      *string           `gorm:"type:varchar(100)"` // Optional lock owner
 	LockExpiresAt *time.Time        `gorm:""`                  // Lock expiration timestamp
 	CreatedAt     time.Time         `gorm:"autoCreateTime"`
@@ -31,6 +33,7 @@ type GoodsReceipt struct {
 	DeletedAt     gorm.DeletedAt    `gorm:"index"`
 
 	LineItems []GRLineItem `gorm:"foreignKey:GRID"`
+	Vendor    *Supplier    `gorm:"foreignKey:VendorID;references:ID" json:"-"`
 }
 
 type GRLineItem struct {

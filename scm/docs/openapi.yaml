@@ -79,6 +79,8 @@ components:
         expected_delivery:
           type: string
           format: date-time
+        notes:
+          type: string
         line_items:
           type: array
           items:
@@ -114,7 +116,7 @@ components:
           type: string
         tier:
           type: string
-          enum: [Preferred, Qualified, Under Review]
+          enum: ["Tier 1", "Tier 2", "Tier 3"]
         lead_time_days:
           type: integer
         quality_score:
@@ -202,12 +204,14 @@ components:
       properties:
         id:
           type: string
-          example: SHP-2025-1
+          example: SHP-2026-1
         po_ref:
           type: string
         supplier_id:
           type: string
           format: uuid
+        supplier:
+          $ref: '#/components/schemas/Supplier'
         status:
           type: string
           enum: [Scheduled, In Transit, Delivered, Delayed]
@@ -215,10 +219,9 @@ components:
           type: string
         tracking_no:
           type: string
-        ship_date:
+        origin:
           type: string
-          format: date-time
-        eta:
+        ship_date:
           type: string
           format: date-time
         items:
@@ -239,6 +242,17 @@ components:
           type: string
         qty:
           type: integer
+    Carrier:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          example: DHL Express
+        code:
+          type: string
+          example: DHL
     ComponentStock:
       type: object
       properties:
@@ -258,6 +272,21 @@ components:
         status:
           type: string
           enum: [In Stock, Low Stock, Out of Stock, Discontinued]
+        primary_supplier_id:
+          type: string
+          format: uuid
+        primary_supplier:
+          type: string
+        lead_time_days:
+          type: integer
+        location:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
     Product:
       type: object
       properties:
@@ -315,6 +344,34 @@ components:
           type: string
           format: date-time
         updated_at:
+          type: string
+          format: date-time
+    InventoryLedger:
+      type: object
+      properties:
+        id:
+          type: string
+        sku:
+          type: string
+        type:
+          type: string
+          enum: [IN, OUT, ADJ]
+        qty_change:
+          type: integer
+        running_balance:
+          type: integer
+        location:
+          type: string
+        operator_id:
+          type: string
+        reference:
+          type: string
+        reference_type:
+          type: string
+          enum: [goods_receipt, shipment, adjustment, initial]
+        reference_id:
+          type: string
+        created_at:
           type: string
           format: date-time
 
@@ -378,6 +435,328 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
+
+  /vendors:
+    get:
+      summary: List suppliers with optional tier filtering, query search, and pagination
+      tags: [Vendors]
+      parameters:
+        - name: tier
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["Tier 1", "Tier 2", "Tier 3"]
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 15
+        - name: sort_by
+          in: query
+          required: false
+          schema:
+            type: string
+            default: created_at
+        - name: sort_dir
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: List of suppliers and pagination metadata
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      metadata:
+                        type: object
+                        properties:
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Supplier'
+    post:
+      summary: Create a new supplier
+      tags: [Vendors]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                contact:
+                  type: string
+                tier:
+                  type: string
+                  enum: ["Tier 1", "Tier 2", "Tier 3"]
+                lead_time_days:
+                  type: integer
+              required: [name, contact, tier, lead_time_days]
+      responses:
+        '201':
+          description: Supplier created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/Supplier'
+
+  /vendors/metrics:
+    get:
+      summary: Retrieve supplier metrics (total active, average on-time delivery rate)
+      tags: [Vendors]
+      responses:
+        '200':
+          description: Supplier metrics
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          total_active_suppliers:
+                            type: integer
+                          on_time_delivery_rate:
+                            type: number
+                            format: float
+
+  /vendors/{id}/sku-mappings:
+    post:
+      summary: Create a new SKU mapping for a supplier
+      tags: [Vendors]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sku:
+                  type: string
+                name:
+                  type: string
+                unit_price:
+                  type: number
+                  format: float
+                lead_time_days:
+                  type: integer
+                min_order_qty:
+                  type: integer
+              required: [sku, name, unit_price, lead_time_days, min_order_qty]
+      responses:
+        '201':
+          description: SKU mapping created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/SkuMapping'
+
+  /vendors/export:
+    get:
+      summary: Export report of suppliers and their SKU mappings as CSV stream
+      tags: [Vendors]
+      responses:
+        '200':
+          description: CSV file download stream
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: attachment; filename="suppliers_report.csv"
+            Content-Type:
+              schema:
+                type: string
+                example: text/csv
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /purchase-orders/export:
+    get:
+      summary: Export all purchase orders with line items as CSV stream
+      tags: [Purchase Orders]
+      responses:
+        '200':
+          description: CSV file download stream
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: attachment; filename="purchase_orders_report.csv"
+            Content-Type:
+              schema:
+                type: string
+                example: text/csv
+          content:
+            text/csv:
+              schema:
+                type: string
+                description: >
+                  CSV with columns: PO ID, Vendor Name, Target Build, Status,
+                  Expected Delivery, Total Value, Notes, Line Item SKU,
+                  Line Item Description, Ordered Qty, Unit Price, Line Item Subtotal.
+                  One row per line item; POs without line items still produce a row
+                  with blank line-item fields.
+
+  /purchase-orders:
+    get:
+      summary: List purchase orders with pagination
+      tags: [Purchase Orders]
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 15
+        - name: sort_by
+          in: query
+          required: false
+          schema:
+            type: string
+            default: created_at
+        - name: sort_dir
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: List of purchase orders and pagination metadata
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      metadata:
+                        type: object
+                        properties:
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/PurchaseOrder'
+    post:
+      summary: Create a custom purchase order with line items and notes
+      tags: [Purchase Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  example: PO-2024-110
+                expected_delivery:
+                  type: string
+                  format: date-time
+                vendor_id:
+                  type: string
+                  format: uuid
+                notes:
+                  type: string
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      sku:
+                        type: string
+                      qty:
+                        type: integer
+                    required: [sku, qty]
+              required: [id, expected_delivery, vendor_id, items]
+      responses:
+        '201':
+          description: Purchase order created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/PurchaseOrder'
+
+  /purchase-orders/{poId}:
+    get:
+      summary: Get detailed purchase order by ID including line items
+      tags: [Purchase Orders]
+      parameters:
+        - name: poId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Detailed purchase order
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/PurchaseOrder'
 
   /purchase-orders/draft:
     post:
@@ -486,6 +865,132 @@ paths:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
 
+  /goods-receipts:
+    get:
+      summary: List all goods receipts with pagination and status filter
+      tags: [Goods Receipts]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [Pending, Inspected, Complete, Discrepancy]
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 15
+        - name: sort_by
+          in: query
+          required: false
+          schema:
+            type: string
+            default: created_at
+        - name: sort_dir
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: List of Goods Receipts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  statusCode:
+                    type: integer
+                  metadata:
+                    type: object
+                    properties:
+                      pagination:
+                        type: object
+                        properties:
+                          page:
+                            type: integer
+                          limit:
+                            type: integer
+                          total_rows:
+                            type: integer
+                          total_pages:
+                            type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GoodsReceipt'
+
+  /goods-receipts/metrics:
+    get:
+      summary: Get Goods Receipt dashboard metrics
+      tags: [Goods Receipts]
+      responses:
+        '200':
+          description: Goods Receipt Metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  statusCode:
+                    type: integer
+                  metadata:
+                    type: object
+                  data:
+                    type: object
+                    properties:
+                      pending_receipts:
+                        type: integer
+                      completed_today:
+                        type: integer
+                      active_discrepancies:
+                        type: integer
+                      inspection_queue:
+                        type: integer
+
+  /goods-receipts/{grId}:
+    get:
+      summary: Get details of a Goods Receipt by ID
+      tags: [Goods Receipts]
+      parameters:
+        - name: grId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Goods Receipt details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  statusCode:
+                    type: integer
+                  metadata:
+                    type: object
+                  data:
+                    $ref: '#/components/schemas/GoodsReceipt'
+        '404':
+          description: Goods Receipt not found
+
   /goods-receipts/{grId}/lock:
     post:
       summary: Acquire 60-min operator lock on Goods Receipt
@@ -570,6 +1075,193 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
+  /shipments:
+    get:
+      summary: List all shipments with pagination and optional status filter
+      tags: [Shipments]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [Scheduled, In Transit, Delivered, Delayed]
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 15
+        - name: sort_by
+          in: query
+          required: false
+          schema:
+            type: string
+            default: created_at
+        - name: sort_dir
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Paginated list of Shipments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  statusCode:
+                    type: integer
+                  metadata:
+                    type: object
+                    properties:
+                      pagination:
+                        type: object
+                        properties:
+                          page:
+                            type: integer
+                          limit:
+                            type: integer
+                          total_rows:
+                            type: integer
+                          total_pages:
+                            type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Shipment'
+    post:
+      summary: Create a new Shipment (validates PO exists)
+      tags: [Shipments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                po_ref:
+                  type: string
+                  example: PO-2026-001
+                supplier_id:
+                  type: string
+                  format: uuid
+                carrier:
+                  type: string
+                  example: DHL Express
+                tracking_no:
+                  type: string
+                origin:
+                  type: string
+                  example: "Hillsboro, OR (US)"
+                ship_date:
+                  type: string
+                  format: date-time
+              required: [po_ref, supplier_id, carrier]
+      responses:
+        '201':
+          description: Shipment created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  statusCode:
+                    type: integer
+                  data:
+                    $ref: '#/components/schemas/Shipment'
+        '404':
+          description: PO not found
+
+  /shipments/metrics:
+    get:
+      summary: Get Shipment dashboard metrics
+      tags: [Shipments]
+      responses:
+        '200':
+          description: Shipment metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  statusCode:
+                    type: integer
+                  data:
+                    type: object
+                    properties:
+                      total_shipments:
+                        type: integer
+                      in_transit:
+                        type: integer
+                      delayed:
+                        type: integer
+                      on_time_rate:
+                        type: number
+                        format: float
+
+  /shipments/carriers:
+    get:
+      summary: List all available carriers (for dropdown in Create Shipment form)
+      tags: [Shipments]
+      responses:
+        '200':
+          description: List of carriers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  statusCode:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Carrier'
+
+  /shipments/{shipmentId}:
+    get:
+      summary: Get detailed Shipment by ID (includes items and supplier)
+      tags: [Shipments]
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Shipment details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  statusCode:
+                    type: integer
+                  data:
+                    $ref: '#/components/schemas/Shipment'
+        '404':
+          description: Shipment not found
 
   /shipments/{shipmentId}/lock:
     post:
@@ -708,6 +1400,84 @@ paths:
                         example: 201
                       data:
                         $ref: '#/components/schemas/Product'
+
+  /inventory/stocks:
+    get:
+      summary: List component inventory with pagination, search, and status filter
+      tags: [Inventory]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, In Stock, Low Stock, Out of Stock, Discontinued, in_stock, low_stock, out_of_stock, discontinued]
+          description: Filter by component status
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 15
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            default: created_at
+        - name: sort_dir
+          in: query
+          schema:
+            type: string
+            default: desc
+            enum: [asc, desc]
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Search keyword (matches SKU, name, category, or location)
+      responses:
+        '200':
+          description: Component inventory list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/ComponentStock'
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
+    post:
+      summary: Add a component stock record
+      tags: [Inventory]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComponentStock'
+      responses:
+        '201':
+          description: Component created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      statusCode:
+                        example: 201
+                      data:
+                        $ref: '#/components/schemas/ComponentStock'
 
   /inventory/products/{id}:
     get:
@@ -1178,3 +1948,87 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
+
+  /inventory/ledger:
+    get:
+      summary: List inventory ledger entries
+      tags: [Inventory]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 15
+          description: Items per page (max 100)
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            default: created_at
+            enum: [created_at, sku, type]
+          description: Sort column
+        - name: sort_dir
+          in: query
+          schema:
+            type: string
+            default: desc
+            enum: [asc, desc]
+          description: Sort direction
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [IN, OUT, ADJ]
+          description: Filter by transaction type
+        - name: sku
+          in: query
+          schema:
+            type: string
+          description: Filter by SKU
+      responses:
+        '200':
+          description: Inventory ledger list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/InventoryLedger'
+                      metadata:
+                        type: object
+                        properties:
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
+
+  /inventory/ledger/{id}:
+    get:
+      summary: Get inventory ledger entry by ID
+      tags: [Inventory]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Inventory ledger entry
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/InventoryLedger'
+

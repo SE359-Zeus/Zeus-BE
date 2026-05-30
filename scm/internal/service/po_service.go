@@ -11,6 +11,7 @@ import (
 	"zeus-scm-service/internal/infrastructure/messaging"
 	"zeus-scm-service/internal/infrastructure/observability"
 	"zeus-scm-service/internal/models"
+	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/repository"
 
 	"github.com/google/uuid"
@@ -22,6 +23,10 @@ type IPOService interface {
 	AddLineItemWithLock(ctx context.Context, poID string, sku string, qty int) error
 	ApprovePO(ctx context.Context, poID string) error
 	TransitionState(ctx context.Context, poID string, newState models.POStatus) error
+	ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error)
+	GetPO(ctx context.Context, poID string) (*models.PurchaseOrder, error)
+	FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, error)
+	CreatePO(ctx context.Context, po *models.PurchaseOrder) error
 }
 
 type poService struct {
@@ -35,12 +40,31 @@ type poServiceRepo struct {
 	mqURL     string
 }
 
+func hydratePurchaseOrder(po *models.PurchaseOrder) {
+	if po != nil && po.Vendor != nil {
+		po.VendorName = po.Vendor.Name
+	}
+}
+
+func hydratePurchaseOrders(pos []models.PurchaseOrder) {
+	for i := range pos {
+		hydratePurchaseOrder(&pos[i])
+	}
+}
+
+func cloneAndHydratePurchaseOrders(pos []models.PurchaseOrder) []models.PurchaseOrder {
+	out := make([]models.PurchaseOrder, len(pos))
+	copy(out, pos)
+	hydratePurchaseOrders(out)
+	return out
+}
+
 func NewPOService(arg interface{}, args ...interface{}) IPOService {
 	switch v := arg.(type) {
 	case *gorm.DB:
 		mqURL := ""
-		if len(args) > 0 {
-			if s, ok := args[0].(string); ok {
+		for _, a := range args {
+			if s, ok := a.(string); ok {
 				mqURL = s
 			}
 		}
@@ -48,14 +72,12 @@ func NewPOService(arg interface{}, args ...interface{}) IPOService {
 	case repository.IPORepository:
 		var stock repository.IStockRepository
 		var mqURL string
-		if len(args) > 0 {
-			if r, ok := args[0].(repository.IStockRepository); ok {
-				stock = r
-			}
-		}
-		if len(args) > 1 {
-			if s, ok := args[1].(string); ok {
-				mqURL = s
+		for _, a := range args {
+			switch typed := a.(type) {
+			case repository.IStockRepository:
+				stock = typed
+			case string:
+				mqURL = typed
 			}
 		}
 		return &poServiceRepo{poRepo: v, stockRepo: stock, mqURL: mqURL}
@@ -399,4 +421,150 @@ func validTransition(current, new models.POStatus) bool {
 		return true
 	}
 	return newIdx > currentIdx
+}
+
+func (s *poService) ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error) {
+	query := s.db.WithContext(ctx).Model(&models.PurchaseOrder{}).Preload("LineItems").Preload("Vendor")
+	if q != "" {
+		like := "%" + q + "%"
+		query = query.Where("id LIKE ? OR target_build LIKE ? OR status LIKE ?", like, like, like)
+	}
+	var pos []models.PurchaseOrder
+	meta, err := pagination.Paginate(query, params, &pos, "created_at", "updated_at", "id", "status")
+	if err != nil {
+		return nil, nil, err
+	}
+	hydratePurchaseOrders(pos)
+	return pos, meta, nil
+}
+
+func (s *poService) GetPO(ctx context.Context, poID string) (*models.PurchaseOrder, error) {
+	var po models.PurchaseOrder
+	if err := s.db.WithContext(ctx).Preload("LineItems").Preload("Vendor").First(&po, "id = ?", poID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	hydratePurchaseOrder(&po)
+	return &po, nil
+}
+
+func (s *poService) FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, error) {
+	var pos []models.PurchaseOrder
+	if err := s.db.WithContext(ctx).Preload("LineItems").Preload("Vendor").Order("created_at DESC").Find(&pos).Error; err != nil {
+		return nil, err
+	}
+	return cloneAndHydratePurchaseOrders(pos), nil
+}
+
+func (s *poService) CreatePO(ctx context.Context, po *models.PurchaseOrder) error {
+	var existingPO models.PurchaseOrder
+	if err := s.db.WithContext(ctx).
+		Where("vendor_id = ? AND status IN ?", po.VendorID, []models.POStatus{models.POStatusDraft, models.POStatusApproved, models.POStatusInTransit}).
+		First(&existingPO).Error; err == nil {
+		return ErrMonoVendorViolation
+	}
+
+	if len(po.LineItems) == 0 {
+		return fmt.Errorf("purchase order must have at least one line item")
+	}
+
+	var totalValue float64
+	for i := range po.LineItems {
+		item := &po.LineItems[i]
+		var mapping models.SkuMapping
+		if err := s.db.WithContext(ctx).
+			Where("supplier_id = ? AND sku = ?", po.VendorID, item.SKU).
+			First(&mapping).Error; err != nil {
+			return fmt.Errorf("sku mapping not found for SKU: %s", item.SKU)
+		}
+		item.ID = uuid.New()
+		item.POID = po.ID
+		item.Description = mapping.Name
+		item.UnitPrice = mapping.UnitPrice
+		item.ReceivedQty = 0
+		totalValue += float64(item.OrderedQty) * item.UnitPrice
+	}
+
+	po.Status = models.POStatusDraft
+	po.TotalValue = totalValue
+
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(po).Error; err != nil {
+			return err
+		}
+		for i := range po.LineItems {
+			if err := tx.Create(&po.LineItems[i]).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (s *poServiceRepo) ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error) {
+	pos, meta, err := s.poRepo.ListPOs(ctx, params, q)
+	if err != nil {
+		return nil, nil, err
+	}
+	hydratePurchaseOrders(pos)
+	return pos, meta, nil
+}
+
+func (s *poServiceRepo) GetPO(ctx context.Context, poID string) (*models.PurchaseOrder, error) {
+	po, err := s.poRepo.GetPOByID(ctx, poID)
+	if err != nil || po == nil {
+		return nil, ErrNotFound
+	}
+	hydratePurchaseOrder(po)
+	return po, nil
+}
+
+func (s *poServiceRepo) FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, error) {
+	pos, err := s.poRepo.FindAllPOs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return cloneAndHydratePurchaseOrders(pos), nil
+}
+
+func (s *poServiceRepo) CreatePO(ctx context.Context, po *models.PurchaseOrder) error {
+	existing, err := s.poRepo.FindPOByVendorAndStatuses(ctx, po.VendorID, []models.POStatus{models.POStatusDraft, models.POStatusApproved, models.POStatusInTransit})
+	if err == nil && existing != nil {
+		return ErrMonoVendorViolation
+	}
+
+	if len(po.LineItems) == 0 {
+		return fmt.Errorf("purchase order must have at least one line item")
+	}
+
+	var totalValue float64
+	for i := range po.LineItems {
+		item := &po.LineItems[i]
+		mapping, err := s.poRepo.FindSkuMapping(ctx, po.VendorID, item.SKU)
+		if err != nil || mapping == nil {
+			return fmt.Errorf("sku mapping not found for SKU: %s", item.SKU)
+		}
+		item.ID = uuid.New()
+		item.POID = po.ID
+		item.Description = mapping.Name
+		item.UnitPrice = mapping.UnitPrice
+		item.ReceivedQty = 0
+		totalValue += float64(item.OrderedQty) * item.UnitPrice
+	}
+
+	po.Status = models.POStatusDraft
+	po.TotalValue = totalValue
+
+	if err := s.poRepo.CreatePO(ctx, po); err != nil {
+		return err
+	}
+
+	for i := range po.LineItems {
+		if err := s.poRepo.CreatePOLineItem(ctx, &po.LineItems[i]); err != nil {
+			return err
+		}
+	}
+	return nil
 }

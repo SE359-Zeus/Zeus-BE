@@ -548,14 +548,59 @@ func (h *InventoryHandler) GetPartCatalogBySKU(c *gin.Context) {
 
 func (h *InventoryHandler) ListStocks(c *gin.Context) {
 	params := parsePaginationParams(c)
+	status := c.Query("status")
 	q := c.Query("q")
 
-	stocks, meta, err := h.svc.ListStocks(c.Request.Context(), params, q)
+	stocks, meta, err := h.svc.ListStocks(c.Request.Context(), params, status, q)
 	if err != nil {
 		exception.WriteError(c, exception.ErrInternal.WithError(err))
 		return
 	}
 	writeJSON(c, 200, pagination.Response{Data: stocks, Pagination: *meta})
+}
+
+type createComponentStockRequest struct {
+	SKU               string  `json:"sku" binding:"required"`
+	Name              string  `json:"name" binding:"required"`
+	Category          string  `json:"category" binding:"required"`
+	StockQty          int     `json:"stock_qty"`
+	ReorderPoint      int     `json:"reorder_point"`
+	UnitCost          float64 `json:"unit_cost" binding:"required"`
+	Location          string  `json:"location"`
+	PrimarySupplierID string  `json:"primary_supplier_id"`
+}
+
+func (h *InventoryHandler) CreateComponentStock(c *gin.Context) {
+	var req createComponentStockRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		exception.WriteError(c, exception.ErrInvalidBody)
+		return
+	}
+
+	stock := &models.ComponentStock{
+		SKU:          req.SKU,
+		Name:         req.Name,
+		Category:     req.Category,
+		StockQty:     req.StockQty,
+		ReorderPoint: req.ReorderPoint,
+		UnitCost:     req.UnitCost,
+		Location:     req.Location,
+	}
+	if req.PrimarySupplierID != "" {
+		if supplierID, err := uuid.Parse(req.PrimarySupplierID); err == nil {
+			stock.PrimarySupplierID = supplierID
+		}
+	}
+
+	if err := h.svc.CreateComponentStock(c.Request.Context(), stock); err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+	writeJSON(c, 201, stock)
 }
 
 func (h *InventoryHandler) GetStockBySKU(c *gin.Context) {

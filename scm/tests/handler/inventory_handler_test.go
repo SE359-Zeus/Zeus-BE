@@ -42,6 +42,9 @@ func setupInventoryTest() (*gin.Engine, *service.MockInventoryService) {
 		v1.GET("/inventory/part-catalog/:id", h.GetPartCatalog)
 		v1.PUT("/inventory/products/:id", h.UpdateProduct)
 		v1.PUT("/inventory/parts/:id", h.UpdatePart)
+		v1.GET("/inventory/stocks", h.ListStocks)
+		v1.POST("/inventory/stocks", h.CreateComponentStock)
+		v1.GET("/inventory/stocks/:sku", h.GetStockBySKU)
 	}
 	return r, mockSvc
 }
@@ -348,6 +351,53 @@ func TestInventoryHandler_ListPartCatalog_200(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestInventoryHandler_ListStocks_WithStatus_200(t *testing.T) {
+	r, mockSvc := setupInventoryTest()
+	stocks := []models.ComponentStock{{SKU: "SOC-XM100-PRO", Status: models.ComponentStatusLowStock, PrimarySupplier: "Intel Corporation"}}
+	meta := &pagination.Meta{Page: 1, Limit: 15, TotalRows: 1}
+
+	mockSvc.On("ListStocks", mock.Anything, mock.AnythingOfType("pagination.Params"), "Low Stock", "").Return(stocks, meta, nil)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/inventory/stocks?status=Low+Stock", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Data []struct {
+			SKU             string `json:"sku"`
+			PrimarySupplier string `json:"primary_supplier"`
+		} `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, "Intel Corporation", resp.Data[0].PrimarySupplier)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestInventoryHandler_CreateComponentStock_201(t *testing.T) {
+	r, mockSvc := setupInventoryTest()
+
+	mockSvc.On("CreateComponentStock", mock.Anything, mock.AnythingOfType("*models.ComponentStock")).Return(nil)
+
+	body, _ := json.Marshal(map[string]any{
+		"sku":           "SOC-XM100-PRO",
+		"name":          "Zeus SOC XM100 Pro (14-Core)",
+		"category":      "Processor",
+		"stock_qty":     245,
+		"reorder_point": 100,
+		"unit_cost":     580.00,
+		"location":      "WH-A / Zone-C1",
+	})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/inventory/stocks", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
 	mockSvc.AssertExpectations(t)
 }
 

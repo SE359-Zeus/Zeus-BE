@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"zeus-scm-service/internal/models"
+	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/repository"
 
 	"gorm.io/gorm"
@@ -19,7 +20,7 @@ func NewShipmentRepository(db *gorm.DB) repository.IShipmentRepository {
 
 func (r *shipmentRepository) GetShipmentByID(ctx context.Context, id string) (*models.Shipment, error) {
 	var s models.Shipment
-	if err := r.db.WithContext(ctx).First(&s, "id = ?", id).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("Items").Preload("Supplier").First(&s, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &s, nil
@@ -40,3 +41,62 @@ func (r *shipmentRepository) GetShipmentItemsByShipmentID(ctx context.Context, s
 	}
 	return items, nil
 }
+
+func (r *shipmentRepository) ListShipments(ctx context.Context, status string, params pagination.Params) ([]models.Shipment, *pagination.Meta, error) {
+	query := r.db.WithContext(ctx).Model(&models.Shipment{}).Preload("Items").Preload("Supplier")
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	var shipments []models.Shipment
+	meta, err := pagination.Paginate(query, params, &shipments, "created_at", "updated_at", "id", "status", "ship_date")
+	if err != nil {
+		return nil, nil, err
+	}
+	return shipments, meta, nil
+}
+
+func (r *shipmentRepository) CreateShipment(ctx context.Context, shipment *models.Shipment) error {
+	return r.db.WithContext(ctx).Create(shipment).Error
+}
+
+func (r *shipmentRepository) GetShipmentMetrics(ctx context.Context) (total int64, inTransit int64, delayed int64, onTimeRate float64, err error) {
+	err = r.db.WithContext(ctx).Model(&models.Shipment{}).Where("deleted_at IS NULL").Count(&total).Error
+	if err != nil {
+		return
+	}
+
+	err = r.db.WithContext(ctx).Model(&models.Shipment{}).Where("status = ?", models.ShipmentStatusInTransit).Count(&inTransit).Error
+	if err != nil {
+		return
+	}
+
+	err = r.db.WithContext(ctx).Model(&models.Shipment{}).Where("status = ?", models.ShipmentStatusDelayed).Count(&delayed).Error
+	if err != nil {
+		return
+	}
+
+	// On-time rate = (Delivered on-time / total delivered) * 100
+	// We approximate: delivered before ETA = on-time
+	var totalDelivered int64
+	err = r.db.WithContext(ctx).Model(&models.Shipment{}).Where("status = ?", models.ShipmentStatusDelivered).Count(&totalDelivered).Error
+	if err != nil {
+		return
+	}
+
+	if totalDelivered == 0 {
+		onTimeRate = 100.0
+		return
+	}
+
+	var onTime int64
+	err = r.db.WithContext(ctx).Model(&models.Shipment{}).
+		Where("status = ? AND updated_at <= eta", models.ShipmentStatusDelivered).
+		Count(&onTime).Error
+	if err != nil {
+		return
+	}
+
+	onTimeRate = float64(onTime) / float64(totalDelivered) * 100.0
+	return
+}
+
