@@ -28,7 +28,6 @@ type IGoodsReceiptService interface {
 type goodsReceiptService struct {
 	db             *gorm.DB
 	agingThreshold time.Duration
-	ledgerSvc      ILedgerService
 }
 
 type goodsReceiptServiceRepo struct {
@@ -36,21 +35,12 @@ type goodsReceiptServiceRepo struct {
 	stockRepo      repository.IStockRepository
 	poRepo         repository.IPORepository
 	agingThreshold time.Duration
-	ledgerSvc      ILedgerService
 }
 
 func NewGoodsReceiptService(arg interface{}, args ...interface{}) IGoodsReceiptService {
-	var ledgerSvc ILedgerService
-	// scan all args for ILedgerService
-	for _, a := range args {
-		if ls, ok := a.(ILedgerService); ok {
-			ledgerSvc = ls
-		}
-	}
-
 	switch v := arg.(type) {
 	case *gorm.DB:
-		// support both NewGoodsReceiptService(db, years) and NewGoodsReceiptService(db, grRepo, stockRepo, poRepo, years, ledgerSvc)
+		// support both NewGoodsReceiptService(db, years) and NewGoodsReceiptService(db, grRepo, stockRepo, poRepo, years)
 		if len(args) > 0 {
 			// if second arg is a repo, build repo-backed adapter
 			if grRepo, ok := args[0].(repository.IGoodsReceiptRepository); ok {
@@ -72,7 +62,7 @@ func NewGoodsReceiptService(arg interface{}, args ...interface{}) IGoodsReceiptS
 						years = y
 					}
 				}
-				return &goodsReceiptServiceRepo{repo: grRepo, stockRepo: stock, poRepo: po, agingThreshold: time.Duration(years) * 365 * 24 * time.Hour, ledgerSvc: ledgerSvc}
+				return &goodsReceiptServiceRepo{repo: grRepo, stockRepo: stock, poRepo: po, agingThreshold: time.Duration(years) * 365 * 24 * time.Hour}
 			}
 		}
 		years := 0
@@ -81,7 +71,7 @@ func NewGoodsReceiptService(arg interface{}, args ...interface{}) IGoodsReceiptS
 				years = y
 			}
 		}
-		return &goodsReceiptService{db: v, agingThreshold: time.Duration(years) * 365 * 24 * time.Hour, ledgerSvc: ledgerSvc}
+		return &goodsReceiptService{db: v, agingThreshold: time.Duration(years) * 365 * 24 * time.Hour}
 	case repository.IGoodsReceiptRepository:
 		var stock repository.IStockRepository
 		var po repository.IPORepository
@@ -101,7 +91,7 @@ func NewGoodsReceiptService(arg interface{}, args ...interface{}) IGoodsReceiptS
 				years = y
 			}
 		}
-		return &goodsReceiptServiceRepo{repo: v, stockRepo: stock, poRepo: po, agingThreshold: time.Duration(years) * 365 * 24 * time.Hour, ledgerSvc: ledgerSvc}
+		return &goodsReceiptServiceRepo{repo: v, stockRepo: stock, poRepo: po, agingThreshold: time.Duration(years) * 365 * 24 * time.Hour}
 	default:
 		panic("invalid NewGoodsReceiptService usage")
 	}
@@ -112,7 +102,6 @@ func (s *goodsReceiptService) AcquireLock(ctx context.Context, grID string, oper
 	if err := s.db.WithContext(ctx).First(&gr, "id = ?", grID).Error; err != nil {
 		return ErrNotFound
 	}
-	operatorName := operatorNameFromContext(ctx)
 	if gr.LockedBy != nil && *gr.LockedBy != operatorID {
 		if gr.LockExpiresAt != nil && gr.LockExpiresAt.After(time.Now()) {
 			observability.DefaultRegistry.Counter(observability.MetricLockContention).Inc()
@@ -123,8 +112,6 @@ func (s *goodsReceiptService) AcquireLock(ctx context.Context, grID string, oper
 	expiresAt := now.Add(60 * time.Minute)
 	err := s.db.WithContext(ctx).Model(&gr).Updates(map[string]interface{}{
 		"locked_by":       operatorID,
-		"operator_id":     operatorID,
-		"operator_name":   operatorName,
 		"lock_expires_at": expiresAt,
 	}).Error
 	if err == nil {
@@ -141,7 +128,6 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 	if err := s.db.WithContext(ctx).First(&gr, "id = ?", grID).Error; err != nil {
 		return ErrNotFound
 	}
-	operatorName := operatorNameFromContext(ctx)
 	if gr.LockedBy == nil || *gr.LockedBy != operatorID {
 		return ErrAlreadyLocked
 	}
@@ -156,7 +142,6 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 
 	tx := s.db.WithContext(ctx).Begin()
 
-	hasDiscrepancy := false
 	for i := range lineItems {
 		item := &lineItems[i]
 		count, ok := counts[item.SKU]
@@ -167,10 +152,6 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 		defective := count.Defective
 		item.ReceivedQty = &received
 		item.DefectiveQty = &defective
-
-		if received != item.OrderedQty || defective > 0 {
-			hasDiscrepancy = true
-		}
 
 		if item.AgingSensitive && item.ProductionDate != nil {
 			if time.Since(*item.ProductionDate) > s.agingThreshold {
@@ -192,12 +173,6 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 			tx.Rollback()
 			return err
 		}
-
-		if s.ledgerSvc != nil && received > 0 {
-			if _, lerr := s.ledgerSvc.RecordEntry(ctx, item.SKU, models.LedgerTxnTypeIN, received, operatorID, gr.ID, models.LedgerRefGoodsReceipt, gr.ID); lerr != nil {
-				s.ledgerSvc.RecordEntry(context.Background(), item.SKU, models.LedgerTxnTypeIN, received, operatorID, gr.ID, models.LedgerRefGoodsReceipt, gr.ID)
-			}
-		}
 	}
 
 	var po models.PurchaseOrder
@@ -208,24 +183,6 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 
 	var poItems []models.POLineItem
 	tx.Where("po_id = ?", po.ID).Find(&poItems)
-
-	// Update PO line items' ReceivedQty from GR line items
-	receivedBySKU := make(map[string]int)
-	for _, item := range lineItems {
-		if item.ReceivedQty != nil {
-			receivedBySKU[item.SKU] += *item.ReceivedQty
-		}
-	}
-	for i := range poItems {
-		if qty, ok := receivedBySKU[poItems[i].SKU]; ok {
-			poItems[i].ReceivedQty += qty
-			if err := tx.Save(&poItems[i]).Error; err != nil {
-				tx.Rollback()
-				return err
-			}
-		}
-	}
-
 	allReceived := true
 	for _, li := range poItems {
 		if li.ReceivedQty < li.OrderedQty {
@@ -234,13 +191,7 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 		}
 	}
 
-	if hasDiscrepancy {
-		gr.Status = models.GRStatusDiscrepancy
-	} else {
-		gr.Status = models.GRStatusComplete
-	}
-	gr.OperatorID = operatorID
-	gr.OperatorName = operatorName
+	gr.Status = models.GRStatusComplete
 	if err := tx.Save(&gr).Error; err != nil {
 		tx.Rollback()
 		return err
@@ -283,7 +234,6 @@ func (s *goodsReceiptServiceRepo) AcquireLock(ctx context.Context, grID string, 
 	if err != nil || gr == nil {
 		return ErrNotFound
 	}
-	operatorName := operatorNameFromContext(ctx)
 	if gr.LockedBy != nil && *gr.LockedBy != operatorID {
 		if gr.LockExpiresAt != nil && gr.LockExpiresAt.After(time.Now()) {
 			observability.DefaultRegistry.Counter(observability.MetricLockContention).Inc()
@@ -292,7 +242,7 @@ func (s *goodsReceiptServiceRepo) AcquireLock(ctx context.Context, grID string, 
 	}
 	now := time.Now()
 	expiresAt := now.Add(60 * time.Minute)
-	err = s.repo.UpdateGRFields(ctx, grID, map[string]interface{}{"locked_by": operatorID, "operator_id": operatorID, "operator_name": operatorName, "lock_expires_at": expiresAt})
+	err = s.repo.UpdateGRFields(ctx, grID, map[string]interface{}{"locked_by": operatorID, "lock_expires_at": expiresAt})
 	if err == nil {
 		observability.DefaultRegistry.Counter(observability.MetricLockAcquisitions).Inc()
 	}
@@ -307,7 +257,6 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 	if err != nil || gr == nil {
 		return ErrNotFound
 	}
-	operatorName := operatorNameFromContext(ctx)
 	if gr.LockedBy == nil || *gr.LockedBy != operatorID {
 		return ErrAlreadyLocked
 	}
@@ -321,7 +270,6 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 	}
 
 	// emulate transaction semantics via sequence of operations; repo implementations/tests should simulate rollback behavior if needed
-	hasDiscrepancy := false
 	for _, item := range items {
 		count, ok := counts[item.SKU]
 		if !ok {
@@ -331,10 +279,6 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 		defective := count.Defective
 		item.ReceivedQty = &received
 		item.DefectiveQty = &defective
-
-		if received != item.OrderedQty || defective > 0 {
-			hasDiscrepancy = true
-		}
 
 		if item.AgingSensitive && item.ProductionDate != nil {
 			if time.Since(*item.ProductionDate) > s.agingThreshold {
@@ -353,12 +297,6 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 		if err := s.stockRepo.SaveStock(ctx, stock); err != nil {
 			return err
 		}
-
-		if s.ledgerSvc != nil && received > 0 {
-			if _, lerr := s.ledgerSvc.RecordEntry(ctx, item.SKU, models.LedgerTxnTypeIN, received, operatorID, gr.ID, models.LedgerRefGoodsReceipt, gr.ID); lerr != nil {
-				s.ledgerSvc.RecordEntry(context.Background(), item.SKU, models.LedgerTxnTypeIN, received, operatorID, gr.ID, models.LedgerRefGoodsReceipt, gr.ID)
-			}
-		}
 	}
 
 	po, err := s.poRepo.GetPOByID(ctx, gr.PORef)
@@ -366,21 +304,6 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 		return err
 	}
 	poItems, _ := s.poRepo.GetPOLineItemsByPOID(ctx, po.ID)
-
-	// Update PO line items' ReceivedQty from GR line items
-	receivedBySKU := make(map[string]int)
-	for _, item := range items {
-		if item.ReceivedQty != nil {
-			receivedBySKU[item.SKU] += *item.ReceivedQty
-		}
-	}
-	for i := range poItems {
-		if qty, ok := receivedBySKU[poItems[i].SKU]; ok {
-			poItems[i].ReceivedQty += qty
-			_ = s.poRepo.SavePOLineItem(ctx, &poItems[i])
-		}
-	}
-
 	allReceived := true
 	for _, li := range poItems {
 		if li.ReceivedQty < li.OrderedQty {
@@ -389,13 +312,7 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 		}
 	}
 
-	if hasDiscrepancy {
-		gr.Status = models.GRStatusDiscrepancy
-	} else {
-		gr.Status = models.GRStatusComplete
-	}
-	gr.OperatorID = operatorID
-	gr.OperatorName = operatorName
+	gr.Status = models.GRStatusComplete
 	if err := s.repo.UpdateGR(ctx, gr); err != nil {
 		return err
 	}
@@ -411,6 +328,7 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 			return err
 		}
 	}
+
 	observability.DefaultRegistry.Counter(observability.MetricGRProcessed).Inc()
 	return nil
 }
@@ -433,7 +351,6 @@ func (s *goodsReceiptService) ListGRs(ctx context.Context, status string, params
 	if err != nil {
 		return nil, nil, err
 	}
-	hydrateGoodsReceiptVendorNames(grs)
 	return grs, meta, nil
 }
 
@@ -442,56 +359,38 @@ func (s *goodsReceiptService) FindAllGRs(ctx context.Context) ([]models.GoodsRec
 	if err := s.db.WithContext(ctx).Preload("LineItems").Preload("Vendor").Order("created_at DESC").Find(&grs).Error; err != nil {
 		return nil, err
 	}
-	hydrateGoodsReceiptVendorNames(grs)
 	return grs, nil
 }
 
 func (s *goodsReceiptService) GetGR(ctx context.Context, grID string) (*models.GoodsReceipt, error) {
 	var gr models.GoodsReceipt
 	if err := s.db.WithContext(ctx).Preload("LineItems").Preload("Vendor").First(&gr, "id = ?", grID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, ErrNotFound
-		}
-		return nil, err
+		return nil, ErrNotFound
 	}
-	hydrateGoodsReceiptVendorName(&gr)
 	return &gr, nil
 }
 
-func (s *goodsReceiptService) GetMetrics(ctx context.Context) (pending int64, completedToday int64, discrepancies int64, queue int64, err error) {
-	err = s.db.WithContext(ctx).Model(&models.GoodsReceipt{}).Where("status = ?", models.GRStatusPending).Count(&pending).Error
-	if err != nil {
-		return
+func (s *goodsReceiptService) GetMetrics(ctx context.Context) (int64, int64, int64, int64, error) {
+	var pending, completedToday, discrepancies, queue int64
+	db := s.db.WithContext(ctx).Model(&models.GoodsReceipt{})
+	if err := db.Where("status = ?", models.GRStatusPending).Count(&pending).Error; err != nil {
+		return 0, 0, 0, 0, err
 	}
-
 	todayStart := time.Now().Truncate(24 * time.Hour)
-	err = s.db.WithContext(ctx).Model(&models.GoodsReceipt{}).
-		Where("status = ? AND updated_at >= ?", models.GRStatusComplete, todayStart).
-		Count(&completedToday).Error
-	if err != nil {
-		return
+	if err := db.Where("status = ? AND updated_at >= ?", models.GRStatusComplete, todayStart).Count(&completedToday).Error; err != nil {
+		return 0, 0, 0, 0, err
 	}
-
-	err = s.db.WithContext(ctx).Model(&models.GoodsReceipt{}).Where("status = ?", models.GRStatusDiscrepancy).Count(&discrepancies).Error
-	if err != nil {
-		return
+	if err := db.Where("status = ?", models.GRStatusDiscrepancy).Count(&discrepancies).Error; err != nil {
+		return 0, 0, 0, 0, err
 	}
-
-	err = rdbCountQueue(s.db, ctx, &queue)
-	return
-}
-
-func rdbCountQueue(db *gorm.DB, ctx context.Context, queue *int64) error {
-	return db.WithContext(ctx).Model(&models.GoodsReceipt{}).Where("status = ?", models.GRStatusInspected).Count(queue).Error
+	if err := db.Where("status = ?", models.GRStatusInspected).Count(&queue).Error; err != nil {
+		return 0, 0, 0, 0, err
+	}
+	return pending, completedToday, discrepancies, queue, nil
 }
 
 func (s *goodsReceiptServiceRepo) ListGRs(ctx context.Context, status string, params pagination.Params) ([]models.GoodsReceipt, *pagination.Meta, error) {
-	grs, meta, err := s.repo.ListGRs(ctx, status, params)
-	if err != nil {
-		return nil, nil, err
-	}
-	hydrateGoodsReceiptVendorNames(grs)
-	return grs, meta, nil
+	return s.repo.ListGRs(ctx, status, params)
 }
 
 func (s *goodsReceiptServiceRepo) FindAllGRs(ctx context.Context) ([]models.GoodsReceipt, error) {
@@ -503,22 +402,9 @@ func (s *goodsReceiptServiceRepo) GetGR(ctx context.Context, grID string) (*mode
 	if err != nil || gr == nil {
 		return nil, ErrNotFound
 	}
-	hydrateGoodsReceiptVendorName(gr)
 	return gr, nil
 }
 
-func hydrateGoodsReceiptVendorNames(grs []models.GoodsReceipt) {
-	for i := range grs {
-		hydrateGoodsReceiptVendorName(&grs[i])
-	}
-}
-
-func hydrateGoodsReceiptVendorName(gr *models.GoodsReceipt) {
-	if gr != nil && gr.Vendor != nil {
-		gr.VendorName = gr.Vendor.Name
-	}
-}
-
-func (s *goodsReceiptServiceRepo) GetMetrics(ctx context.Context) (pending int64, completedToday int64, discrepancies int64, queue int64, err error) {
+func (s *goodsReceiptServiceRepo) GetMetrics(ctx context.Context) (int64, int64, int64, int64, error) {
 	return s.repo.GetMetrics(ctx)
 }
