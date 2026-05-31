@@ -11,7 +11,7 @@ type ProductionOrderStatus string
 const (
 	StatusPlanned      ProductionOrderStatus = "PLANNED"
 	StatusClearToBuild ProductionOrderStatus = "CLEAR_TO_BUILD"
-	StatusPartial      ProductionOrderStatus = "PARTIAL"
+	StatusPartial      ProductionOrderStatus = "PARTIAL" // Deprecated: Use StatusShortage instead in the 2-state model
 	StatusShortage     ProductionOrderStatus = "SHORTAGE"
 )
 

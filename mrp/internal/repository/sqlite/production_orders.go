@@ -75,11 +75,26 @@ func (r *sqliteMRPRepository) GetProductionOrder(ctx context.Context, id uuid.UU
 		return nil, fmt.Errorf("invalid production order id in database: %w", err)
 	}
 
+	var sched time.Time
+	if dbRow.ScheduledAt != nil && *dbRow.ScheduledAt != "" {
+		if t, err := time.Parse(time.RFC3339, *dbRow.ScheduledAt); err == nil {
+			sched = t
+		}
+	}
+	var created time.Time
+	if dbRow.CreatedAt != nil && *dbRow.CreatedAt != "" {
+		if t, err := time.Parse(time.RFC3339, *dbRow.CreatedAt); err == nil {
+			created = t
+		}
+	}
+
 	return &models.ProductionOrder{
 		ID:               parsedID,
 		ProductModelCode: dbRow.ProductModelCode,
 		TargetQuantity:   dbRow.TargetQuantity,
 		Status:           models.ProductionOrderStatus(dbRow.Status),
+		ScheduledAt:      sched,
+		CreatedAt:        created,
 	}, nil
 }
 
@@ -89,12 +104,14 @@ func (r *sqliteMRPRepository) GetOpenProductionOrders(ctx context.Context) ([]mo
 		ProductModelCode string
 		TargetQuantity   int
 		Status           string
+		ScheduledAt      *string
+		CreatedAt        *string
 	}
 
 	var rows []row
 	err := r.db.WithContext(ctx).
 		Table("production_orders").
-		Select("id, product_model_code, target_quantity, status").
+		Select("id, product_model_code, target_quantity, status, scheduled_at, created_at").
 		Where("status IN ?", []string{string(models.StatusClearToBuild), string(models.StatusPartial), string(models.StatusShortage)}).
 		Order("created_at DESC").
 		Find(&rows).Error
@@ -109,11 +126,26 @@ func (r *sqliteMRPRepository) GetOpenProductionOrders(ctx context.Context) ([]mo
 			continue
 		}
 
+		var sched time.Time
+		if row.ScheduledAt != nil && *row.ScheduledAt != "" {
+			if t, err := time.Parse(time.RFC3339, *row.ScheduledAt); err == nil {
+				sched = t
+			}
+		}
+		var created time.Time
+		if row.CreatedAt != nil && *row.CreatedAt != "" {
+			if t, err := time.Parse(time.RFC3339, *row.CreatedAt); err == nil {
+				created = t
+			}
+		}
+
 		orders = append(orders, models.ProductionOrder{
 			ID:               id,
 			ProductModelCode: row.ProductModelCode,
 			TargetQuantity:   row.TargetQuantity,
 			Status:           models.ProductionOrderStatus(row.Status),
+			ScheduledAt:      sched,
+			CreatedAt:        created,
 		})
 	}
 
@@ -125,4 +157,19 @@ func (r *sqliteMRPRepository) UpdateProductionOrderStatus(ctx context.Context, i
 		return fmt.Errorf("id is required")
 	}
 	return r.db.WithContext(ctx).Table("production_orders").Where("id = ?", id.String()).Update("status", string(status)).Error
+}
+
+func (r *sqliteMRPRepository) DeleteProductionOrder(ctx context.Context, id uuid.UUID) error {
+	if id == uuid.Nil {
+		return fmt.Errorf("id is required")
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table("shortage_logs").Where("production_order_id = ?", id.String()).Delete(nil).Error; err != nil {
+			return err
+		}
+		if err := tx.Table("production_orders").Where("id = ?", id.String()).Delete(nil).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }

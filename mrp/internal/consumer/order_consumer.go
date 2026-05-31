@@ -11,6 +11,7 @@ import (
 	"zeus-mrp-service/internal/models"
 	"zeus-mrp-service/internal/service"
 
+	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -86,10 +87,17 @@ func (c *OrderConsumer) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to consume from %s: %w", messaging.SalesOrderUpdatedQueue, err)
 	}
 
+	// Consume deficit reserved events
+	reservedMsgs, err := ch.Consume(messaging.DeficitReservedQueue, "", false, false, false, false, nil)
+	if err != nil {
+		return fmt.Errorf("failed to consume from %s: %w", messaging.DeficitReservedQueue, err)
+	}
+
 	slog.Info("MRP sales order consumer started", slog.String("service", "mrp"))
 
 	go c.loop(ctx, createdMsgs, "created")
 	go c.loop(ctx, updatedMsgs, "updated")
+	go c.loopReserved(ctx, reservedMsgs)
 
 	return nil
 }
@@ -204,4 +212,26 @@ func (c *OrderConsumer) processOrderPayload(ctx context.Context, payload OrderCr
 	}
 
 	return nil
+}
+
+func (c *OrderConsumer) loopReserved(ctx context.Context, msgs <-chan amqp.Delivery) {
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("MRP deficit reserved consumer loop stopping due to context cancellation")
+			return
+		case msg, ok := <-msgs:
+			if !ok {
+				slog.Info("MRP deficit reserved consumer message channel closed")
+				return
+			}
+
+			// We just trigger a global invalidation since specific order ID might not be present,
+			// or SCM satisfies a component shortage which affects multiple open orders.
+			slog.Info("received deficit reserved event, invalidating global readiness cache")
+			c.mrpService.InvalidateReadinessCache(ctx, uuid.Nil)
+
+			_ = msg.Ack(false)
+		}
+	}
 }

@@ -29,6 +29,7 @@ type SCMClient interface {
 	GetOptimalSupplier(ctx context.Context, sku string) (uuid.UUID, float64, error)
 	CreateDraftPO(ctx context.Context, vendorID uuid.UUID, targetBuild string) (string, error)
 	AddLineItemWithLock(ctx context.Context, poID string, sku string, qty int) error
+	ListPOs(ctx context.Context, targetBuild string) ([]models.PurchaseOrder, error)
 }
 
 type ProductionService struct {

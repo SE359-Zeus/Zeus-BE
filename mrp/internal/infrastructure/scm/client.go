@@ -582,3 +582,34 @@ func (c *Client) AddLineItemWithLock(ctx context.Context, poID string, sku strin
 	return nil
 }
 
+func (c *Client) ListPOs(ctx context.Context, targetBuild string) ([]models.PurchaseOrder, error) {
+	urlStr := fmt.Sprintf("%s/api/v1/scm/purchase-orders?q=%s&limit=1000", c.baseURL, url.QueryEscape(targetBuild))
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("SCM API ListPOs returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var envelope struct {
+		Data []models.PurchaseOrder `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, err
+	}
+
+	return envelope.Data, nil
+}
+
+

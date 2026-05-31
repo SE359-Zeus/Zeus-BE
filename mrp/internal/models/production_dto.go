@@ -25,6 +25,7 @@ type BOMExplosionResult struct {
 	ComponentSKU     string    `json:"component_sku,omitempty"` // human-readable SKU for UI display
 	TotalRequiredQty int       `json:"total_required_qty"`
 	AvailableQty     int       `json:"available_qty"`
+	AllocatedQty     int       `json:"allocated_qty"`
 	IsShortage       bool      `json:"is_shortage"`
 }
 
@@ -199,3 +200,30 @@ type InventoryLedgerEntry struct {
 	ReferenceID    string    `json:"reference_id"`
 	CreatedAt      time.Time `json:"created_at"`
 }
+
+type POStatus string
+
+const (
+	POStatusDraft     POStatus = "Draft"
+	POStatusApproved  POStatus = "Approved"
+	POStatusInTransit POStatus = "In Transit"
+	POStatusReceived  POStatus = "Received"
+	POStatusPartial   POStatus = "Partial"
+	POStatusVoid      POStatus = "Void"
+)
+
+type PurchaseOrder struct {
+	ID          string       `json:"id"`
+	TargetBuild string       `json:"target_build"`
+	Status      POStatus     `json:"status"`
+	LineItems   []POLineItem `json:"line_items"`
+}
+
+type POLineItem struct {
+	ID          uuid.UUID `json:"id"`
+	POID        string    `json:"po_id"`
+	SKU         string    `json:"sku"`
+	OrderedQty  int       `json:"ordered_qty"`
+	ReceivedQty int       `json:"received_qty"`
+}
+

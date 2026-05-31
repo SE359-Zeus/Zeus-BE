@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"time"
 
-	"zeus-mrp-service/internal/infrastructure/messaging"
 	"zeus-mrp-service/internal/infrastructure/observability"
 	"zeus-mrp-service/internal/models"
 
@@ -58,57 +57,23 @@ func (s *ProductionService) PlanProduction(ctx context.Context, req models.Creat
 	}
 	observability.DefaultRegistry.Counter(observability.MetricBOMExplosions).Inc()
 
-	var shortageLogs []models.ShortageLog
 	status := deriveReadinessStatus(results)
+	if err := s.syncShortagesInDB(ctx, id, results); err != nil {
+		return nil, fmt.Errorf("failed to sync shortages: %w", err)
+	}
+
 	if status != models.StatusClearToBuild {
-		for _, result := range results {
-			if result.IsShortage {
-				shortageQty := result.TotalRequiredQty - result.AvailableQty
-				// get human-readable component SKU
-				var partSKU string
-				if s.scmClient != nil {
-					part, err := s.scmClient.GetPartCatalogByID(ctx, result.PartID)
-					if err == nil && part != nil {
-						partSKU = part.SKU
-					}
-				}
-				if partSKU == "" {
-					partSKU = fmt.Sprintf("PART-%s", result.PartID.String()[:8])
-				}
-
-				shortageLog := &models.ShortageLog{
-					ID:                uuid.New(),
-					ProductionOrderID: id,
-					PartID:            result.PartID,
-					ShortageQty:       shortageQty,
-					ResolutionStatus:  models.ResolutionStatusShortage,
-				}
-				if err := s.repo.CreateShortageLog(ctx, shortageLog); err != nil {
-					return nil, fmt.Errorf("failed to create shortage log: %w", err)
-				}
-				shortageLogs = append(shortageLogs, *shortageLog)
-
-				// Emit shortage demand (deficit) to SCM
-				if s.audit != nil {
-					_ = s.audit.PublishJSON(ctx, messaging.DeficitPoolQueue, map[string]any{
-						"sku":      partSKU,
-						"qty":      shortageQty,
-						"order_id": id.String(),
-					})
-					observability.DefaultRegistry.Counter(observability.MetricDeficitsDetected).Inc()
-				}
-			}
-		}
-
-		// Update order status in DB
 		if err := s.repo.UpdateProductionOrderStatus(ctx, id, status); err != nil {
 			return nil, fmt.Errorf("failed to update production order status: %w", err)
 		}
 		order.Status = status
 	}
 
-	if shortageLogs == nil {
-		shortageLogs = []models.ShortageLog{}
+	s.InvalidateReadinessCache(ctx, id)
+
+	shortageLogs, err := s.repo.GetShortagesByOrderID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve shortages: %w", err)
 	}
 
 	resp := &models.ProductionOrderResponse{

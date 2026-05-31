@@ -314,3 +314,27 @@ func (s *ProductionService) GetAggregatedDemand(ctx context.Context) ([]models.B
 
 	return result, nil
 }
+
+func (s *ProductionService) DeleteProductionOrder(ctx context.Context, orderID uuid.UUID) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if orderID == uuid.Nil {
+		return fmt.Errorf("orderID must not be nil")
+	}
+
+	order, err := s.repo.GetProductionOrder(ctx, orderID)
+	if err != nil {
+		return err
+	}
+	if order == nil {
+		return fmt.Errorf("production order not found")
+	}
+
+	if err := s.repo.DeleteProductionOrder(ctx, orderID); err != nil {
+		return fmt.Errorf("failed to delete production order: %w", err)
+	}
+
+	s.InvalidateReadinessCache(ctx, orderID)
+	return nil
+}

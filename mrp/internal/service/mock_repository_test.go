@@ -122,6 +122,21 @@ func (m *MockMRPRepository) GetInventoryMetrics(ctx context.Context) (*models.In
 	return nil, args.Error(1)
 }
 
+func (m *MockMRPRepository) DeleteProductionOrder(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockMRPRepository) UpdateShortageLog(ctx context.Context, log *models.ShortageLog) error {
+	args := m.Called(ctx, log)
+	return args.Error(0)
+}
+
+func (m *MockMRPRepository) DeleteShortageLog(ctx context.Context, orderID uuid.UUID, partID uuid.UUID) error {
+	args := m.Called(ctx, orderID, partID)
+	return args.Error(0)
+}
+
 func setupMockRepo() *MockMRPRepository {
 	m := new(MockMRPRepository)
 
@@ -141,6 +156,9 @@ func setupMockRepo() *MockMRPRepository {
 	m.On("GetAggregatedShortages", mock.Anything).Return([]models.BOMExplosionResult{}, nil)
 	m.On("GetInventoryTransactions", mock.Anything).Return([]models.InventoryTransactionDTO{{ID: "TXN-1", SKU: "PART-1", QtyChange: 10, RunningBalance: 10, Timestamp: time.Now()}}, nil)
 	m.On("GetInventoryMetrics", mock.Anything).Return(&models.InventoryMetrics{ActiveSKUs: 154}, nil)
+	m.On("DeleteProductionOrder", mock.Anything, mock.Anything).Return(nil).Maybe()
+	m.On("UpdateShortageLog", mock.Anything, mock.Anything).Return(nil).Maybe()
+	m.On("DeleteShortageLog", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	return m
 }
@@ -245,11 +263,20 @@ func (m *MockSCMClient) AddLineItemWithLock(ctx context.Context, poID string, sk
 	return args.Error(0)
 }
 
+func (m *MockSCMClient) ListPOs(ctx context.Context, targetBuild string) ([]models.PurchaseOrder, error) {
+	args := m.Called(ctx, targetBuild)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.PurchaseOrder), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func setupMockSCMClient() *MockSCMClient {
 	m := new(MockSCMClient)
 	m.On("GetOptimalSupplier", mock.Anything, mock.Anything).Return(uuid.New(), 10.0, nil).Maybe()
 	m.On("CreateDraftPO", mock.Anything, mock.Anything, mock.Anything).Return("PO-DRAFT-ID", nil).Maybe()
 	m.On("AddLineItemWithLock", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	m.On("ListPOs", mock.Anything, mock.Anything).Return([]models.PurchaseOrder{}, nil).Maybe()
 	return m
 }
 

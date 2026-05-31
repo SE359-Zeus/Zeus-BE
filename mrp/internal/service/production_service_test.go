@@ -270,6 +270,7 @@ func TestPlanProduction_ShortageCreationAndSCMAlerting(t *testing.T) {
 		Price:    1.5,
 		StockQty: 10,
 	}, nil)
+	scmClient.On("ListPOs", mock.Anything, modelCode).Return([]models.PurchaseOrder{}, nil).Maybe()
 
 	// Shortage logging expectation
 	db.On("CreateShortageLog", mock.Anything, mock.MatchedBy(func(log *models.ShortageLog) bool {
@@ -285,8 +286,20 @@ func TestPlanProduction_ShortageCreationAndSCMAlerting(t *testing.T) {
 		return m["sku"] == "COMP-SKU-100" && m["qty"] == 20
 	})).Return(nil)
 
+	expectedShortages := []models.ShortageLog{
+		{
+			ID:                uuid.New(),
+			ProductionOrderID: uuid.Nil,
+			PartID:            partID,
+			ShortageQty:       20,
+			ResolutionStatus:  models.ResolutionStatusShortage,
+		},
+	}
+	db.On("GetShortagesByOrderID", mock.Anything, mock.Anything).Return([]models.ShortageLog{}, nil).Once()
+	db.On("GetShortagesByOrderID", mock.Anything, mock.Anything).Return(expectedShortages, nil).Once()
+
 	// Status update to SHORTAGE/PARTIAL
-	db.On("UpdateProductionOrderStatus", mock.Anything, mock.Anything, models.StatusPartial).Return(nil)
+	db.On("UpdateProductionOrderStatus", mock.Anything, mock.Anything, models.StatusShortage).Return(nil)
 
 	req := models.CreateProductionOrderRequest{
 		ProductModelCode: modelCode,
@@ -296,7 +309,7 @@ func TestPlanProduction_ShortageCreationAndSCMAlerting(t *testing.T) {
 	res, err := svc.PlanProduction(context.Background(), req)
 	require.NoError(t, err)
 	require.NotNil(t, res)
-	assert.Equal(t, models.StatusPartial, res.Status)
+	assert.Equal(t, models.StatusShortage, res.Status)
 	assert.Len(t, res.Shortages, 1)
 	assert.Equal(t, 20, res.Shortages[0].ShortageQty)
 

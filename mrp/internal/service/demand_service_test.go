@@ -249,6 +249,7 @@ func TestDemandService_DynamicCalculationsAndHandoff(t *testing.T) {
 	mockRepo.On("GetBOMByModelCode", mock.Anything, "ZW-X1-TITAN").Return(bomEntries, nil)
 	mockSCM.On("GetPartCatalogByID", mock.Anything, partID).Return(partCatalog, nil)
 	mockSCM.On("GetProductModelByCode", mock.Anything, "ZW-X1-TITAN").Return(&models.ProductModel{ModelCode: "ZW-X1-TITAN", ModelName: "Zeus Workstation X1"}, nil)
+	mockSCM.On("ListPOs", mock.Anything, "ZW-X1-TITAN").Return([]models.PurchaseOrder{}, nil).Maybe()
 
 	svc := NewProductionService(mockRepo, mockSCM, mockAudit)
 
