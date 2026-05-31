@@ -49,6 +49,11 @@ func (m *MockMRPRepository) DeleteBOMEntriesByModelCode(ctx context.Context, mod
 	return args.Error(0)
 }
 
+func (m *MockMRPRepository) HardDeleteBOMEntriesByModelCode(ctx context.Context, modelCode string) error {
+	args := m.Called(ctx, modelCode)
+	return args.Error(0)
+}
+
 func (m *MockMRPRepository) GetBOMByModelCode(ctx context.Context, modelCode string) ([]models.BomEntry, error) {
 	args := m.Called(ctx, modelCode)
 	if args.Get(0) != nil {
@@ -159,6 +164,7 @@ func setupMockRepo() *MockMRPRepository {
 	m.On("GetWhereUsedByPartID", mock.Anything, mock.Anything).Return([]models.BomEntry{}, nil)
 	m.On("CreateBOMEntries", mock.Anything, mock.Anything).Return(nil)
 	m.On("DeleteBOMEntriesByModelCode", mock.Anything, mock.Anything).Return(nil)
+	m.On("HardDeleteBOMEntriesByModelCode", mock.Anything, mock.Anything).Return(nil)
 	m.On("CreateShortageLog", mock.Anything, mock.Anything).Return(nil)
 	m.On("GetShortagesByOrderID", mock.Anything, mock.Anything).Return([]models.ShortageLog{}, nil)
 	m.On("GetShortagesByOrderIDs", mock.Anything, mock.Anything).Return(map[uuid.UUID][]models.ShortageLog{}, nil)
@@ -212,14 +218,6 @@ func (m *MockSCMClient) ListStocks(ctx context.Context, page, limit int, sortBy,
 	args := m.Called(ctx, page, limit, sortBy, sortDir, q)
 	if args.Get(0) != nil {
 		return args.Get(0).([]models.ComponentStock), args.Bool(1), args.Error(2)
-	}
-	return nil, args.Bool(1), args.Error(2)
-}
-
-func (m *MockSCMClient) GetInventoryLedger(ctx context.Context, page, limit int, sortBy, sortDir, txnType, sku string) ([]models.LedgerEntry, bool, error) {
-	args := m.Called(ctx, page, limit, sortBy, sortDir, txnType, sku)
-	if args.Get(0) != nil {
-		return args.Get(0).([]models.LedgerEntry), args.Bool(1), args.Error(2)
 	}
 	return nil, args.Bool(1), args.Error(2)
 }
@@ -288,12 +286,24 @@ func (m *MockSCMClient) ListPOs(ctx context.Context, targetBuild string) ([]mode
 	return nil, args.Error(1)
 }
 
+func (m *MockSCMClient) CreateProductModel(ctx context.Context, code string, name string, price float64) error {
+	args := m.Called(ctx, code, name, price)
+	return args.Error(0)
+}
+
+func (m *MockSCMClient) DeleteProductModel(ctx context.Context, code string) error {
+	args := m.Called(ctx, code)
+	return args.Error(0)
+}
+
 func setupMockSCMClient() *MockSCMClient {
 	m := new(MockSCMClient)
 	m.On("GetOptimalSupplier", mock.Anything, mock.Anything).Return(uuid.New(), 10.0, nil).Maybe()
 	m.On("CreateDraftPO", mock.Anything, mock.Anything, mock.Anything).Return("PO-DRAFT-ID", nil).Maybe()
 	m.On("AddLineItemWithLock", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	m.On("ListPOs", mock.Anything, mock.Anything).Return([]models.PurchaseOrder{}, nil).Maybe()
+	m.On("CreateProductModel", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
+	m.On("DeleteProductModel", mock.Anything, mock.Anything).Return(nil).Maybe()
 	return m
 }
 

@@ -54,6 +54,11 @@ func (m *MockMRPRepository) DeleteBOMEntriesByModelCode(ctx context.Context, mod
 	return args.Error(0)
 }
 
+func (m *MockMRPRepository) HardDeleteBOMEntriesByModelCode(ctx context.Context, modelCode string) error {
+	args := m.Called(ctx, modelCode)
+	return args.Error(0)
+}
+
 func (m *MockMRPRepository) GetBOMByModelCode(ctx context.Context, modelCode string) ([]models.BomEntry, error) {
 	args := m.Called(ctx, modelCode)
 	if args.Get(0) != nil {

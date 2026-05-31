@@ -138,7 +138,7 @@ func (s *ProductionService) CreateAssembly(ctx context.Context, req models.Creat
 	}
 
 	// replace existing BOM for this model
-	if err := s.repo.DeleteBOMEntriesByModelCode(ctx, req.Name); err != nil {
+	if err := s.repo.HardDeleteBOMEntriesByModelCode(ctx, req.Name); err != nil {
 		return nil, err
 	}
 	if err := s.repo.CreateBOMEntries(ctx, entries); err != nil {
@@ -146,6 +146,15 @@ func (s *ProductionService) CreateAssembly(ctx context.Context, req models.Creat
 	}
 	if s.cache != nil {
 		_ = s.cache.InvalidateBOM(ctx, req.Name, uniquePartIDs(entries)...)
+	}
+	if s.scmClient != nil {
+		modelName := req.ModelName
+		if modelName == "" {
+			modelName = req.Name
+		}
+		if err := s.scmClient.CreateProductModel(ctx, req.Name, modelName, req.UnitPrice); err != nil {
+			return nil, fmt.Errorf("failed to sync product model to SCM: %w", err)
+		}
 	}
 	s.publishAudit(ctx, "CREATE", "mrp/assemblies/"+req.Name, "Created assembly "+req.Name)
 
@@ -183,7 +192,7 @@ func (s *ProductionService) UpdateAssembly(ctx context.Context, id uuid.UUID, re
 		})
 	}
 
-	if err := s.repo.DeleteBOMEntriesByModelCode(ctx, modelCode); err != nil {
+	if err := s.repo.HardDeleteBOMEntriesByModelCode(ctx, modelCode); err != nil {
 		return nil, err
 	}
 	if err := s.repo.CreateBOMEntries(ctx, entries); err != nil {
@@ -192,25 +201,36 @@ func (s *ProductionService) UpdateAssembly(ctx context.Context, id uuid.UUID, re
 	if s.cache != nil {
 		_ = s.cache.InvalidateBOM(ctx, modelCode, uniquePartIDs(entries)...)
 	}
+	if s.scmClient != nil {
+		modelName := req.ModelName
+		if modelName == "" {
+			modelName = modelCode
+		}
+		if err := s.scmClient.CreateProductModel(ctx, modelCode, modelName, req.UnitPrice); err != nil {
+			return nil, fmt.Errorf("failed to sync product model update to SCM: %w", err)
+		}
+	}
 	s.publishAudit(ctx, "UPDATE", "mrp/assemblies/"+modelCode, "Updated assembly "+modelCode)
 
 	return req, nil
 }
 
-func (s *ProductionService) DeleteAssembly(ctx context.Context, id uuid.UUID) error {
+func (s *ProductionService) DeleteAssembly(ctx context.Context, modelCode string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if id == uuid.Nil {
-		return fmt.Errorf("id must be a valid uuid")
+	modelCode = strings.TrimSpace(modelCode)
+	if modelCode == "" {
+		return fmt.Errorf("model code is required")
 	}
-	// treat id as string model code
-	modelCode := id.String()
 	if err := s.repo.DeleteBOMEntriesByModelCode(ctx, modelCode); err != nil {
 		return err
 	}
 	if s.cache != nil {
 		_ = s.cache.InvalidateBOM(ctx, modelCode)
+	}
+	if s.scmClient != nil {
+		_ = s.scmClient.DeleteProductModel(ctx, modelCode)
 	}
 	s.publishAudit(ctx, "DELETE", "mrp/assemblies/"+modelCode, "Deleted assembly "+modelCode)
 	return nil

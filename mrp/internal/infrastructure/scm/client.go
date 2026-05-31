@@ -612,4 +612,61 @@ func (c *Client) ListPOs(ctx context.Context, targetBuild string) ([]models.Purc
 	return envelope.Data, nil
 }
 
+func (c *Client) CreateProductModel(ctx context.Context, code string, name string, price float64) error {
+	body := map[string]any{
+		"model_code": code,
+		"model_name": name,
+		"unit_price": price,
+	}
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/product-models", c.baseURL)
+	req, err := http.NewRequestWithContext(ctx, "POST", urlStr, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to create product model in SCM: %s (status %d)", string(respBody), resp.StatusCode)
+	}
+
+	return nil
+}
+
+func (c *Client) DeleteProductModel(ctx context.Context, code string) error {
+	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/product-models/%s", c.baseURL, url.PathEscape(code))
+	req, err := http.NewRequestWithContext(ctx, "DELETE", urlStr, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to delete product model in SCM: %s (status %d)", string(respBody), resp.StatusCode)
+	}
+
+	return nil
+}
+
 

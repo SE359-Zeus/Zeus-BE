@@ -100,12 +100,7 @@ func (c *ProductionController) DeleteAssembly(w http.ResponseWriter, r *http.Req
 		writeErrorJSON(w, http.StatusBadRequest, "id path parameter is required", nil)
 		return
 	}
-	id, err := uuid.Parse(rawID)
-	if err != nil {
-		writeErrorJSON(w, http.StatusBadRequest, "invalid id", nil)
-		return
-	}
-	if err := c.svc.DeleteAssembly(r.Context(), id); err != nil {
+	if err := c.svc.DeleteAssembly(r.Context(), rawID); err != nil {
 		writeErrorJSON(w, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}

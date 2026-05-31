@@ -109,7 +109,7 @@ func TestProductionService_UpdateAssembly(t *testing.T) {
 
 func TestProductionService_DeleteAssembly(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
-	err := svc.DeleteAssembly(context.Background(), uuid.New())
+	err := svc.DeleteAssembly(context.Background(), "MODEL-X")
 	assert.NoError(t, err)
 }
 
@@ -230,11 +230,11 @@ func TestUpdateAssembly_RejectsCompletelyEmptyRequest(t *testing.T) {
 // Hard: DeleteAssembly
 // ------------------------------------------------------------
 
-// Hard: deleting uuid.Nil would match no row but could corrupt state if not guarded
-func TestDeleteAssembly_RejectsNilID(t *testing.T) {
+// Hard: deleting empty model code must be rejected
+func TestDeleteAssembly_RejectsEmptyCode(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
-	err := svc.DeleteAssembly(context.Background(), uuid.Nil)
-	assert.Error(t, err, "deleting with uuid.Nil must be rejected")
+	err := svc.DeleteAssembly(context.Background(), "")
+	assert.Error(t, err, "deleting with empty model code must be rejected")
 }
 
 // ------------------------------------------------------------

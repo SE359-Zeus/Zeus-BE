@@ -23,15 +23,6 @@ func (s *ProductionService) GetDemandSummary(ctx context.Context) ([]models.Dema
 		return []models.DemandPOSummary{}, nil
 	}
 
-	orderIDs := make([]uuid.UUID, len(orders))
-	for i, o := range orders {
-		orderIDs[i] = o.ID
-	}
-	shortageMap, err := s.repo.GetShortagesByOrderIDs(ctx, orderIDs)
-	if err != nil {
-		return nil, err
-	}
-
 	result := make([]models.DemandPOSummary, 0, len(orders))
 	for _, order := range orders {
 		results, err := s.RunBOMExplosion(ctx, order.ID)

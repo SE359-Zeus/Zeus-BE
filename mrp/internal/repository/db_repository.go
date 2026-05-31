@@ -19,6 +19,7 @@ type DbRepository interface {
 	// BOM & Catalog
 	CreateBOMEntries(ctx context.Context, entries []models.BomEntry) error
 	DeleteBOMEntriesByModelCode(ctx context.Context, modelCode string) error
+	HardDeleteBOMEntriesByModelCode(ctx context.Context, modelCode string) error
 	GetBOMByModelCode(ctx context.Context, modelCode string) ([]models.BomEntry, error)
 	GetAllBOMs(ctx context.Context) ([]models.BomEntry, error)
 	GetPagedBOMsByAssembly(ctx context.Context, page, per int) ([]models.BomEntry, int, error)

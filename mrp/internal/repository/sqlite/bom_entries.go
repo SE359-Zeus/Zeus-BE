@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"time"
 	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
@@ -37,6 +38,13 @@ func (r *sqliteMRPRepository) DeleteBOMEntriesByModelCode(ctx context.Context, m
 	if modelCode == "" {
 		return nil
 	}
+	return r.db.WithContext(ctx).Table("bom_entries").Where("parent_model_code = ?", modelCode).Update("deleted_at", time.Now().UTC()).Error
+}
+
+func (r *sqliteMRPRepository) HardDeleteBOMEntriesByModelCode(ctx context.Context, modelCode string) error {
+	if modelCode == "" {
+		return nil
+	}
 	return r.db.WithContext(ctx).Table("bom_entries").Where("parent_model_code = ?", modelCode).Delete(nil).Error
 }
 
@@ -56,7 +64,7 @@ func (r *sqliteMRPRepository) GetBOMByModelCode(ctx context.Context, modelCode s
 	err := r.db.WithContext(ctx).
 		Table("bom_entries").
 		Select("id, parent_model_code, component_part_id, required_quantity_per_unit").
-		Where("parent_model_code = ?", modelCode).
+		Where("parent_model_code = ? AND deleted_at IS NULL", modelCode).
 		Order("id ASC").
 		Find(&rows).Error
 	if err != nil {
@@ -93,6 +101,7 @@ func (r *sqliteMRPRepository) GetAllBOMs(ctx context.Context) ([]models.BomEntry
 	err := r.db.WithContext(ctx).
 		Table("bom_entries").
 		Select("id, parent_model_code, component_part_id, required_quantity_per_unit").
+		Where("deleted_at IS NULL").
 		Order("parent_model_code ASC, id ASC").
 		Find(&rows).Error
 	if err != nil {
@@ -126,6 +135,7 @@ func (r *sqliteMRPRepository) GetPagedBOMsByAssembly(ctx context.Context, page, 
 	var total int64
 	err := r.db.WithContext(ctx).
 		Table("bom_entries").
+		Where("deleted_at IS NULL").
 		Distinct("parent_model_code").
 		Count(&total).Error
 	if err != nil {
@@ -139,6 +149,7 @@ func (r *sqliteMRPRepository) GetPagedBOMsByAssembly(ctx context.Context, page, 
 	modelCodes := make([]string, 0, per)
 	err = r.db.WithContext(ctx).
 		Table("bom_entries").
+		Where("deleted_at IS NULL").
 		Distinct("parent_model_code").
 		Order("parent_model_code ASC").
 		Limit(per).
@@ -162,7 +173,7 @@ func (r *sqliteMRPRepository) GetPagedBOMsByAssembly(ctx context.Context, page, 
 	err = r.db.WithContext(ctx).
 		Table("bom_entries").
 		Select("id, parent_model_code, component_part_id, required_quantity_per_unit").
-		Where("parent_model_code IN ?", modelCodes).
+		Where("parent_model_code IN ? AND deleted_at IS NULL", modelCodes).
 		Order("parent_model_code ASC, id ASC").
 		Find(&rows).Error
 	if err != nil {
@@ -202,7 +213,7 @@ func (r *sqliteMRPRepository) GetWhereUsedByPartID(ctx context.Context, partID u
 	err := r.db.WithContext(ctx).
 		Table("bom_entries").
 		Select("id, parent_model_code, component_part_id, required_quantity_per_unit").
-		Where("component_part_id = ?", partID.String()).
+		Where("component_part_id = ? AND deleted_at IS NULL", partID.String()).
 		Order("id ASC").
 		Find(&rows).Error
 	if err != nil {
