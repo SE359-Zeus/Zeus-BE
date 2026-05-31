@@ -5,15 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"zeus-mrp-service/internal/infrastructure/messaging"
-	"zeus-mrp-service/internal/infrastructure/observability"
 	"zeus-mrp-service/internal/models"
 	"zeus-mrp-service/internal/service"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type OrderCreatedPayload struct {
@@ -115,44 +115,37 @@ func (c *OrderConsumer) loop(ctx context.Context, msgs <-chan amqp.Delivery, eve
 				return
 			}
 
-			// Extract trace context
-			traceID := ""
-			spanID := ""
+			// Extract trace context from AMQP headers using OTel propagator
+			headers := propagation.MapCarrier{}
 			if msg.Headers != nil {
 				if tpVal, ok := msg.Headers["traceparent"].(string); ok && tpVal != "" {
-					traceID = parseTraceparent(tpVal)
-				}
-				if traceID == "" {
-					if tidVal, ok := msg.Headers["trace_id"].(string); ok && tidVal != "" {
-						traceID = tidVal
-					}
-				}
-				if sidVal, ok := msg.Headers["span_id"].(string); ok && sidVal != "" {
-					spanID = sidVal
+					headers.Set("traceparent", tpVal)
 				}
 			}
+			propagator := otel.GetTextMapPropagator()
+			msgCtx := propagator.Extract(ctx, headers)
 
-			if traceID == "" {
-				traceID = observability.NewTraceID()
-			}
-			if spanID == "" {
-				spanID = observability.NewSpanID()
-			}
+			// Start an OTel child span so it gets exported to the tracing backend
+			tracer := otel.Tracer("mrp-consumer")
+			msgCtx, span := tracer.Start(msgCtx, fmt.Sprintf("consume sales.order.%s", eventType))
 
-			msgCtx := observability.WithTraceID(ctx, traceID)
-			msgCtx = observability.WithSpanID(msgCtx, spanID)
+			sc := span.SpanContext()
+			traceID := sc.TraceID().String()
+			_ = traceID // used in logs below
 
-			slog.InfoContext(msgCtx, "received sales order event", slog.String("service", "mrp"), slog.String("event_type", eventType), slog.String("body", string(msg.Body)))
+			slog.InfoContext(msgCtx, "received sales order event", slog.String("service", "mrp"), slog.String("event_type", eventType), slog.String("trace_id", traceID), slog.String("body", string(msg.Body)))
 
 			var payload OrderCreatedPayload
 			if err := json.Unmarshal(msg.Body, &payload); err != nil {
 				slog.ErrorContext(msgCtx, "failed to unmarshal sales order event payload", slog.String("service", "mrp"), slog.String("error", err.Error()))
+				span.End()
 				_ = msg.Nack(false, false) // discard invalid format messages
 				continue
 			}
 
 			if payload.OrderID == "" {
 				slog.WarnContext(msgCtx, "received sales order event with empty order_id, discarding", slog.String("service", "mrp"))
+				span.End()
 				_ = msg.Nack(false, false)
 				continue
 			}
@@ -160,23 +153,15 @@ func (c *OrderConsumer) loop(ctx context.Context, msgs <-chan amqp.Delivery, eve
 			// Process demand creation logic from queue payload only.
 			if err := c.processOrderPayload(msgCtx, payload); err != nil {
 				slog.ErrorContext(msgCtx, "failed to process sales order event", slog.String("service", "mrp"), slog.String("order_id", payload.OrderID), slog.String("error", err.Error()))
-				// Requeue for transient errors, e.g. network timeout calling Sales API
-				_ = msg.Nack(false, true)
+				span.End()
+				_ = msg.Nack(false, true) // Requeue for transient errors
 			} else {
 				slog.InfoContext(msgCtx, "successfully processed sales order event", slog.String("service", "mrp"), slog.String("order_id", payload.OrderID))
+				span.End()
 				_ = msg.Ack(false)
 			}
 		}
 	}
-}
-
-// parseTraceparent extracts trace ID from a W3C traceparent header: 00-<traceID>-<parentSpanID>-<flags>
-func parseTraceparent(header string) string {
-	parts := strings.Split(header, "-")
-	if len(parts) != 4 || len(parts[1]) != 32 {
-		return ""
-	}
-	return parts[1]
 }
 
 func (c *OrderConsumer) processOrderPayload(ctx context.Context, payload OrderCreatedPayload) error {
