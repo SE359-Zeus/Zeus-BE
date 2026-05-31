@@ -11,6 +11,7 @@ import (
 
 	"zeus-sales-service/config"
 	infraMessaging "zeus-sales-service/internal/infrastructure/messaging"
+	"zeus-sales-service/internal/infrastructure/observability"
 	"zeus-sales-service/internal/middlewares"
 	"zeus-sales-service/internal/models"
 	"zeus-sales-service/internal/repository"
@@ -178,6 +179,7 @@ func (svc *OrderService) CreateOrder(ctx context.Context, req models.CreateOrder
 
 	svc.publishAudit(ctx, "CREATE", "sales/orders/"+order.ID.String(), fmt.Sprintf("Created sales order %s for client %s", order.ID.String(), client.Name), client)
 
+	observability.DefaultRegistry.Counter(observability.MetricOrdersCreated).Inc()
 	return svc.buildResponse(ctx, order, items)
 }
 
@@ -478,6 +480,7 @@ func (svc *OrderService) CancelOrder(ctx context.Context, id uuid.UUID) error {
 		"order_id": order.ID.String(),
 		"status":   models.SalesOrderStatusCancelledCode,
 	})
+	observability.DefaultRegistry.Counter(observability.MetricOrdersCancelled).Inc()
 	return nil
 }
 
@@ -535,6 +538,13 @@ func (svc *OrderService) ReserveInventory(ctx context.Context, id uuid.UUID) err
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+
+	traceID := observability.TraceIDFromContext(ctx)
+	if traceID != "" {
+		spanID := observability.NewSpanID()
+		req.Header.Set("traceparent", "00-"+traceID+"-"+spanID+"-01")
+	}
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err

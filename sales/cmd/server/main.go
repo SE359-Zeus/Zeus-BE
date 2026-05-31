@@ -94,6 +94,7 @@ func main() {
 	r := gin.New()
 	r.Use(observability.Tracing("sales")) // inject trace_id / span_id
 	r.Use(gin.CustomRecovery(func(c *gin.Context, recovered any) {
+		observability.DefaultRegistry.Counter(observability.MetricHTTPPanicsTotal).Inc()
 		slog.Error("gin recovery triggered",
 			slog.String("service", "sales"),
 			slog.String("event", "panic"),

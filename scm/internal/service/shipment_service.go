@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"zeus-scm-service/internal/infrastructure/observability"
+	"zeus-scm-service/internal/infrastructure/observability"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/repository"
@@ -291,6 +292,24 @@ func (s *shipmentService) CreateShipment(ctx context.Context, shipment *models.S
 		}
 	}
 
+	// Clone PO line items as shipment items
+	var poItems []models.POLineItem
+	tx.Where("po_id = ?", po.ID).Find(&poItems)
+	for _, item := range poItems {
+		shipmentItem := models.ShipmentItem{
+			ID:          uuid.New(),
+			ShipmentID:  shipment.ID,
+			SKU:         item.SKU,
+			Description: item.Description,
+			Qty:         item.OrderedQty,
+		}
+		if err := tx.Create(&shipmentItem).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	observability.DefaultRegistry.Counter(observability.MetricShipmentDispatched).Inc()
 	return tx.Commit().Error
 }
 
