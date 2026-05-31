@@ -139,8 +139,8 @@ func TestProductionService_GetAssemblyByModelCode_ResolvesModelName(t *testing.T
 func TestCreateAssembly_RejectsEmptyName(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	req := models.CreateAssemblyRequest{
-		Name:       "",
-		Components: []models.ComponentReference{{SKU: "SKU-1", Quantity: 1}},
+		ProductModelCode: "",
+		Components:       []models.ComponentReference{{SKU: "SKU-1", Quantity: 1}},
 	}
 	res, err := svc.CreateAssembly(context.Background(), req)
 	assert.Error(t, err, "empty Name must be rejected")
@@ -151,8 +151,8 @@ func TestCreateAssembly_RejectsEmptyName(t *testing.T) {
 func TestCreateAssembly_RejectsEmptyComponentList(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	req := models.CreateAssemblyRequest{
-		Name:       "Assembly-X",
-		Components: []models.ComponentReference{},
+		ProductModelCode: "Assembly-X",
+		Components:       []models.ComponentReference{},
 	}
 	res, err := svc.CreateAssembly(context.Background(), req)
 	assert.NoError(t, err)
@@ -163,7 +163,7 @@ func TestCreateAssembly_RejectsEmptyComponentList(t *testing.T) {
 func TestCreateAssembly_RejectsComponentWithZeroQuantity(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	req := models.CreateAssemblyRequest{
-		Name: "Assembly-ZeroQty",
+		ProductModelCode: "Assembly-ZeroQty",
 		Components: []models.ComponentReference{
 			{SKU: "SKU-GOOD", Quantity: 2},
 			{SKU: "SKU-BAD", Quantity: 0},
@@ -178,7 +178,7 @@ func TestCreateAssembly_RejectsComponentWithZeroQuantity(t *testing.T) {
 func TestCreateAssembly_RejectsComponentWithEmptySKU(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	req := models.CreateAssemblyRequest{
-		Name: "Assembly-EmptySKU",
+		ProductModelCode: "Assembly-EmptySKU",
 		Components: []models.ComponentReference{
 			{SKU: "", Quantity: 3},
 		},
@@ -193,7 +193,7 @@ func TestCreateAssembly_RejectsComponentWithEmptySKU(t *testing.T) {
 func TestCreateAssembly_RejectsDuplicateComponentSKUs(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	req := models.CreateAssemblyRequest{
-		Name: "Assembly-DupeSKU",
+		ProductModelCode: "Assembly-DupeSKU",
 		Components: []models.ComponentReference{
 			{SKU: "SKU-DUP", Quantity: 2},
 			{SKU: "SKU-DUP", Quantity: 5},
@@ -212,7 +212,7 @@ func TestCreateAssembly_RejectsDuplicateComponentSKUs(t *testing.T) {
 func TestUpdateAssembly_RejectsNilID(t *testing.T) {
 	svc := NewProductionService(setupMockRepo())
 	res, err := svc.UpdateAssembly(context.Background(), uuid.Nil, models.UpdateAssemblyRequest{
-		Name: "Any-Name",
+		ProductModelCode: "Any-Name",
 	})
 	assert.Error(t, err, "uuid.Nil assembly ID must be rejected")
 	assert.Nil(t, res)

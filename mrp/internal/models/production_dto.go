@@ -71,19 +71,19 @@ type PickListItem struct {
 // --- BOM & Assembly DTOs ---
 
 type CreateAssemblyRequest struct {
-	Name        string               `json:"name" validate:"required"`
-	ModelName   string               `json:"model_name"`
-	Description string               `json:"description"`
-	Components  []ComponentReference `json:"components" validate:"required,dive"`
-	UnitPrice   float64              `json:"unit_price"`
+	ProductModelCode string               `json:"product_model_code" validate:"required"`
+	ProductModelName string               `json:"product_model_name"`
+	Description      string               `json:"description"`
+	Components       []ComponentReference `json:"components" validate:"required,dive"`
+	UnitPrice        float64              `json:"unit_price"`
 }
 
 type UpdateAssemblyRequest struct {
-	Name        string               `json:"name"`
-	ModelName   string               `json:"model_name"`
-	Description string               `json:"description"`
-	Components  []ComponentReference `json:"components"`
-	UnitPrice   float64              `json:"unit_price"`
+	ProductModelCode string               `json:"product_model_code"`
+	ProductModelName string               `json:"product_model_name"`
+	Description      string               `json:"description"`
+	Components       []ComponentReference `json:"components"`
+	UnitPrice        float64              `json:"unit_price"`
 }
 
 type ComponentReference struct {

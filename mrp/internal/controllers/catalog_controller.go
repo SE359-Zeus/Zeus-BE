@@ -81,9 +81,9 @@ func (c *ProductionController) UpdateAssembly(w http.ResponseWriter, r *http.Req
 		writeErrorJSON(w, http.StatusBadRequest, "invalid json payload", nil)
 		return
 	}
-	// If id is Nil and the user passed a model-code string, put it in Name
-	if id == uuid.Nil && req.Name == "" {
-		req.Name = rawID
+	// If id is Nil and the user passed a model-code string, put it in ProductModelCode
+	if id == uuid.Nil && req.ProductModelCode == "" {
+		req.ProductModelCode = rawID
 	}
 	updated, err := c.svc.UpdateAssembly(r.Context(), id, req)
 	if err != nil {
