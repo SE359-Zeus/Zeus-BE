@@ -47,8 +47,12 @@ func (s *cachedInventoryService) GetProduct(ctx context.Context, id uuid.UUID) (
 	return product, nil
 }
 
-func (s *cachedInventoryService) ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error) {
-	return s.base.ListProducts(ctx, params, q)
+func (s *cachedInventoryService) GetProductBySerialNumber(ctx context.Context, serialNumber string) (*models.Product, error) {
+	return s.base.GetProductBySerialNumber(ctx, serialNumber)
+}
+
+func (s *cachedInventoryService) ListProducts(ctx context.Context, params pagination.Params, q string, customerID *uuid.UUID) ([]models.Product, *pagination.Meta, error) {
+	return s.base.ListProducts(ctx, params, q, customerID)
 }
 
 func (s *cachedInventoryService) CreateProduct(ctx context.Context, p *models.Product) error {
@@ -140,10 +144,18 @@ func (s *cachedInventoryService) ListStocks(ctx context.Context, params paginati
 	return s.base.ListStocks(ctx, params, status, q)
 }
 
+func (s *cachedInventoryService) FindAllStocks(ctx context.Context) ([]models.ComponentStock, error) {
+	return s.base.FindAllStocks(ctx)
+}
+
 func (s *cachedInventoryService) CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error {
 	return s.base.CreateComponentStock(ctx, stock)
 }
 
 func (s *cachedInventoryService) GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error) {
 	return s.base.GetStockBySKU(ctx, sku)
+}
+
+func (s *cachedInventoryService) GetInventoryMetrics(ctx context.Context) (int64, int64, int64, float64, error) {
+	return s.base.GetInventoryMetrics(ctx)
 }

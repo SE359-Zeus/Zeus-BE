@@ -62,6 +62,7 @@ func seedCatalogs(db *gorm.DB, data *PartsFile) (map[string]int32, map[string]mo
 			PartTypesID:   tid,
 			MfgNumber:     pc.MfgNumber,
 			Description:   &desc,
+			ImageUrl:      partTypeImageURL(pc.CommodityType),
 			PartMfgStatus: 1, // pending
 			CreatedAt:     time.Now(),
 			UpdatedAt:     time.Now(),
@@ -79,4 +80,42 @@ func seedCatalogs(db *gorm.DB, data *PartsFile) (map[string]int32, map[string]mo
 		)
 	}
 	return typeMap, catMap
+}
+
+func partTypeImageURL(commodityType string) *string {
+	imageMap := map[string]string{
+		"A-cover assembly, LCD cover assembly":    "https://placehold.co/400x300/94a3b8/1e293b?text=LCD+Cover",
+		"AC ADAPTERS":                             "https://placehold.co/400x300/fbbf24/1e293b?text=AC+Adapter",
+		"C-cover with keyboard":                   "https://placehold.co/400x300/a1a1aa/1e293b?text=Keyboard+C-Cover",
+		"CABLES INTERNAL":                         "https://placehold.co/400x300/6366f1/ffffff?text=Internal+Cable",
+		"Cable, External, power cord, USB cable, and CRU-able internal cables": "https://placehold.co/400x300/6366f1/ffffff?text=External+Cable",
+		"CAMERAS":                                 "https://placehold.co/400x300/14b8a6/ffffff?text=Webcam",
+		"CARDS MISC INTERNAL":                     "https://placehold.co/400x300/8b5cf6/ffffff?text=Internal+Card",
+		"CMOS BATTERIES":                          "https://placehold.co/400x300/ef4444/ffffff?text=CMOS+Battery",
+		"COVERS":                                  "https://placehold.co/400x300/94a3b8/1e293b?text=Cover",
+		"Consumptive Bezels":                      "https://placehold.co/400x300/94a3b8/1e293b?text=Bezel",
+		"FANS":                                    "https://placehold.co/400x300/06b6d4/ffffff?text=Cooling+Fan",
+		"HEAT SINKS":                              "https://placehold.co/400x300/f97316/ffffff?text=Heat+Sink",
+		"KITS SCREWS AND LABELS":                  "https://placehold.co/400x300/a3a3a3/1e293b?text=Screw+Kit",
+		"LCD ASSEMBLIES":                          "https://placehold.co/400x300/3b82f6/ffffff?text=LCD+Assembly",
+		"LCD PANELS":                              "https://placehold.co/400x300/3b82f6/ffffff?text=LCD+Panel",
+		"LCD PARTS":                               "https://placehold.co/400x300/60a5fa/ffffff?text=LCD+Parts",
+		"M.2 Card":                                "https://placehold.co/400x300/10b981/ffffff?text=M.2+SSD",
+		"MECHANICAL ASSEMBLIES":                   "https://placehold.co/400x300/78716c/ffffff?text=Mech+Assembly",
+		"MEMORY":                                  "https://placehold.co/400x300/22c55e/ffffff?text=RAM+Memory",
+		"MISC INTERNAL":                           "https://placehold.co/400x300/a3a3a3/1e293b?text=Misc+Part",
+		"RECRDMEDIA":                              "https://placehold.co/400x300/be185d/ffffff?text=Recovery+Media",
+		"Rechargeable Batteries , internal":       "https://placehold.co/400x300/ef4444/ffffff?text=Battery",
+		"Removable tape":                          "https://placehold.co/400x300/d4d4d8/1e293b?text=Tape",
+		"Reusable items (Reusable Tapes, Mylar,Sponge,thermal pad, rubber, rubber feet)": "https://placehold.co/400x300/d4d4d8/1e293b?text=Reusable+Part",
+		"SPEAKERS INTERNAL":                       "https://placehold.co/400x300/e879f9/ffffff?text=Speaker",
+		"SYSTEM BOARDS":                           "https://placehold.co/400x300/16a34a/ffffff?text=Motherboard",
+		"Tools (special tools, drivers, etc.)":    "https://placehold.co/400x300/f59e0b/1e293b?text=Tool",
+		"Wireless LAN adapters":                   "https://placehold.co/400x300/2563eb/ffffff?text=WiFi+Adapter",
+	}
+	if url, ok := imageMap[commodityType]; ok {
+		return &url
+	}
+	url := "https://placehold.co/400x300/e2e8f0/1e293b?text=Component"
+	return &url
 }

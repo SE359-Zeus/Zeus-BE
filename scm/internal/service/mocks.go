@@ -126,6 +126,11 @@ func (m *MockPOService) CreatePO(ctx context.Context, po *models.PurchaseOrder) 
 	return args.Error(0)
 }
 
+func (m *MockPOService) GetMetrics(ctx context.Context) (int64, int64, int64, int64, int64, int64, int64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Get(1).(int64), args.Get(2).(int64), args.Get(3).(int64), args.Get(4).(int64), args.Get(5).(int64), args.Get(6).(int64), args.Error(7)
+}
+
 type MockInventoryService struct {
 	mock.Mock
 }
@@ -138,8 +143,16 @@ func (m *MockInventoryService) GetProduct(ctx context.Context, id uuid.UUID) (*m
 	return nil, args.Error(1)
 }
 
-func (m *MockInventoryService) ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error) {
-	args := m.Called(ctx, params, q)
+func (m *MockInventoryService) GetProductBySerialNumber(ctx context.Context, serialNumber string) (*models.Product, error) {
+	args := m.Called(ctx, serialNumber)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.Product), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockInventoryService) ListProducts(ctx context.Context, params pagination.Params, q string, customerID *uuid.UUID) ([]models.Product, *pagination.Meta, error) {
+	args := m.Called(ctx, params, q, customerID)
 	if args.Get(0) != nil {
 		return args.Get(0).([]models.Product), args.Get(1).(*pagination.Meta), args.Error(2)
 	}
@@ -271,6 +284,14 @@ func (m *MockInventoryService) ListStocks(ctx context.Context, params pagination
 	return nil, args.Get(1).(*pagination.Meta), args.Error(2)
 }
 
+func (m *MockInventoryService) FindAllStocks(ctx context.Context) ([]models.ComponentStock, error) {
+	args := m.Called(ctx)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.ComponentStock), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockInventoryService) CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error {
 	args := m.Called(ctx, stock)
 	return args.Error(0)
@@ -282,6 +303,11 @@ func (m *MockInventoryService) GetStockBySKU(ctx context.Context, sku string) (*
 		return args.Get(0).(*models.ComponentStock), args.Error(1)
 	}
 	return nil, args.Error(1)
+}
+
+func (m *MockInventoryService) GetInventoryMetrics(ctx context.Context) (int64, int64, int64, float64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Get(1).(int64), args.Get(2).(int64), args.Get(3).(float64), args.Error(4)
 }
 
 type MockShipmentService struct {

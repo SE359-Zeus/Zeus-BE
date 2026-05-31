@@ -38,6 +38,7 @@ type IPORepository interface {
 	ListPOs(ctx context.Context, params pagination.Params, q string) ([]models.PurchaseOrder, *pagination.Meta, error)
 	FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, error)
 	FindSkuMapping(ctx context.Context, vendorID uuid.UUID, sku string) (*models.SkuMapping, error)
+	GetPOMetrics(ctx context.Context) (total int64, draft int64, approved int64, inTransit int64, received int64, partial int64, void int64, err error)
 }
 
 type IInventoryRepository interface {
@@ -45,7 +46,8 @@ type IInventoryRepository interface {
 	FindSkuMappingsBySKU(ctx context.Context, sku string) ([]models.SkuMapping, error)
 
 	GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error)
-	ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error)
+	GetProductBySerialNumber(ctx context.Context, serialNumber string) (*models.Product, error)
+	ListProducts(ctx context.Context, params pagination.Params, q string, customerID *uuid.UUID) ([]models.Product, *pagination.Meta, error)
 	CreateProduct(ctx context.Context, p *models.Product) error
 	UpdateProduct(ctx context.Context, id uuid.UUID, fields map[string]any) (int64, error)
 
@@ -69,6 +71,7 @@ type IInventoryRepository interface {
 	CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error
 	UpdateComponentStockFieldsBySKU(ctx context.Context, sku string, updates map[string]interface{}) (int64, error)
 	DeleteComponentStockBySKU(ctx context.Context, sku string) (int64, error)
+	GetInventoryMetrics(ctx context.Context) (totalSKUs int64, lowStock int64, outOfStock int64, stockValue float64, err error)
 }
 
 type IShipmentRepository interface {

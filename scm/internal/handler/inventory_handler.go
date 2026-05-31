@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"encoding/csv"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -39,6 +41,24 @@ func (h *InventoryHandler) GetProduct(c *gin.Context) {
 	writeJSON(c, 200, p)
 }
 
+func (h *InventoryHandler) GetProductBySerialNumber(c *gin.Context) {
+	serialNumber := c.Param("serialNumber")
+	if serialNumber == "" {
+		exception.WriteError(c, exception.ErrInvalidInput)
+		return
+	}
+	p, err := h.svc.GetProductBySerialNumber(c.Request.Context(), serialNumber)
+	if err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
+		return
+	}
+	writeJSON(c, 200, p)
+}
+
 func parsePaginationParams(c *gin.Context) pagination.Params {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "15"))
@@ -54,7 +74,14 @@ func (h *InventoryHandler) ListProducts(c *gin.Context) {
 	params := parsePaginationParams(c)
 	q := c.Query("q")
 
-	products, meta, err := h.svc.ListProducts(c.Request.Context(), params, q)
+	var customerID *uuid.UUID
+	if v := c.Query("customer_id"); v != "" {
+		if id, err := uuid.Parse(v); err == nil {
+			customerID = &id
+		}
+	}
+
+	products, meta, err := h.svc.ListProducts(c.Request.Context(), params, q, customerID)
 	if err != nil {
 		exception.WriteError(c, exception.ErrInternal.WithError(err))
 		return
@@ -165,6 +192,16 @@ func (h *InventoryHandler) CreatePart(c *gin.Context) {
 	if err := c.ShouldBindJSON(&p); err != nil {
 		exception.WriteError(c, exception.ErrInvalidBody)
 		return
+	}
+	if p.ID == uuid.Nil {
+		p.ID = uuid.New()
+	}
+	now := time.Now()
+	if p.CreatedAt.IsZero() {
+		p.CreatedAt = now
+	}
+	if p.UpdatedAt.IsZero() {
+		p.UpdatedAt = now
 	}
 	if err := h.svc.CreatePart(c.Request.Context(), &p); err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
@@ -620,4 +657,64 @@ func (h *InventoryHandler) GetStockBySKU(c *gin.Context) {
 		return
 	}
 	writeJSON(c, 200, stock)
+}
+
+func (h *InventoryHandler) GetInventoryMetrics(c *gin.Context) {
+	totalSKUs, lowStock, outOfStock, stockValue, err := h.svc.GetInventoryMetrics(c.Request.Context())
+	if err != nil {
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+	writeJSON(c, 200, gin.H{
+		"total_skus":   totalSKUs,
+		"low_stock":    lowStock,
+		"out_of_stock": outOfStock,
+		"stock_value":  stockValue,
+	})
+}
+
+func (h *InventoryHandler) ExportInventoryReport(c *gin.Context) {
+	stocks, err := h.svc.FindAllStocks(c.Request.Context())
+	if err != nil {
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Disposition", `attachment; filename="inventory_report.csv"`)
+	c.Header("Content-Type", "text/csv")
+	c.Header("Transfer-Encoding", "chunked")
+	c.Writer.WriteHeader(http.StatusOK)
+
+	csvWriter := csv.NewWriter(c.Writer)
+	header := []string{
+		"SKU", "Name", "Category", "Stock Qty", "Reorder Point",
+		"Unit Cost", "Status", "Primary Supplier", "Lead Time Days", "Location",
+	}
+	if err := csvWriter.Write(header); err != nil {
+		return
+	}
+	csvWriter.Flush()
+	c.Writer.Flush()
+
+	for _, s := range stocks {
+		row := []string{
+			s.SKU,
+			s.Name,
+			s.Category,
+			strconv.Itoa(s.StockQty),
+			strconv.Itoa(s.ReorderPoint),
+			strconv.FormatFloat(s.UnitCost, 'f', 2, 64),
+			string(s.Status),
+			s.PrimarySupplier,
+			strconv.Itoa(s.LeadTimeDays),
+			s.Location,
+		}
+		if err := csvWriter.Write(row); err != nil {
+			return
+		}
+	}
+
+	csvWriter.Flush()
+	c.Writer.Flush()
 }

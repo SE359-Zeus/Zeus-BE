@@ -27,16 +27,19 @@ type IPOService interface {
 	GetPO(ctx context.Context, poID string) (*models.PurchaseOrder, error)
 	FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, error)
 	CreatePO(ctx context.Context, po *models.PurchaseOrder) error
+	GetMetrics(ctx context.Context) (total int64, draft int64, approved int64, inTransit int64, received int64, partial int64, void int64, err error)
 }
 
 type poService struct {
-	db    *gorm.DB
-	mqURL string
+	db     *gorm.DB
+	grRepo repository.IGoodsReceiptRepository
+	mqURL  string
 }
 
 type poServiceRepo struct {
 	poRepo    repository.IPORepository
 	stockRepo repository.IStockRepository
+	grRepo    repository.IGoodsReceiptRepository
 	mqURL     string
 }
 
@@ -63,14 +66,19 @@ func NewPOService(arg interface{}, args ...interface{}) IPOService {
 	switch v := arg.(type) {
 	case *gorm.DB:
 		mqURL := ""
+		var grRepo repository.IGoodsReceiptRepository
 		for _, a := range args {
-			if s, ok := a.(string); ok {
-				mqURL = s
+			switch typed := a.(type) {
+			case string:
+				mqURL = typed
+			case repository.IGoodsReceiptRepository:
+				grRepo = typed
 			}
 		}
-		return &poService{db: v, mqURL: mqURL}
+		return &poService{db: v, grRepo: grRepo, mqURL: mqURL}
 	case repository.IPORepository:
 		var stock repository.IStockRepository
+		var grRepo repository.IGoodsReceiptRepository
 		var mqURL string
 		for _, a := range args {
 			switch typed := a.(type) {
@@ -78,9 +86,11 @@ func NewPOService(arg interface{}, args ...interface{}) IPOService {
 				stock = typed
 			case string:
 				mqURL = typed
+			case repository.IGoodsReceiptRepository:
+				grRepo = typed
 			}
 		}
-		return &poServiceRepo{poRepo: v, stockRepo: stock, mqURL: mqURL}
+		return &poServiceRepo{poRepo: v, stockRepo: stock, grRepo: grRepo, mqURL: mqURL}
 	default:
 		panic("invalid NewPOService usage")
 	}
@@ -110,6 +120,7 @@ func (s *poService) CreateDraft(ctx context.Context, vendorID uuid.UUID, targetB
 	if err := s.db.WithContext(ctx).Create(po).Error; err != nil {
 		return nil, err
 	}
+	observability.DefaultRegistry.Counter(observability.MetricPOCreated).Inc()
 	return po, nil
 }
 
@@ -250,6 +261,7 @@ func (s *poServiceRepo) CreateDraft(ctx context.Context, vendorID uuid.UUID, tar
 	if err := s.poRepo.CreatePO(ctx, po); err != nil {
 		return nil, err
 	}
+	observability.DefaultRegistry.Counter(observability.MetricPOCreated).Inc()
 	return po, nil
 }
 
@@ -357,6 +369,16 @@ func (s *poServiceRepo) TransitionState(ctx context.Context, poID string, newSta
 	if !validTransition(po.Status, newState) {
 		return ErrStateRegression
 	}
+	if newState != models.POStatusVoid && s.grRepo != nil {
+		incomplete, err := s.grRepo.CountByPOIDAndNotStatus(ctx, poID, models.GRStatusComplete)
+		if err != nil {
+			return err
+		}
+		if incomplete > 0 {
+			return ErrIncompleteGRs
+		}
+	}
+	observability.DefaultRegistry.Counter(observability.MetricPOStateTransitions).Inc()
 	return s.poRepo.UpdatePOStatus(ctx, poID, newState)
 }
 
@@ -392,6 +414,17 @@ func (s *poService) TransitionState(ctx context.Context, poID string, newState m
 		return ErrStateRegression
 	}
 
+	if newState != models.POStatusVoid && s.grRepo != nil {
+		incomplete, err := s.grRepo.CountByPOIDAndNotStatus(ctx, poID, models.GRStatusComplete)
+		if err != nil {
+			return err
+		}
+		if incomplete > 0 {
+			return ErrIncompleteGRs
+		}
+	}
+
+	observability.DefaultRegistry.Counter(observability.MetricPOStateTransitions).Inc()
 	return s.db.WithContext(ctx).Model(&po).Update("status", newState).Error
 }
 
@@ -567,4 +600,23 @@ func (s *poServiceRepo) CreatePO(ctx context.Context, po *models.PurchaseOrder) 
 		}
 	}
 	return nil
+}
+
+func (s *poService) GetMetrics(ctx context.Context) (int64, int64, int64, int64, int64, int64, int64, error) {
+	var total, draft, approved, inTransit, received, partial, void int64
+	db := s.db.WithContext(ctx).Model(&models.PurchaseOrder{})
+	if err := db.Count(&total).Error; err != nil {
+		return 0, 0, 0, 0, 0, 0, 0, err
+	}
+	db.Where("status = ?", models.POStatusDraft).Count(&draft)
+	db.Where("status = ?", models.POStatusApproved).Count(&approved)
+	db.Where("status = ?", models.POStatusInTransit).Count(&inTransit)
+	db.Where("status = ?", models.POStatusReceived).Count(&received)
+	db.Where("status = ?", models.POStatusPartial).Count(&partial)
+	db.Where("status = ?", models.POStatusVoid).Count(&void)
+	return total, draft, approved, inTransit, received, partial, void, nil
+}
+
+func (s *poServiceRepo) GetMetrics(ctx context.Context) (int64, int64, int64, int64, int64, int64, int64, error) {
+	return s.poRepo.GetPOMetrics(ctx)
 }

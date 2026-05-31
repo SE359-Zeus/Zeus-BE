@@ -201,6 +201,27 @@ func (h *POHandler) ExportPOReport(c *gin.Context) {
 	c.Writer.Flush()
 }
 
+func (h *POHandler) GetMetrics(c *gin.Context) {
+	total, draft, approved, inTransit, received, partial, void, err := h.svc.GetMetrics(c.Request.Context())
+	if err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+	writeJSON(c, 200, gin.H{
+		"total":      total,
+		"draft":      draft,
+		"approved":   approved,
+		"in_transit": inTransit,
+		"received":   received,
+		"partial":    partial,
+		"void":       void,
+	})
+}
+
 type createPOLineItemRequest struct {
 	SKU string `json:"sku" binding:"required"`
 	Qty int    `json:"qty" binding:"required,min=1"`

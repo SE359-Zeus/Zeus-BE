@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"zeus-scm-service/internal/exception"
+	"zeus-scm-service/internal/infrastructure/observability"
 
 	"github.com/gin-gonic/gin"
 )
@@ -64,9 +65,11 @@ func RequestLogger() gin.HandlerFunc {
 		logFunc := slog.InfoContext
 		if status >= 500 {
 			logFunc = slog.ErrorContext
+			observability.DefaultRegistry.Counter(observability.MetricHTTPRequestErrors).Inc()
 		} else if status >= 400 {
 			logFunc = slog.WarnContext
 		}
+		observability.DefaultRegistry.Counter(observability.MetricHTTPRequestsTotal).Inc()
 		logFunc(c.Request.Context(), "request complete", attrs...)
 	}
 }
@@ -75,6 +78,7 @@ func Recovery() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if r := recover(); r != nil {
+				observability.DefaultRegistry.Counter(observability.MetricHTTPPanicsTotal).Inc()
 				slog.ErrorContext(c.Request.Context(), "panic recovered",
 					slog.String("service", "scm"),
 					slog.String("event", "panic_recovered"),

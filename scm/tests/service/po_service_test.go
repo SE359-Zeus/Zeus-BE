@@ -13,15 +13,16 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func setupPOSvc() (service.IPOService, *repository.MockPORepository, *repository.MockStockRepository) {
+func setupPOSvc() (service.IPOService, *repository.MockPORepository, *repository.MockStockRepository, *repository.MockGoodsReceiptRepository) {
 	poRepo := new(repository.MockPORepository)
 	stockRepo := new(repository.MockStockRepository)
-	svc := service.NewPOService(poRepo, stockRepo, "")
-	return svc, poRepo, stockRepo
+	grRepo := new(repository.MockGoodsReceiptRepository)
+	svc := service.NewPOService(poRepo, stockRepo, grRepo, "")
+	return svc, poRepo, stockRepo, grRepo
 }
 
 func TestPOService_CreateDraft_Success(t *testing.T) {
-	svc, poRepo, _ := setupPOSvc()
+	svc, poRepo, _, _ := setupPOSvc()
 	vendorID := uuid.New()
 
 	poRepo.On("FindPOByVendorAndStatuses", anyCtx, vendorID, mock.Anything).Return(nil, assert.AnError)
@@ -39,7 +40,7 @@ func TestPOService_CreateDraft_Success(t *testing.T) {
 }
 
 func TestPOService_CreateDraft_MonoVendorViolation(t *testing.T) {
-	svc, poRepo, _ := setupPOSvc()
+	svc, poRepo, _, _ := setupPOSvc()
 	vendorID := uuid.New()
 	existingPO := &models.PurchaseOrder{ID: "PO-2025-001", VendorID: vendorID, Status: models.POStatusDraft}
 
@@ -52,7 +53,7 @@ func TestPOService_CreateDraft_MonoVendorViolation(t *testing.T) {
 }
 
 func TestPOService_ApprovePO_Success(t *testing.T) {
-	svc, poRepo, _ := setupPOSvc()
+	svc, poRepo, _, _ := setupPOSvc()
 	poID := "PO-2025-001"
 
 	po := &models.PurchaseOrder{
@@ -76,7 +77,7 @@ func TestPOService_ApprovePO_Success(t *testing.T) {
 }
 
 func TestPOService_ApprovePO_NotFound(t *testing.T) {
-	svc, poRepo, _ := setupPOSvc()
+	svc, poRepo, _, _ := setupPOSvc()
 
 	poRepo.On("GetPOByID", anyCtx, "PO-UNKNOWN").Return(nil, assert.AnError)
 
@@ -86,7 +87,7 @@ func TestPOService_ApprovePO_NotFound(t *testing.T) {
 }
 
 func TestPOService_ApprovePO_InvalidTransition(t *testing.T) {
-	svc, poRepo, _ := setupPOSvc()
+	svc, poRepo, _, _ := setupPOSvc()
 	po := &models.PurchaseOrder{
 		ID:     "PO-2025-001",
 		Status: models.POStatusApproved,
@@ -100,22 +101,24 @@ func TestPOService_ApprovePO_InvalidTransition(t *testing.T) {
 }
 
 func TestPOService_TransitionState_Success(t *testing.T) {
-	svc, poRepo, _ := setupPOSvc()
+	svc, poRepo, _, grRepo := setupPOSvc()
 	po := &models.PurchaseOrder{
 		ID:     "PO-2025-001",
 		Status: models.POStatusApproved,
 	}
 
 	poRepo.On("GetPOByID", anyCtx, "PO-2025-001").Return(po, nil)
+	grRepo.On("CountByPOIDAndNotStatus", anyCtx, "PO-2025-001", models.GRStatusComplete).Return(int64(0), nil)
 	poRepo.On("UpdatePOStatus", anyCtx, "PO-2025-001", models.POStatusInTransit).Return(nil)
 
 	err := svc.TransitionState(context.Background(), "PO-2025-001", models.POStatusInTransit)
 	assert.NoError(t, err)
 	poRepo.AssertExpectations(t)
+	grRepo.AssertExpectations(t)
 }
 
 func TestPOService_TransitionState_Regression(t *testing.T) {
-	svc, poRepo, _ := setupPOSvc()
+	svc, poRepo, _, _ := setupPOSvc()
 	po := &models.PurchaseOrder{
 		ID:     "PO-2025-001",
 		Status: models.POStatusInTransit,
@@ -129,7 +132,7 @@ func TestPOService_TransitionState_Regression(t *testing.T) {
 }
 
 func TestPOService_TransitionState_NotFound(t *testing.T) {
-	svc, poRepo, _ := setupPOSvc()
+	svc, poRepo, _, _ := setupPOSvc()
 
 	poRepo.On("GetPOByID", anyCtx, "PO-UNKNOWN").Return(nil, assert.AnError)
 
@@ -139,10 +142,41 @@ func TestPOService_TransitionState_NotFound(t *testing.T) {
 }
 
 func TestPOService_TransitionState_VoidFromDraft(t *testing.T) {
-	svc, poRepo, _ := setupPOSvc()
+	svc, poRepo, _, _ := setupPOSvc()
 	po := &models.PurchaseOrder{
 		ID:     "PO-2025-001",
 		Status: models.POStatusDraft,
+	}
+
+	poRepo.On("GetPOByID", anyCtx, "PO-2025-001").Return(po, nil)
+	poRepo.On("UpdatePOStatus", anyCtx, "PO-2025-001", models.POStatusVoid).Return(nil)
+
+	err := svc.TransitionState(context.Background(), "PO-2025-001", models.POStatusVoid)
+	assert.NoError(t, err)
+	poRepo.AssertExpectations(t)
+}
+
+func TestPOService_TransitionState_BlockedByIncompleteGRs(t *testing.T) {
+	svc, poRepo, _, grRepo := setupPOSvc()
+	po := &models.PurchaseOrder{
+		ID:     "PO-2025-001",
+		Status: models.POStatusInTransit,
+	}
+
+	poRepo.On("GetPOByID", anyCtx, "PO-2025-001").Return(po, nil)
+	grRepo.On("CountByPOIDAndNotStatus", anyCtx, "PO-2025-001", models.GRStatusComplete).Return(int64(2), nil)
+
+	err := svc.TransitionState(context.Background(), "PO-2025-001", models.POStatusReceived)
+	assert.ErrorIs(t, err, service.ErrIncompleteGRs)
+	poRepo.AssertExpectations(t)
+	grRepo.AssertExpectations(t)
+}
+
+func TestPOService_TransitionState_AllowsVoidWithIncompleteGRs(t *testing.T) {
+	svc, poRepo, _, _ := setupPOSvc()
+	po := &models.PurchaseOrder{
+		ID:     "PO-2025-001",
+		Status: models.POStatusInTransit,
 	}
 
 	poRepo.On("GetPOByID", anyCtx, "PO-2025-001").Return(po, nil)

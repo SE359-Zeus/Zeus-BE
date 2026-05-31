@@ -28,14 +28,14 @@ func seedProductModels(db *gorm.DB, installs map[string][]PartInstallationData, 
 	}
 
 	baseModels := []models.ProductModel{
-		{ModelCode: "82SN003JVN", ModelName: "IdeaPad 5 Pro 16ARH7", UnitPrice: 999.99},
-		{ModelCode: "83LY00HQVN", ModelName: "Legion 5 15IRX10", UnitPrice: 1299.99},
+		{ModelCode: "82SN003JVN", ModelName: "IdeaPad 5 Pro 16ARH7", UnitPrice: 999.99, ImageUrl: strPtr("https://placehold.co/600x400/3b82f6/ffffff?text=IdeaPad+5+Pro")},
+		{ModelCode: "83LY00HQVN", ModelName: "Legion 5 15IRX10", UnitPrice: 1299.99, ImageUrl: strPtr("https://placehold.co/600x400/dc2626/ffffff?text=Legion+5")},
 	}
 
 	newModels := []models.ProductModel{
-		{ModelCode: "21CB000QUS", ModelName: "ThinkPad X1 Carbon Gen 11", UnitPrice: 1499.99},
-		{ModelCode: "82A3000GUS", ModelName: "Yoga Slim 7i", UnitPrice: 1099.99},
-		{ModelCode: "82WQ002RUS", ModelName: "Legion Pro 7i", UnitPrice: 2199.99},
+		{ModelCode: "21CB000QUS", ModelName: "ThinkPad X1 Carbon Gen 11", UnitPrice: 1499.99, ImageUrl: strPtr("https://placehold.co/600x400/1e293b/ffffff?text=ThinkPad+X1+Carbon")},
+		{ModelCode: "82A3000GUS", ModelName: "Yoga Slim 7i", UnitPrice: 1099.99, ImageUrl: strPtr("https://placehold.co/600x400/7c3aed/ffffff?text=Yoga+Slim+7i")},
+		{ModelCode: "82WQ002RUS", ModelName: "Legion Pro 7i", UnitPrice: 2199.99, ImageUrl: strPtr("https://placehold.co/600x400/ea580c/ffffff?text=Legion+Pro+7i")},
 	}
 
 	allModels := append(baseModels, newModels...)
@@ -75,4 +75,8 @@ func ensurePartsByModelTable(db *gorm.DB) error {
     image_name TEXT,
     PRIMARY KEY (part_catalog_id, product_model_code)
 )`).Error
+}
+
+func strPtr(s string) *string {
+	return &s
 }

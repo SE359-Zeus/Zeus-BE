@@ -40,14 +40,25 @@ func (r *inventoryRepository) FindSkuMappingsBySKU(ctx context.Context, sku stri
 
 func (r *inventoryRepository) GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error) {
 	var p models.Product
-	if err := r.db.WithContext(ctx).First(&p, "id = ?", id).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("ProductModel").First(&p, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &p, nil
 }
 
-func (r *inventoryRepository) ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error) {
-	query := r.db.WithContext(ctx).Model(&models.Product{})
+func (r *inventoryRepository) GetProductBySerialNumber(ctx context.Context, serialNumber string) (*models.Product, error) {
+	var p models.Product
+	if err := r.db.WithContext(ctx).Preload("ProductModel").First(&p, "serial_number = ?", serialNumber).Error; err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func (r *inventoryRepository) ListProducts(ctx context.Context, params pagination.Params, q string, customerID *uuid.UUID) ([]models.Product, *pagination.Meta, error) {
+	query := r.db.WithContext(ctx).Model(&models.Product{}).Preload("ProductModel")
+	if customerID != nil {
+		query = query.Where("customer_id = ?", *customerID)
+	}
 	if q != "" {
 		like := "%" + q + "%"
 		query = query.Where(
@@ -216,4 +227,19 @@ func (r *inventoryRepository) UpdateComponentStockFieldsBySKU(ctx context.Contex
 func (r *inventoryRepository) DeleteComponentStockBySKU(ctx context.Context, sku string) (int64, error) {
 	res := r.db.WithContext(ctx).Where("sku = ?", sku).Delete(&models.ComponentStock{})
 	return res.RowsAffected, res.Error
+}
+
+func (r *inventoryRepository) GetInventoryMetrics(ctx context.Context) (totalSKUs int64, lowStock int64, outOfStock int64, stockValue float64, err error) {
+	db := r.db.WithContext(ctx).Model(&models.ComponentStock{})
+	if err = db.Count(&totalSKUs).Error; err != nil {
+		return
+	}
+	if err = db.Where("stock_qty > 0 AND stock_qty <= reorder_point").Count(&lowStock).Error; err != nil {
+		return
+	}
+	if err = db.Where("stock_qty = 0").Count(&outOfStock).Error; err != nil {
+		return
+	}
+	err = db.Select("COALESCE(SUM(stock_qty * unit_cost), 0)").Scan(&stockValue).Error
+	return
 }

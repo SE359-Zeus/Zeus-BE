@@ -105,3 +105,33 @@ func (r *poRepository) FindSkuMapping(ctx context.Context, vendorID uuid.UUID, s
 	}
 	return &mapping, nil
 }
+
+func (r *poRepository) GetPOMetrics(ctx context.Context) (total int64, draft int64, approved int64, inTransit int64, received int64, partial int64, void int64, err error) {
+	db := r.db.WithContext(ctx).Model(&models.PurchaseOrder{})
+	err = db.Count(&total).Error
+	if err != nil {
+		return
+	}
+	err = db.Where("status = ?", models.POStatusDraft).Count(&draft).Error
+	if err != nil {
+		return
+	}
+	err = db.Where("status = ?", models.POStatusApproved).Count(&approved).Error
+	if err != nil {
+		return
+	}
+	err = db.Where("status = ?", models.POStatusInTransit).Count(&inTransit).Error
+	if err != nil {
+		return
+	}
+	err = db.Where("status = ?", models.POStatusReceived).Count(&received).Error
+	if err != nil {
+		return
+	}
+	err = db.Where("status = ?", models.POStatusPartial).Count(&partial).Error
+	if err != nil {
+		return
+	}
+	err = db.Where("status = ?", models.POStatusVoid).Count(&void).Error
+	return
+}

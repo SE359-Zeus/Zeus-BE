@@ -14,4 +14,5 @@ var (
 	ErrNotFound            = exception.ErrNotFound
 	ErrInvalidTransition   = exception.ErrInvalidTransition
 	ErrUnauthorized        = exception.ErrUnauthorized
+	ErrIncompleteGRs       = exception.ErrIncompleteGRs
 )

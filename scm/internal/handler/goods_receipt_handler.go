@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"zeus-scm-service/internal/exception"
@@ -28,7 +29,7 @@ type acquireLockRequest struct {
 }
 
 func (h *GoodsReceiptHandler) AcquireLock(c *gin.Context) {
-	grID := c.Param("grId")
+	grID := strings.TrimSpace(c.Param("grId"))
 	var req acquireLockRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		exception.WriteError(c, exception.ErrInvalidBody)
@@ -57,7 +58,7 @@ type processBlindReceiptRequest struct {
 }
 
 func (h *GoodsReceiptHandler) ProcessBlindReceipt(c *gin.Context) {
-	grID := c.Param("grId")
+	grID := strings.TrimSpace(c.Param("grId"))
 	var req processBlindReceiptRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		exception.WriteError(c, exception.ErrInvalidBody)
@@ -86,7 +87,7 @@ func (h *GoodsReceiptHandler) ProcessBlindReceipt(c *gin.Context) {
 }
 
 func (h *GoodsReceiptHandler) ReleaseLock(c *gin.Context) {
-	grID := c.Param("grId")
+	grID := strings.TrimSpace(c.Param("grId"))
 	if err := h.svc.ReleaseLock(c.Request.Context(), grID); err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			exception.WriteError(c, appErr)
@@ -115,7 +116,7 @@ func (h *GoodsReceiptHandler) ListGRs(c *gin.Context) {
 }
 
 func (h *GoodsReceiptHandler) GetGR(c *gin.Context) {
-	grID := c.Param("grId")
+	grID := strings.TrimSpace(c.Param("grId"))
 	gr, err := h.svc.GetGR(c.Request.Context(), grID)
 	if err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
