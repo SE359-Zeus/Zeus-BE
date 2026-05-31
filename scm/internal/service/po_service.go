@@ -43,8 +43,12 @@ type poServiceRepo struct {
 }
 
 func hydratePurchaseOrder(po *models.PurchaseOrder) {
-	if po != nil && po.Vendor != nil {
-		po.VendorName = po.Vendor.Name
+	if po != nil {
+		po.VendorID_Old = po.VendorID
+		if po.Vendor != nil {
+			po.VendorName = po.Vendor.Name
+			po.VendorName_O = po.Vendor.Name
+		}
 	}
 }
 
@@ -364,13 +368,6 @@ func (s *poService) FindAllPOs(ctx context.Context) ([]models.PurchaseOrder, err
 }
 
 func (s *poService) CreatePO(ctx context.Context, po *models.PurchaseOrder) error {
-	var existingPO models.PurchaseOrder
-	if err := s.db.WithContext(ctx).
-		Where("vendor_id = ? AND status IN ?", po.VendorID, []models.POStatus{models.POStatusDraft, models.POStatusApproved, models.POStatusInTransit}).
-		First(&existingPO).Error; err == nil {
-		return ErrMonoVendorViolation
-	}
-
 	if len(po.LineItems) == 0 {
 		return fmt.Errorf("purchase order must have at least one line item")
 	}
@@ -435,11 +432,6 @@ func (s *poServiceRepo) FindAllPOs(ctx context.Context) ([]models.PurchaseOrder,
 }
 
 func (s *poServiceRepo) CreatePO(ctx context.Context, po *models.PurchaseOrder) error {
-	existing, err := s.poRepo.FindPOByVendorAndStatuses(ctx, po.VendorID, []models.POStatus{models.POStatusDraft, models.POStatusApproved, models.POStatusInTransit})
-	if err == nil && existing != nil {
-		return ErrMonoVendorViolation
-	}
-
 	if len(po.LineItems) == 0 {
 		return fmt.Errorf("purchase order must have at least one line item")
 	}

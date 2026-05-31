@@ -55,7 +55,7 @@ var (
 
 // ─── Purchase Order (SCM) ────────────────────────────────────────────────────
 var (
-	ErrMonoVendorViolation = New("PO_001", "Purchase order must involve a single vendor", http.StatusBadRequest)
+	ErrMonoVendorViolation = New("PO_001", "Purchase order must involve a single supplier", http.StatusBadRequest)
 	ErrInvalidTransition   = New("PO_002", "Invalid state transition", http.StatusBadRequest)
 )
 

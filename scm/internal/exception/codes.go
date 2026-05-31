@@ -36,7 +36,7 @@ var (
 	ErrEmptyName      = New("USER_008", "Full name cannot be empty", http.StatusBadRequest)
 	ErrNilID          = New("USER_009", "ID is required", http.StatusBadRequest)
 
-	ErrMonoVendorViolation = New("PO_001", "Purchase order must involve a single vendor", http.StatusBadRequest)
+	ErrMonoVendorViolation = New("PO_001", "Purchase order must involve a single supplier", http.StatusBadRequest)
 	ErrInvalidTransition   = New("PO_002", "Invalid state transition", http.StatusBadRequest)
 
 	ErrAlreadyLocked  = New("GR_001", "Resource already locked by another operator", http.StatusConflict)

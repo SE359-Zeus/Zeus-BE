@@ -22,7 +22,8 @@ func NewPOHandler(svc service.IPOService) *POHandler {
 }
 
 type createDraftRequest struct {
-	VendorID string `json:"vendor_id" binding:"required"`
+	VendorID   string `json:"vendor_id"`
+	SupplierID string `json:"supplier_id"`
 }
 
 func (h *POHandler) CreateDraft(c *gin.Context) {
@@ -31,9 +32,17 @@ func (h *POHandler) CreateDraft(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
-	vendorID, err := uuid.Parse(req.VendorID)
+	supplierStr := req.SupplierID
+	if supplierStr == "" {
+		supplierStr = req.VendorID
+	}
+	if supplierStr == "" {
+		exception.WriteError(c, exception.ErrInvalidBody.WithMessage("supplier_id is required"))
+		return
+	}
+	vendorID, err := uuid.Parse(supplierStr)
 	if err != nil {
-		exception.WriteError(c, exception.ErrInvalidResourceID.WithMessage("invalid vendor_id"))
+		exception.WriteError(c, exception.ErrInvalidResourceID.WithMessage("invalid supplier_id"))
 		return
 	}
 	po, err := h.svc.CreateDraft(c.Request.Context(), vendorID)
@@ -227,6 +236,7 @@ type createPORequest struct {
 	ID             string                    `json:"id"`
 	PONumber       string                    `json:"po_number"`
 	VendorID       string                    `json:"vendor_id"`
+	SupplierID     string                    `json:"supplier_id"`
 	Supplier       string                    `json:"supplier"`
 	Items          []createPOLineItemRequest `json:"items"`
 	ListOrderItems []createPOLineItemRequest `json:"list_order_items"`
@@ -257,12 +267,15 @@ func (h *POHandler) CreatePO(c *gin.Context) {
 
 	supplierStr := req.Supplier
 	if supplierStr == "" {
+		supplierStr = req.SupplierID
+	}
+	if supplierStr == "" {
 		supplierStr = req.VendorID
 	}
 	if supplierStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "supplier or vendor_id is required",
+			"message": "supplier_id is required",
 		})
 		return
 	}
