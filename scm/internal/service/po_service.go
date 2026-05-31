@@ -393,15 +393,7 @@ func (s *poService) CreatePO(ctx context.Context, po *models.PurchaseOrder) erro
 	po.TotalValue = totalValue
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(po).Error; err != nil {
-			return err
-		}
-		for i := range po.LineItems {
-			if err := tx.Create(&po.LineItems[i]).Error; err != nil {
-				return err
-			}
-		}
-		return nil
+		return tx.Create(po).Error
 	})
 }
 
@@ -454,16 +446,7 @@ func (s *poServiceRepo) CreatePO(ctx context.Context, po *models.PurchaseOrder) 
 	po.Status = models.POStatusDraft
 	po.TotalValue = totalValue
 
-	if err := s.poRepo.CreatePO(ctx, po); err != nil {
-		return err
-	}
-
-	for i := range po.LineItems {
-		if err := s.poRepo.CreatePOLineItem(ctx, &po.LineItems[i]); err != nil {
-			return err
-		}
-	}
-	return nil
+	return s.poRepo.CreatePO(ctx, po)
 }
 
 func (s *poService) GetMetrics(ctx context.Context) (int64, int64, int64, int64, int64, int64, int64, error) {
