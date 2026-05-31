@@ -90,9 +90,20 @@ func (r *inventoryRepository) GetProductModelByCode(ctx context.Context, code st
 	}
 	return &m, nil
 }
-
 func (r *inventoryRepository) CreateProductModel(ctx context.Context, m *models.ProductModel) error {
+	var existing models.ProductModel
+	err := r.db.WithContext(ctx).Unscoped().First(&existing, "model_code = ? ", m.ModelCode).Error
+	if err == nil {
+		existing.ModelName = m.ModelName
+		existing.UnitPrice = m.UnitPrice
+		existing.DeletedAt = gorm.DeletedAt{} // restore if soft-deleted
+		return r.db.WithContext(ctx).Save(&existing).Error
+	}
 	return r.db.WithContext(ctx).Create(m).Error
+}
+
+func (r *inventoryRepository) DeleteProductModel(ctx context.Context, code string) error {
+	return r.db.WithContext(ctx).Where("model_code = ?", code).Delete(&models.ProductModel{}).Error
 }
 
 func (r *inventoryRepository) GetPartByID(ctx context.Context, id uuid.UUID) (*models.Part, error) {

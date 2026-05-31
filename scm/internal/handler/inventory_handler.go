@@ -137,6 +137,19 @@ func (h *InventoryHandler) CreateProductModel(c *gin.Context) {
 	writeJSON(c, 201, m)
 }
 
+func (h *InventoryHandler) DeleteProductModel(c *gin.Context) {
+	code := c.Param("code")
+	if err := h.svc.DeleteProductModel(c.Request.Context(), code); err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
+		return
+	}
+	writeJSON(c, 204, nil)
+}
+
 func (h *InventoryHandler) GetPart(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {

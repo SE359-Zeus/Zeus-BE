@@ -194,6 +194,11 @@ func (m *MockInventoryService) CreateProductModel(ctx context.Context, model *mo
 	return args.Error(0)
 }
 
+func (m *MockInventoryService) DeleteProductModel(ctx context.Context, code string) error {
+	args := m.Called(ctx, code)
+	return args.Error(0)
+}
+
 func (m *MockInventoryService) GetPart(ctx context.Context, id uuid.UUID) (*models.Part, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) != nil {

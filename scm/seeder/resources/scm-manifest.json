@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source": "scm",
-  "generated_at": "2026-05-29T05:20:12.9209159Z",
+  "generated_at": "2026-05-31T18:17:58.8827646Z",
   "shared_actors": {
     "scm_operator_id": "3adb99ce-c159-3d60-ab52-87f92c04501c"
   },
@@ -2226,70 +2226,70 @@
       "id": "0e24e9a7-328c-3e15-9732-c072d8f4a9f4",
       "product_model_code": "82SN003JVN",
       "customer_id": "1515d24e-d0e6-3c75-89d6-8c322098a7a5",
-      "product_name": "IdeaPad 5 Pro 16ARH7 Build uLf",
+      "product_name": "IdeaPad 5 Pro 16ARH7 Build Fpg",
       "serial_number": "SN-82SN003JVN-01"
     },
     {
       "id": "950a338c-5c9f-38c1-bacf-263eaa34407c",
       "product_model_code": "82SN003JVN",
       "customer_id": "cfca9532-2f87-370f-bc29-2aee8b0ad565",
-      "product_name": "IdeaPad 5 Pro 16ARH7 Build kep",
+      "product_name": "IdeaPad 5 Pro 16ARH7 Build BjH",
       "serial_number": "SN-82SN003JVN-02"
     },
     {
       "id": "42fe97b3-de38-39e8-9a8a-4d6cee16a2c2",
       "product_model_code": "83LY00HQVN",
       "customer_id": "ad622fad-6993-3b54-ba47-d5d102547bee",
-      "product_name": "Legion 5 15IRX10 Build Nmu",
+      "product_name": "Legion 5 15IRX10 Build Cxm",
       "serial_number": "SN-83LY00HQVN-01"
     },
     {
       "id": "a1d125bf-a678-331c-8a79-22b0e7e8af48",
       "product_model_code": "83LY00HQVN",
       "customer_id": "f4263919-83d0-3477-80d8-38468907fafa",
-      "product_name": "Legion 5 15IRX10 Build QoA",
+      "product_name": "Legion 5 15IRX10 Build aid",
       "serial_number": "SN-83LY00HQVN-02"
     },
     {
       "id": "f7d35e04-f6e0-3cd4-bffe-3c10ad41284c",
       "product_model_code": "21CB000QUS",
       "customer_id": "444a6d19-4867-3447-beff-5df8028ac0e9",
-      "product_name": "ThinkPad X1 Carbon Gen 11 Build ulr",
+      "product_name": "ThinkPad X1 Carbon Gen 11 Build UYX",
       "serial_number": "SN-21CB000QUS-01"
     },
     {
       "id": "867a74b0-df05-3bbc-8ab9-dc60a063b723",
       "product_model_code": "21CB000QUS",
       "customer_id": "8a221ea7-4bd8-339f-bca4-6c52f7778092",
-      "product_name": "ThinkPad X1 Carbon Gen 11 Build yhY",
+      "product_name": "ThinkPad X1 Carbon Gen 11 Build ZMH",
       "serial_number": "SN-21CB000QUS-02"
     },
     {
       "id": "61156878-7d8a-3e07-a27c-5ce158b9a1a8",
       "product_model_code": "82A3000GUS",
       "customer_id": "6413cef0-c265-3768-b306-f256b96e3138",
-      "product_name": "Yoga Slim 7i Build Ghq",
+      "product_name": "Yoga Slim 7i Build cEs",
       "serial_number": "SN-82A3000GUS-01"
     },
     {
       "id": "93f00ec7-4d01-362b-b20d-bf95be4e96e3",
       "product_model_code": "82A3000GUS",
       "customer_id": "689b97ad-2bfd-3cd0-89d9-912035e6cacf",
-      "product_name": "Yoga Slim 7i Build bxY",
+      "product_name": "Yoga Slim 7i Build dxM",
       "serial_number": "SN-82A3000GUS-02"
     },
     {
       "id": "e3e9dee4-9bc8-39af-8aee-6404e6312f01",
       "product_model_code": "82WQ002RUS",
       "customer_id": "c144baa2-470e-3115-8274-0321a85a7fb0",
-      "product_name": "Legion Pro 7i Build QDD",
+      "product_name": "Legion Pro 7i Build cDa",
       "serial_number": "SN-82WQ002RUS-01"
     },
     {
       "id": "fad13146-b009-3e3a-a21b-259ce3053f62",
       "product_model_code": "82WQ002RUS",
       "customer_id": "7907d4f0-20ef-3354-a013-595dea3ae470",
-      "product_name": "Legion Pro 7i Build zcb",
+      "product_name": "Legion Pro 7i Build NvU",
       "serial_number": "SN-82WQ002RUS-02"
     }
   ],

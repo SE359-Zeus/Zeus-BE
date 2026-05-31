@@ -84,6 +84,10 @@ func (s *cachedInventoryService) CreateProductModel(ctx context.Context, m *mode
 	return s.base.CreateProductModel(ctx, m)
 }
 
+func (s *cachedInventoryService) DeleteProductModel(ctx context.Context, code string) error {
+	return s.base.DeleteProductModel(ctx, code)
+}
+
 func (s *cachedInventoryService) GetPart(ctx context.Context, id uuid.UUID) (*models.Part, error) {
 	return s.base.GetPart(ctx, id)
 }

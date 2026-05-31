@@ -53,6 +53,7 @@ type IInventoryRepository interface {
 
 	GetProductModelByCode(ctx context.Context, code string) (*models.ProductModel, error)
 	CreateProductModel(ctx context.Context, m *models.ProductModel) error
+	DeleteProductModel(ctx context.Context, code string) error
 
 	GetPartByID(ctx context.Context, id uuid.UUID) (*models.Part, error)
 	ListParts(ctx context.Context, catalogID *uuid.UUID, productID *uuid.UUID, conditionID *int32, params pagination.Params, q string) ([]models.Part, *pagination.Meta, error)

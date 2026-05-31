@@ -26,6 +26,7 @@ type IInventoryService interface {
 
 	GetProductModel(ctx context.Context, code string) (*models.ProductModel, error)
 	CreateProductModel(ctx context.Context, m *models.ProductModel) error
+	DeleteProductModel(ctx context.Context, code string) error
 
 	GetPart(ctx context.Context, id uuid.UUID) (*models.Part, error)
 	ListParts(ctx context.Context, catalogID *uuid.UUID, productID *uuid.UUID, conditionID *int32, params pagination.Params, q string) ([]models.Part, *pagination.Meta, error)
@@ -176,6 +177,10 @@ func (s *inventoryServiceRepo) GetProductModel(ctx context.Context, code string)
 
 func (s *inventoryServiceRepo) CreateProductModel(ctx context.Context, m *models.ProductModel) error {
 	return s.repo.CreateProductModel(ctx, m)
+}
+
+func (s *inventoryServiceRepo) DeleteProductModel(ctx context.Context, code string) error {
+	return s.repo.DeleteProductModel(ctx, code)
 }
 
 func (s *inventoryServiceRepo) GetPart(ctx context.Context, id uuid.UUID) (*models.Part, error) {
@@ -560,14 +565,37 @@ func (s *inventoryService) GetProductModel(ctx context.Context, code string) (*m
 }
 
 func (s *inventoryService) CreateProductModel(ctx context.Context, m *models.ProductModel) error {
-	if err := s.db.WithContext(ctx).Create(m).Error; err != nil {
-		return err
+	var existing models.ProductModel
+	err := s.db.WithContext(ctx).Unscoped().First(&existing, "model_code = ?", m.ModelCode).Error
+	if err == nil {
+		existing.ModelName = m.ModelName
+		existing.UnitPrice = m.UnitPrice
+		existing.DeletedAt = gorm.DeletedAt{} // restore
+		if err := s.db.WithContext(ctx).Save(&existing).Error; err != nil {
+			return err
+		}
+	} else {
+		if err := s.db.WithContext(ctx).Create(m).Error; err != nil {
+			return err
+		}
 	}
+
 	if s.cache != nil {
 		key := fmt.Sprintf("product_model:%s", m.ModelCode)
 		if b, err := json.Marshal(m); err == nil {
 			_ = s.cache.Set(ctx, key, b)
 		}
+	}
+	return nil
+}
+
+func (s *inventoryService) DeleteProductModel(ctx context.Context, code string) error {
+	if err := s.db.WithContext(ctx).Where("model_code = ?", code).Delete(&models.ProductModel{}).Error; err != nil {
+		return err
+	}
+	if s.cache != nil {
+		key := fmt.Sprintf("product_model:%s", code)
+		_ = s.cache.Delete(ctx, key)
 	}
 	return nil
 }

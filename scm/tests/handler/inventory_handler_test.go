@@ -31,6 +31,7 @@ func setupInventoryTest() (*gin.Engine, *service.MockInventoryService) {
 		v1.GET("/inventory/products/:id", h.GetProduct)
 		v1.GET("/inventory/product-models/:code", h.GetProductModel)
 		v1.POST("/inventory/product-models", h.CreateProductModel)
+		v1.DELETE("/inventory/product-models/:code", h.DeleteProductModel)
 		v1.GET("/inventory/parts", h.ListParts)
 		v1.POST("/inventory/parts", h.CreatePart)
 		v1.GET("/inventory/parts/:id", h.GetPart)
@@ -468,5 +469,18 @@ func TestInventoryHandler_ListParts_WithProductID_200(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestInventoryHandler_DeleteProductModel_204(t *testing.T) {
+	r, mockSvc := setupInventoryTest()
+
+	mockSvc.On("DeleteProductModel", mock.Anything, "M100").Return(nil)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("DELETE", "/api/v1/inventory/product-models/M100", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
 	mockSvc.AssertExpectations(t)
 }
