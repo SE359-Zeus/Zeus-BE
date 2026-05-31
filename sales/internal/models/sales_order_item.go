@@ -8,11 +8,11 @@ import (
 
 type SalesOrderItem struct {
 	ID           uuid.UUID `json:"id"`
-	OrderID      uuid.UUID `json:"order_id"`
+	OrderID      uuid.UUID `json:"-"`
 	SKU          string    `json:"sku"`
 	RequestedQty int       `json:"requested_qty"`
-	AllocatedQty int       `json:"allocated_qty"`
-	UnitPrice    float64   `json:"unit_price"`
+	AllocatedQty int       `json:"-"`
+	UnitPrice    float64   `json:"-"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"zeus-sales-service/internal/infrastructure/observability"
 )
 
 type SCMClient struct {
@@ -29,6 +31,17 @@ func NewSCMClient(baseURL, apiKey string) *SCMClient {
 	}
 }
 
+// propagateTrace injects the W3C traceparent header onto an outbound request
+// using the trace_id from the calling context and a fresh child span_id.
+func propagateTrace(ctx context.Context, req *http.Request) {
+	traceID := observability.TraceIDFromContext(ctx)
+	if traceID == "" {
+		return
+	}
+	spanID := observability.NewSpanID()
+	req.Header.Set("traceparent", "00-"+traceID+"-"+spanID+"-01")
+}
+
 // CheckSKU queries SCM to verify if a SKU exists either as a part catalog item or as a product model code.
 func (c *SCMClient) CheckSKU(ctx context.Context, sku string) (bool, error) {
 	// 1. Try checking part-catalog by SKU
@@ -38,6 +51,7 @@ func (c *SCMClient) CheckSKU(ctx context.Context, sku string) (bool, error) {
 		return false, err
 	}
 	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err == nil {
@@ -54,6 +68,7 @@ func (c *SCMClient) CheckSKU(ctx context.Context, sku string) (bool, error) {
 		return false, err
 	}
 	req2.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req2)
 
 	resp2, err := c.httpClient.Do(req2)
 	if err != nil {
@@ -76,6 +91,7 @@ func (c *SCMClient) GetProductModelPrice(ctx context.Context, sku string) (float
 		return 0.0, err
 	}
 	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

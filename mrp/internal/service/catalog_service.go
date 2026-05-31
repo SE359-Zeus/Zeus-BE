@@ -240,10 +240,16 @@ func (s *ProductionService) GetCatalog(ctx context.Context) ([]any, error) {
 	res := make([]any, 0, len(parentSet))
 	for p := range parentSet {
 		name := s.resolveAssemblyName(ctx, p)
-		res = append(res, map[string]any{
+		item := map[string]any{
 			"model_code": p,
 			"model_name": name,
-		})
+		}
+		if s.scmClient != nil {
+			if model, err := s.scmClient.GetProductModelByCode(ctx, p); err == nil && model != nil {
+				item["unit_price"] = model.UnitPrice
+			}
+		}
+		res = append(res, item)
 	}
 	return res, nil
 }

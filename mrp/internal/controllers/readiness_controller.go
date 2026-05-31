@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -116,19 +115,21 @@ func (c *ProductionController) GetReadinessMetrics(w http.ResponseWriter, r *htt
 
 // GET /api/v1/mrp/readiness/export
 func (c *ProductionController) ExportReport(w http.ResponseWriter, r *http.Request) {
-	report, err := c.svc.ExportReadinessReport(r.Context())
+	data, err := c.svc.ExportReadinessReport(r.Context())
 	if err != nil {
 		writeErrorJSON(w, readinessHTTPStatus(err), err.Error(), nil)
 		return
 	}
 
-	if report == nil {
+	if data == nil || len(data) == 0 {
 		writeErrorJSON(w, http.StatusNotFound, "no report available", nil)
 		return
 	}
-	var decoded any
-	_ = json.Unmarshal(report, &decoded)
-	writeJSON(w, http.StatusOK, decoded)
+
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", `attachment; filename="readiness_report.csv"`)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }
 
 // GET /api/v1/mrp/shortages

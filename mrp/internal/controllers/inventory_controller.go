@@ -72,6 +72,7 @@ func (c *ProductionController) ExportInventoryCSV(w http.ResponseWriter, r *http
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", `attachment; filename="inventory_ledger.csv"`)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
 }

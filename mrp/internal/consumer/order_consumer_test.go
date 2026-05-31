@@ -136,6 +136,21 @@ func (m *MockMRPRepository) GetInventoryMetrics(ctx context.Context) (*models.In
 	return nil, args.Error(1)
 }
 
+func (m *MockMRPRepository) DeleteProductionOrder(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockMRPRepository) UpdateShortageLog(ctx context.Context, log *models.ShortageLog) error {
+	args := m.Called(ctx, log)
+	return args.Error(0)
+}
+
+func (m *MockMRPRepository) DeleteShortageLog(ctx context.Context, orderID uuid.UUID, partID uuid.UUID) error {
+	args := m.Called(ctx, orderID, partID)
+	return args.Error(0)
+}
+
 func TestOrderConsumer_ProcessOrderPayload_Success(t *testing.T) {
 	mockRepo := new(MockMRPRepository)
 	mrpService := service.NewProductionService(mockRepo)
@@ -155,6 +170,7 @@ func TestOrderConsumer_ProcessOrderPayload_Success(t *testing.T) {
 	})).Return(nil)
 
 	mockRepo.On("GetBOMByModelCode", mock.Anything, "ZEUS-PHONE").Return([]models.BomEntry{}, nil)
+	mockRepo.On("GetShortagesByOrderID", mock.Anything, mock.Anything).Return([]models.ShortageLog{}, nil).Maybe()
 
 	mockRepo.On("GetProductionOrder", mock.Anything, mock.Anything).Return(&models.ProductionOrder{
 		ID:               uuid.Nil,
@@ -217,6 +233,7 @@ func TestOrderConsumer_ProcessOrderPayload_QtyAliasSupported(t *testing.T) {
 		return order.ProductModelCode == "ZEUS-PHONE" && order.TargetQuantity == 7
 	})).Return(nil)
 	mockRepo.On("GetBOMByModelCode", mock.Anything, "ZEUS-PHONE").Return([]models.BomEntry{}, nil)
+	mockRepo.On("GetShortagesByOrderID", mock.Anything, mock.Anything).Return([]models.ShortageLog{}, nil).Maybe()
 	mockRepo.On("GetProductionOrder", mock.Anything, mock.Anything).Return(&models.ProductionOrder{
 		ID:               uuid.Nil,
 		ProductModelCode: "ZEUS-PHONE",

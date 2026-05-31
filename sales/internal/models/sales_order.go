@@ -11,7 +11,7 @@ type SalesOrderStatusLUT struct {
 	Code       string    `json:"code"`
 	Label      string    `json:"label"`
 	SortOrder  int       `json:"sort_order"`
-	IsTerminal bool      `json:"is_terminal"`
+	IsTerminal bool      `json:"-"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 }
@@ -42,11 +42,11 @@ func (status *SalesOrderStatusLUT) CanTransitionTo(next *SalesOrderStatusLUT) bo
 
 type SalesOrder struct {
 	ID                 uuid.UUID            `json:"id"`
-	ClientID           uuid.UUID            `json:"client_id"`
-	ClientName         string               `json:"client_name"`
+	ClientID           uuid.UUID            `json:"-"`
+	ClientName         string               `json:"-"`
 	DestinationAddress string               `json:"destination_address"`
 	RequiredDate       time.Time            `json:"required_date"`
-	StatusID           uuid.UUID            `json:"status_id"`
+	StatusID           uuid.UUID            `json:"-"`
 	Status             *SalesOrderStatusLUT `json:"status,omitempty"`
 	TotalValue         float64              `json:"total_value"`
 	Locked             bool                 `json:"locked"`

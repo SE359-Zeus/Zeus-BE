@@ -372,7 +372,7 @@ func (c *Client) DeleteCatalogPart(ctx context.Context, sku string) error {
 	return nil
 }
 
-func (c *Client) GetInventoryLedger(ctx context.Context, page, limit int, sortBy, sortDir, txnType, sku string) ([]models.LedgerEntry, bool, error) {
+func (c *Client) GetInventoryLedger(ctx context.Context, page, limit int, sortBy, sortDir, txnType, sku string) ([]models.InventoryLedgerEntry, bool, error) {
 	query := url.Values{}
 	if page > 0 {
 		query.Set("page", fmt.Sprintf("%d", page))
@@ -408,17 +408,21 @@ func (c *Client) GetInventoryLedger(ctx context.Context, page, limit int, sortBy
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, false, fmt.Errorf("SCM ledger API returned status %d", resp.StatusCode)
+		return nil, false, fmt.Errorf("SCM API returned status %d", resp.StatusCode)
 	}
 
 	var envelope struct {
-		Data []models.LedgerEntry `json:"data"`
-		Metadata struct {
+		Message    string `json:"message"`
+		StatusCode int    `json:"statusCode"`
+		Metadata   struct {
 			Pagination struct {
 				Page       int `json:"page"`
+				Limit      int `json:"limit"`
+				TotalRows  int `json:"total_rows"`
 				TotalPages int `json:"total_pages"`
 			} `json:"pagination"`
 		} `json:"metadata"`
+		Data []models.InventoryLedgerEntry `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
 		return nil, false, err
@@ -427,3 +431,185 @@ func (c *Client) GetInventoryLedger(ctx context.Context, page, limit int, sortBy
 	hasMore := envelope.Metadata.Pagination.TotalPages > 0 && envelope.Metadata.Pagination.Page < envelope.Metadata.Pagination.TotalPages
 	return envelope.Data, hasMore, nil
 }
+
+func (c *Client) GetLUTs(ctx context.Context) (*models.LUTCollection, error) {
+	urlStr := fmt.Sprintf("%s/api/v1/scm/luts", c.baseURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("SCM API returned status %d", resp.StatusCode)
+	}
+
+	var envelope struct {
+		Data models.LUTCollection `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, err
+	}
+	return &envelope.Data, nil
+}
+
+func (c *Client) GetOptimalSupplier(ctx context.Context, sku string) (uuid.UUID, float64, error) {
+	urlStr := fmt.Sprintf("%s/api/v1/scm/vendors/optimal?sku=%s", c.baseURL, url.QueryEscape(sku))
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return uuid.Nil, 0, err
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return uuid.Nil, 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return uuid.Nil, 0, fmt.Errorf("no optimal supplier found for sku: %s", sku)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return uuid.Nil, 0, fmt.Errorf("SCM API returned status %d", resp.StatusCode)
+	}
+
+	var envelope struct {
+		Data struct {
+			Supplier struct {
+				ID uuid.UUID `json:"id"`
+			} `json:"supplier"`
+			Mapping struct {
+				Price float64 `json:"price"`
+			} `json:"mapping"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return uuid.Nil, 0, err
+	}
+
+	if envelope.Data.Supplier.ID == uuid.Nil {
+		return uuid.Nil, 0, fmt.Errorf("optimal supplier ID is nil")
+	}
+
+	return envelope.Data.Supplier.ID, envelope.Data.Mapping.Price, nil
+}
+
+func (c *Client) CreateDraftPO(ctx context.Context, vendorID uuid.UUID, targetBuild string) (string, error) {
+	body := map[string]any{
+		"vendor_id":    vendorID.String(),
+		"target_build": targetBuild,
+	}
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return "", err
+	}
+
+	urlStr := fmt.Sprintf("%s/api/v1/scm/purchase-orders/draft", c.baseURL)
+	req, err := http.NewRequestWithContext(ctx, "POST", urlStr, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("failed to create draft PO: %s (status %d)", string(respBody), resp.StatusCode)
+	}
+
+	var envelope struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return "", err
+	}
+
+	if envelope.Data.ID == "" {
+		return "", fmt.Errorf("received empty PO ID from SCM")
+	}
+
+	return envelope.Data.ID, nil
+}
+
+func (c *Client) AddLineItemWithLock(ctx context.Context, poID string, sku string, qty int) error {
+	body := map[string]any{
+		"sku": sku,
+		"qty": qty,
+	}
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	urlStr := fmt.Sprintf("%s/api/v1/scm/purchase-orders/%s/line-items", c.baseURL, url.PathEscape(poID))
+	req, err := http.NewRequestWithContext(ctx, "POST", urlStr, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to add line item with lock: %s (status %d)", string(respBody), resp.StatusCode)
+	}
+
+	return nil
+}
+
+func (c *Client) ListPOs(ctx context.Context, targetBuild string) ([]models.PurchaseOrder, error) {
+	urlStr := fmt.Sprintf("%s/api/v1/scm/purchase-orders?q=%s&limit=1000", c.baseURL, url.QueryEscape(targetBuild))
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("SCM API ListPOs returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var envelope struct {
+		Data []models.PurchaseOrder `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, err
+	}
+
+	return envelope.Data, nil
+}
+
+

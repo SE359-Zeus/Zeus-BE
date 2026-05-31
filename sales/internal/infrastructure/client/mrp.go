@@ -55,6 +55,7 @@ func (c *MRPClient) CreateProductionOrder(ctx context.Context, req service.MRPCr
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, httpReq)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {

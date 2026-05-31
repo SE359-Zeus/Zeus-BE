@@ -199,3 +199,26 @@ func resolutionStatusDetails(status string) (int, string) {
 		return 1, models.ResolutionStatusPlanned
 	}
 }
+
+func (r *sqliteMRPRepository) UpdateShortageLog(ctx context.Context, log *models.ShortageLog) error {
+	if log == nil {
+		return fmt.Errorf("log is nil")
+	}
+	statusID, status := resolutionStatusDetails(log.ResolutionStatus)
+	return r.db.WithContext(ctx).Table("shortage_logs").
+		Where("id = ?", log.ID.String()).
+		Updates(map[string]any{
+			"shortage_qty":         log.ShortageQty,
+			"resolution_status_id": statusID,
+			"resolution_status":   status,
+		}).Error
+}
+
+func (r *sqliteMRPRepository) DeleteShortageLog(ctx context.Context, orderID uuid.UUID, partID uuid.UUID) error {
+	if orderID == uuid.Nil || partID == uuid.Nil {
+		return fmt.Errorf("orderID and partID must not be Nil")
+	}
+	return r.db.WithContext(ctx).Table("shortage_logs").
+		Where("production_order_id = ? AND part_id = ?", orderID.String(), partID.String()).
+		Delete(nil).Error
+}

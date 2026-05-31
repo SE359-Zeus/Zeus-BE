@@ -35,13 +35,13 @@ func TestProductionService_GetInventoryMetrics(t *testing.T) {
 func TestProductionService_GetInventoryLedger_UsesSCMClient(t *testing.T) {
 	mockRepo := setupMockRepo()
 	mockSCM := setupMockSCMClient()
-	mockSCM.On("ListStocks", mock.Anything, 1, 100, "sku", "asc", "").Return([]models.ComponentStock{{SKU: "SKU-1", Name: "Widget", StockQty: 12}}, false, nil)
+	mockSCM.On("GetInventoryLedger", mock.Anything, 1, 100, "created_at", "desc", "", "").Return([]models.InventoryLedgerEntry{{ID: "led-1", SKU: "SKU-1", Type: "IN", QtyChange: 12, RunningBalance: 12}}, false, nil)
 	svc := NewProductionService(mockRepo, mockSCM)
 
 	res, err := svc.GetInventoryLedger(context.Background())
 	require.NoError(t, err)
 	require.Len(t, res, 1)
-	assert.Equal(t, "SKU-1", res[0].ID)
+	assert.Equal(t, "led-1", res[0].ID)
 	assert.Equal(t, 12, res[0].QtyChange)
 	assert.Equal(t, 12, res[0].RunningBalance)
 }

@@ -25,6 +25,12 @@ type SCMClient interface {
 	CreateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error)
 	UpdateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error)
 	DeleteCatalogPart(ctx context.Context, sku string) error
+	GetInventoryLedger(ctx context.Context, page, limit int, sortBy, sortDir, txnType, sku string) ([]models.InventoryLedgerEntry, bool, error)
+	GetLUTs(ctx context.Context) (*models.LUTCollection, error)
+	GetOptimalSupplier(ctx context.Context, sku string) (uuid.UUID, float64, error)
+	CreateDraftPO(ctx context.Context, vendorID uuid.UUID, targetBuild string) (string, error)
+	AddLineItemWithLock(ctx context.Context, poID string, sku string, qty int) error
+	ListPOs(ctx context.Context, targetBuild string) ([]models.PurchaseOrder, error)
 }
 
 type ProductionService struct {

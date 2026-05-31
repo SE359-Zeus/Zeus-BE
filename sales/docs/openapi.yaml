@@ -164,17 +164,33 @@ paths:
                     data:
                       order:
                         id: "00000000-0000-0000-0000-000000000000"
-                        clientId: "11111111-1111-1111-1111-111111111111"
-                        clientName: "Orbit Co"
-                        requiredDate: "2026-06-01T00:00:00Z"
-                        statusCode: "PENDING"
-                        totalValue: 100.0
+                        destination_address: "42 Industrial Rd, Ho Chi Minh City"
+                        required_date: "2026-06-01T00:00:00Z"
+                        status:
+                          id: "33333333-3333-3333-3333-333333333333"
+                          code: "PENDING"
+                          label: "Pending"
+                          sort_order: 1
+                          created_at: "2026-05-27T00:00:00Z"
+                          updated_at: "2026-05-27T00:00:00Z"
+                        total_value: 100.0
+                        locked: false
+                        created_at: "2026-05-27T00:00:00Z"
+                        updated_at: "2026-05-27T00:00:00Z"
+                      client:
+                        id: "11111111-1111-1111-1111-111111111111"
+                        name: "Orbit Co"
+                        tier: "B2C"
+                        default_destination_address: "42 Industrial Rd, Ho Chi Minh City"
+                        total_lifetime_orders: 1
+                        created_at: "2026-05-27T00:00:00Z"
+                        updated_at: "2026-05-27T00:00:00Z"
                       items:
                         - id: "22222222-2222-2222-2222-222222222222"
                           sku: "SKU-100"
-                          requestedQty: 3
-                          allocatedQty: 0
-                          unitPrice: 15.0
+                          requested_qty: 3
+                          created_at: "2026-05-27T00:00:00Z"
+                          updated_at: "2026-05-27T00:00:00Z"
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -719,28 +735,42 @@ components:
         id:
           type: string
           format: uuid
-        clientId:
+        destination_address:
           type: string
-          format: uuid
-        clientName:
-          type: string
-        destinationAddress:
-          type: string
-        requiredDate:
+        required_date:
           type: string
           format: date-time
-        statusCode:
-          type: string
-          enum: [PENDING, PROCESSING, DELIVERING, COMPLETED, CANCELLED]
-        totalValue:
+        status:
+          $ref: '#/components/schemas/OrderStatusLUT'
+        total_value:
           type: number
           format: float
         locked:
           type: boolean
-        createdAt:
+        created_at:
           type: string
           format: date-time
-        updatedAt:
+        updated_at:
+          type: string
+          format: date-time
+
+    OrderStatusLUT:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          enum: [PENDING, PROCESSING, DELIVERING, COMPLETED, CANCELLED]
+        label:
+          type: string
+        sort_order:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
           type: string
           format: date-time
 
@@ -752,13 +782,14 @@ components:
           format: uuid
         sku:
           type: string
-        requestedQty:
+        requested_qty:
           type: integer
-        allocatedQty:
-          type: integer
-        unitPrice:
-          type: number
-          format: float
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
 
     OrderItemRequest:
       type: object

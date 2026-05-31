@@ -137,3 +137,24 @@ func (c *ProductionController) GeneratePickList(w http.ResponseWriter, r *http.R
 
 	writeJSON(w, http.StatusCreated, pickList)
 }
+
+// DELETE /api/v1/mrp/demand/{orderId}
+func (c *ProductionController) DeleteDemand(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		writeErrorJSON(w, http.StatusMethodNotAllowed, "method not allowed", nil)
+		return
+	}
+
+	orderID, err := parseDemandOrderID(r)
+	if err != nil {
+		writeErrorJSON(w, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	if err := c.svc.DeleteProductionOrder(r.Context(), orderID); err != nil {
+		writeErrorJSON(w, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

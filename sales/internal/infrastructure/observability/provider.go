@@ -10,11 +10,14 @@ package observability
 //	slog.SetDefault(obs.Logger)
 
 import (
+	"context"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	slogmulti "github.com/samber/slog-multi"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // Config holds all observability settings read from environment / config.
@@ -49,6 +52,29 @@ type Provider struct {
 	Metrics *Registry
 
 	stopLog func() // non-nil only when Alloy log-push is active
+	tp      *sdktrace.TracerProvider
+}
+
+type contextInjectHandler struct {
+	slog.Handler
+}
+
+func (h contextInjectHandler) Handle(ctx context.Context, r slog.Record) error {
+	if traceID := TraceIDFromContext(ctx); traceID != "" {
+		r.AddAttrs(slog.String("trace_id", traceID))
+	}
+	if spanID := SpanIDFromContext(ctx); spanID != "" {
+		r.AddAttrs(slog.String("span_id", spanID))
+	}
+	return h.Handler.Handle(ctx, r)
+}
+
+func (h contextInjectHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return contextInjectHandler{Handler: h.Handler.WithAttrs(attrs)}
+}
+
+func (h contextInjectHandler) WithGroup(name string) slog.Handler {
+	return contextInjectHandler{Handler: h.Handler.WithGroup(name)}
 }
 
 // Setup initialises the observability stack and returns a Provider plus a
@@ -70,7 +96,7 @@ func Setup(cfg Config) (p *Provider, shutdown func()) {
 
 	// ── Alloy log-push handler (optional) ────────────────────────────────────
 	var stopLog func()
-	var activeHandler slog.Handler = stdoutH
+	var activeHandler slog.Handler = contextInjectHandler{Handler: stdoutH}
 
 	if cfg.AlloyURL != "" {
 		logH, stop := NewLogHandler(LogHandlerOptions{
@@ -86,7 +112,7 @@ func Setup(cfg Config) (p *Provider, shutdown func()) {
 			FlushInterval: 5 * time.Second,
 		})
 		stopLog = stop
-		activeHandler = slogmulti.Fanout(stdoutH, logH)
+		activeHandler = slogmulti.Fanout(contextInjectHandler{Handler: stdoutH}, logH)
 	}
 
 	logger := slog.New(activeHandler)
@@ -95,15 +121,57 @@ func Setup(cfg Config) (p *Provider, shutdown func()) {
 	registry := NewRegistry()
 	DefaultRegistry = registry // expose as package-level singleton
 
+	// Pre-register all known counters so they appear in /metrics at zero
+	registry.Counter(MetricHTTPRequestsTotal)
+	registry.Counter(MetricHTTPRequestErrors)
+	registry.Counter(MetricHTTPPanicsTotal)
+	registry.Counter(MetricOrdersCreated)
+	registry.Counter(MetricOrdersCancelled)
+	registry.Counter(MetricOrdersFulfilled)
+	registry.Counter(MetricClientsCreated)
+
+	// Set up Tracer
+	var otlpEP string
+	if val := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); val != "" {
+		otlpEP = val
+	} else if cfg.AlloyURL != "" {
+		clean := cfg.AlloyURL
+		clean = strings.TrimPrefix(clean, "https://")
+		clean = strings.TrimPrefix(clean, "http://")
+		if idx := strings.Index(clean, ":"); idx != -1 {
+			clean = clean[:idx]
+		} else if idx := strings.Index(clean, "/"); idx != -1 {
+			clean = clean[:idx]
+		}
+		if clean != "" {
+			if strings.HasPrefix(cfg.AlloyURL, "https://") {
+				otlpEP = "https://" + clean + ":4318"
+			} else {
+				otlpEP = "http://" + clean + ":4318"
+			}
+		}
+	}
+
+	tp, err := InitTracer(context.Background(), cfg.ServiceName, cfg.Env, otlpEP)
+	if err != nil {
+		slog.Error("failed to initialize tracer provider", "error", err)
+	}
+
 	p = &Provider{
 		Logger:  logger,
 		Metrics: registry,
 		stopLog: stopLog,
+		tp:      tp,
 	}
 
 	shutdown = func() {
 		if p.stopLog != nil {
 			p.stopLog()
+		}
+		if p.tp != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = p.tp.Shutdown(ctx)
 		}
 	}
 

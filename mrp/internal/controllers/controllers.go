@@ -122,6 +122,9 @@ func NewMux(svc *service.ProductionService, authVerifier middlewares.TokenVerifi
 		http.MethodGet:  {"mrp_operator", "mrp_worker", "admin"},
 		http.MethodPost: {"mrp_operator", "admin"},
 	}))
+	mux.Handle("/api/v1/mrp/demand/{orderId}", protect(http.HandlerFunc(controller.DeleteDemand), map[string][]string{
+		http.MethodDelete: {"mrp_operator", "admin"},
+	}))
 
 	// --- Inventory Ledger (read-only proxy to SCM) ---
 	mux.Handle("/api/v1/mrp/inventory/ledger", protect(http.HandlerFunc(controller.GetInventoryLedger), map[string][]string{

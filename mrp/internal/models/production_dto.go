@@ -25,6 +25,7 @@ type BOMExplosionResult struct {
 	ComponentSKU     string    `json:"component_sku,omitempty"` // human-readable SKU for UI display
 	TotalRequiredQty int       `json:"total_required_qty"`
 	AvailableQty     int       `json:"available_qty"`
+	AllocatedQty     int       `json:"allocated_qty"`
 	IsShortage       bool      `json:"is_shortage"`
 }
 
@@ -142,6 +143,7 @@ type ComponentStock struct {
 type DemandPOSummary struct {
 	OrderID      string    `json:"order_id"`
 	TargetBuild  string    `json:"target_build"`
+	ProductName  string    `json:"product_name"`
 	Quantity     int       `json:"quantity"`
 	QtyReady     int       `json:"qty_ready"`
 	Status       string    `json:"status"`
@@ -170,7 +172,22 @@ type Part struct {
 	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
 }
 
-type LedgerEntry struct {
+type LUTCollection struct {
+	PartTypes            []LUTItem `json:"part_types"`
+	PartConditions       []LUTItem `json:"part_conditions"`
+	PartMfgStatuses     []LUTItem `json:"part_mfg_statuses"`
+	ComponentStockStates []LUTItem `json:"component_stock_states"`
+	PurchaseOrderStates []LUTItem `json:"purchase_order_states"`
+	GoodsReceiptStates  []LUTItem `json:"goods_receipt_states"`
+	ShipmentStates      []LUTItem `json:"shipment_states"`
+}
+
+type LUTItem struct {
+	ID   int32  `json:"id"`
+	Name string `json:"name"`
+}
+
+type InventoryLedgerEntry struct {
 	ID             string    `json:"id"`
 	SKU            string    `json:"sku"`
 	Type           string    `json:"type"`
@@ -183,3 +200,30 @@ type LedgerEntry struct {
 	ReferenceID    string    `json:"reference_id"`
 	CreatedAt      time.Time `json:"created_at"`
 }
+
+type POStatus string
+
+const (
+	POStatusDraft     POStatus = "Draft"
+	POStatusApproved  POStatus = "Approved"
+	POStatusInTransit POStatus = "In Transit"
+	POStatusReceived  POStatus = "Received"
+	POStatusPartial   POStatus = "Partial"
+	POStatusVoid      POStatus = "Void"
+)
+
+type PurchaseOrder struct {
+	ID          string       `json:"id"`
+	TargetBuild string       `json:"target_build"`
+	Status      POStatus     `json:"status"`
+	LineItems   []POLineItem `json:"line_items"`
+}
+
+type POLineItem struct {
+	ID          uuid.UUID `json:"id"`
+	POID        string    `json:"po_id"`
+	SKU         string    `json:"sku"`
+	OrderedQty  int       `json:"ordered_qty"`
+	ReceivedQty int       `json:"received_qty"`
+}
+

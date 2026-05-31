@@ -1,10 +1,12 @@
 package service
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/csv"
 	"fmt"
 	"strings"
+	"zeus-mrp-service/internal/infrastructure/messaging"
 	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
@@ -66,6 +68,13 @@ func (s *ProductionService) RunBOMExplosion(ctx context.Context, orderID uuid.UU
 		return []models.BOMExplosionResult{}, nil
 	}
 
+	var activePOs []models.PurchaseOrder
+	if s.scmClient != nil {
+		if pos, err := s.scmClient.ListPOs(ctx, order.ProductModelCode); err == nil {
+			activePOs = pos
+		}
+	}
+
 	results := make([]models.BOMExplosionResult, 0, len(bomEntries))
 	for _, entry := range bomEntries {
 		requiredQty := entry.RequiredQuantityPerUnit * order.TargetQuantity
@@ -101,12 +110,32 @@ func (s *ProductionService) RunBOMExplosion(ctx context.Context, orderID uuid.UU
 			}
 		}
 
+		allocatedQty := 0
+		for _, po := range activePOs {
+			status := po.Status
+			if status == models.POStatusDraft || status == models.POStatusApproved || status == models.POStatusInTransit || status == models.POStatusPartial {
+				for _, line := range po.LineItems {
+					if line.SKU == sku {
+						if status == models.POStatusPartial {
+							remaining := line.OrderedQty - line.ReceivedQty
+							if remaining > 0 {
+								allocatedQty += remaining
+							}
+						} else {
+							allocatedQty += line.OrderedQty
+						}
+					}
+				}
+			}
+		}
+
 		results = append(results, models.BOMExplosionResult{
 			PartID:           entry.ComponentPartID,
 			ComponentSKU:     sku,
 			TotalRequiredQty: requiredQty,
 			AvailableQty:     availableQty,
-			IsShortage:       availableQty < requiredQty,
+			AllocatedQty:     allocatedQty,
+			IsShortage:       requiredQty > (availableQty + allocatedQty),
 		})
 	}
 
@@ -172,20 +201,42 @@ func (s *ProductionService) ExportReadinessReport(ctx context.Context) ([]byte, 
 		return nil, err
 	}
 
-	metrics, err := s.GetReadinessMetrics(ctx)
-	if err != nil {
+	buf := &bytes.Buffer{}
+	w := csv.NewWriter(buf)
+	_ = w.Write([]string{"order_id", "target_build", "quantity", "status", "component_sku", "required_qty", "available_qty", "is_shortage"})
+	for _, row := range rows {
+		if len(row.DeficitBreakdown) == 0 {
+			_ = w.Write([]string{
+				row.OrderID.String(),
+				row.TargetBuild,
+				fmt.Sprintf("%d", row.Quantity),
+				row.Status,
+				"", "", "", "",
+			})
+			continue
+		}
+		for _, d := range row.DeficitBreakdown {
+			isShortage := "false"
+			if d.IsShortage {
+				isShortage = "true"
+			}
+			_ = w.Write([]string{
+				row.OrderID.String(),
+				row.TargetBuild,
+				fmt.Sprintf("%d", row.Quantity),
+				row.Status,
+				d.ComponentSKU,
+				fmt.Sprintf("%d", d.TotalRequiredQty),
+				fmt.Sprintf("%d", d.AvailableQty),
+				isShortage,
+			})
+		}
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
 		return nil, err
 	}
-
-	payload := struct {
-		Metrics *models.ReadinessMetrics    `json:"metrics"`
-		Rows    []models.ReadinessMatrixRow `json:"rows"`
-	}{
-		Metrics: metrics,
-		Rows:    rows,
-	}
-
-	return json.MarshalIndent(payload, "", "  ")
+	return buf.Bytes(), nil
 }
 
 func (s *ProductionService) GetReadinessByOrderID(ctx context.Context, orderID uuid.UUID) (*models.ReadinessMatrixRow, error) {
@@ -214,7 +265,37 @@ func (s *ProductionService) GetReadinessByOrderID(ctx context.Context, orderID u
 }
 
 func (s *ProductionService) GeneratePOForDeficits(ctx context.Context, orderID uuid.UUID) ([]models.BOMExplosionResult, error) {
-	return s.RunBOMExplosion(ctx, orderID)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	order, err := s.repo.GetProductionOrder(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if order == nil {
+		return nil, fmt.Errorf("production order not found")
+	}
+
+	results, err := s.RunBOMExplosion(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	var shortages []models.BOMExplosionResult
+	for _, res := range results {
+		if res.IsShortage {
+			shortages = append(shortages, res)
+		}
+	}
+
+	if len(shortages) > 0 {
+		if err := s.executeSCMHandoff(ctx, orderID, order.ProductModelCode, shortages); err != nil {
+			return nil, err
+		}
+	}
+
+	return results, nil
 }
 
 func (s *ProductionService) loadReadinessRows(ctx context.Context) ([]models.ReadinessMatrixRow, error) {
@@ -261,8 +342,15 @@ func (s *ProductionService) buildReadinessRow(ctx context.Context, orderID uuid.
 	}
 
 	status := deriveReadinessStatus(results)
-	if _, ok := readinessStatusSet[order.Status]; ok && order.Status != "" {
-		status = order.Status
+	if status != order.Status {
+		if err := s.repo.UpdateProductionOrderStatus(ctx, order.ID, status); err != nil {
+			return nil, err
+		}
+		order.Status = status
+	}
+
+	if err := s.syncShortagesInDB(ctx, order.ID, results); err != nil {
+		return nil, err
 	}
 
 	if results == nil {
@@ -283,25 +371,12 @@ func deriveReadinessStatus(results []models.BOMExplosionResult) models.Productio
 		return models.StatusClearToBuild
 	}
 
-	hasShortage := false
-	hasPartial := false
 	for _, result := range results {
-		if !result.IsShortage {
-			continue
-		}
-		hasShortage = true
-		if result.AvailableQty > 0 {
-			hasPartial = true
+		if result.IsShortage {
+			return models.StatusShortage
 		}
 	}
-
-	if !hasShortage {
-		return models.StatusClearToBuild
-	}
-	if hasPartial {
-		return models.StatusPartial
-	}
-	return models.StatusShortage
+	return models.StatusClearToBuild
 }
 
 func buildReadinessMetrics(rows []models.ReadinessMatrixRow) *models.ReadinessMetrics {
@@ -495,4 +570,90 @@ func (s *ProductionService) cacheInventory(ctx context.Context, partID uuid.UUID
 		return
 	}
 	_ = s.cache.Set(ctx, inventoryCacheKeyPrefix+partID.String(), availableQty)
+}
+
+func (s *ProductionService) syncShortagesInDB(ctx context.Context, orderID uuid.UUID, results []models.BOMExplosionResult) error {
+	existingLogs, err := s.repo.GetShortagesByOrderID(ctx, orderID)
+	if err != nil {
+		return err
+	}
+
+	existingMap := make(map[uuid.UUID]models.ShortageLog)
+	for _, log := range existingLogs {
+		existingMap[log.PartID] = log
+	}
+
+	for _, res := range results {
+		if res.IsShortage {
+			shortageQty := res.TotalRequiredQty - (res.AvailableQty + res.AllocatedQty)
+			if shortageQty <= 0 {
+				if _, exists := existingMap[res.PartID]; exists {
+					if err := s.repo.DeleteShortageLog(ctx, orderID, res.PartID); err != nil {
+						return err
+					}
+				}
+				continue
+			}
+
+			var partSKU string
+			if s.scmClient != nil {
+				part, err := s.scmClient.GetPartCatalogByID(ctx, res.PartID)
+				if err == nil && part != nil {
+					partSKU = part.SKU
+				}
+			}
+			if partSKU == "" {
+				partSKU = res.ComponentSKU
+			}
+			if partSKU == "" {
+				partSKU = fmt.Sprintf("PART-%s", res.PartID.String()[:8])
+			}
+
+			if existing, exists := existingMap[res.PartID]; exists {
+				if existing.ShortageQty != shortageQty {
+					existing.ShortageQty = shortageQty
+					existing.ResolutionStatus = models.ResolutionStatusShortage
+					if err := s.repo.UpdateShortageLog(ctx, &existing); err != nil {
+						return err
+					}
+				}
+			} else {
+				newLog := &models.ShortageLog{
+					ID:                uuid.New(),
+					ProductionOrderID: orderID,
+					PartID:            res.PartID,
+					ShortageQty:       shortageQty,
+					ResolutionStatus:  models.ResolutionStatusShortage,
+				}
+				if err := s.repo.CreateShortageLog(ctx, newLog); err != nil {
+					return err
+				}
+
+				if s.audit != nil {
+					_ = s.audit.PublishJSON(ctx, messaging.DeficitPoolQueue, map[string]any{
+						"sku":      partSKU,
+						"qty":      shortageQty,
+						"order_id": orderID.String(),
+					})
+				}
+			}
+		} else {
+			if _, exists := existingMap[res.PartID]; exists {
+				if err := s.repo.DeleteShortageLog(ctx, orderID, res.PartID); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (s *ProductionService) InvalidateReadinessCache(ctx context.Context, orderID uuid.UUID) {
+	if s.cache == nil {
+		return
+	}
+	_ = s.cache.Del(ctx, readinessMatrixCacheKey, readinessMetricsCacheKey)
+	if orderID != uuid.Nil {
+		_ = s.cache.Del(ctx, readinessOrderKeyPrefix+orderID.String())
+	}
 }

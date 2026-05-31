@@ -11,6 +11,7 @@ const (
 	DeficitPoolQueue       = "system.deficit.pool"
 	SalesOrderCreatedQueue = "sales.order.created"
 	SalesOrderUpdatedQueue = "sales.order.updated"
+	DeficitReservedQueue   = "system.deficit.reserved"
 )
 
 func DeclareQueues(channel *amqp.Channel) error {
@@ -23,6 +24,7 @@ func DeclareQueues(channel *amqp.Channel) error {
 		DeficitPoolQueue,
 		SalesOrderCreatedQueue,
 		SalesOrderUpdatedQueue,
+		DeficitReservedQueue,
 	} {
 		if _, err := channel.QueueDeclare(queue, true, false, false, false, nil); err != nil {
 			return fmt.Errorf("failed to declare queue %s: %w", queue, err)

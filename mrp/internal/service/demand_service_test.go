@@ -3,9 +3,13 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
+
+	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -205,3 +209,77 @@ func TestGeneratePOsForShortages_CancelledContext(t *testing.T) {
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
 }
+
+func TestDemandService_DynamicCalculationsAndHandoff(t *testing.T) {
+	mockRepo := new(MockMRPRepository)
+	mockSCM := new(MockSCMClient)
+	mockAudit := new(MockAuditPublisher)
+
+	orderID := uuid.New()
+	partID := uuid.New()
+	vendorID := uuid.New()
+
+	orders := []models.ProductionOrder{
+		{
+			ID:               orderID,
+			ProductModelCode: "ZW-X1-TITAN",
+			TargetQuantity:   10,
+			Status:           models.StatusShortage,
+			ScheduledAt:      time.Now(),
+			CreatedAt:        time.Now(),
+		},
+	}
+
+	bomEntries := []models.BomEntry{
+		{
+			ParentModelCode:         "ZW-X1-TITAN",
+			ComponentPartID:         partID,
+			RequiredQuantityPerUnit: 2,
+		},
+	}
+
+	partCatalog := &models.Part{
+		ID:       partID,
+		SKU:      "PART-SKU-1",
+		StockQty: 5,
+	}
+
+	mockRepo.On("GetOpenProductionOrders", mock.Anything).Return(orders, nil)
+	mockRepo.On("GetProductionOrder", mock.Anything, orderID).Return(&orders[0], nil)
+	mockRepo.On("GetBOMByModelCode", mock.Anything, "ZW-X1-TITAN").Return(bomEntries, nil)
+	mockSCM.On("GetPartCatalogByID", mock.Anything, partID).Return(partCatalog, nil)
+	mockSCM.On("GetProductModelByCode", mock.Anything, "ZW-X1-TITAN").Return(&models.ProductModel{ModelCode: "ZW-X1-TITAN", ModelName: "Zeus Workstation X1"}, nil)
+	mockSCM.On("ListPOs", mock.Anything, "ZW-X1-TITAN").Return([]models.PurchaseOrder{}, nil).Maybe()
+
+	svc := NewProductionService(mockRepo, mockSCM, mockAudit)
+
+	mockSCM.On("GetOptimalSupplier", mock.Anything, "PART-SKU-1").Return(vendorID, 12.50, nil)
+
+	summary, err := svc.GetDemandSummary(context.Background())
+	assert.NoError(t, err)
+	assert.Len(t, summary, 1)
+	assert.Equal(t, "Zeus Workstation X1", summary[0].ProductName)
+	assert.Equal(t, "ZW-X1-TITAN", summary[0].TargetBuild)
+	assert.Equal(t, 10, summary[0].Quantity)
+	assert.Equal(t, 2, summary[0].QtyReady)
+	assert.Equal(t, "HIGH", summary[0].Priority)
+	assert.Equal(t, 1, summary[0].POCount)
+
+	agg, err := svc.GetAggregatedDemand(context.Background())
+	assert.NoError(t, err)
+	assert.Len(t, agg, 1)
+	assert.Equal(t, partID, agg[0].PartID)
+	assert.Equal(t, 15, agg[0].TotalRequiredQty)
+
+	mockSCM.On("CreateDraftPO", mock.Anything, vendorID, "ZW-X1-TITAN").Return("PO-DRAFT-001", nil)
+	mockAudit.On("PublishJSON", mock.Anything, "system.deficit.pool", mock.Anything).Return(nil)
+	mockSCM.On("AddLineItemWithLock", mock.Anything, "PO-DRAFT-001", "PART-SKU-1", 15).Return(nil)
+
+	err = svc.GeneratePOsForShortages(context.Background())
+	assert.NoError(t, err)
+
+	mockRepo.AssertExpectations(t)
+	mockSCM.AssertExpectations(t)
+	mockAudit.AssertExpectations(t)
+}
+
