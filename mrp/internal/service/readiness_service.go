@@ -1,8 +1,9 @@
 package service
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/csv"
 	"fmt"
 	"strings"
 	"zeus-mrp-service/internal/models"
@@ -172,20 +173,42 @@ func (s *ProductionService) ExportReadinessReport(ctx context.Context) ([]byte, 
 		return nil, err
 	}
 
-	metrics, err := s.GetReadinessMetrics(ctx)
-	if err != nil {
+	buf := &bytes.Buffer{}
+	w := csv.NewWriter(buf)
+	_ = w.Write([]string{"order_id", "target_build", "quantity", "status", "component_sku", "required_qty", "available_qty", "is_shortage"})
+	for _, row := range rows {
+		if len(row.DeficitBreakdown) == 0 {
+			_ = w.Write([]string{
+				row.OrderID.String(),
+				row.TargetBuild,
+				fmt.Sprintf("%d", row.Quantity),
+				row.Status,
+				"", "", "", "",
+			})
+			continue
+		}
+		for _, d := range row.DeficitBreakdown {
+			isShortage := "false"
+			if d.IsShortage {
+				isShortage = "true"
+			}
+			_ = w.Write([]string{
+				row.OrderID.String(),
+				row.TargetBuild,
+				fmt.Sprintf("%d", row.Quantity),
+				row.Status,
+				d.ComponentSKU,
+				fmt.Sprintf("%d", d.TotalRequiredQty),
+				fmt.Sprintf("%d", d.AvailableQty),
+				isShortage,
+			})
+		}
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
 		return nil, err
 	}
-
-	payload := struct {
-		Metrics *models.ReadinessMetrics    `json:"metrics"`
-		Rows    []models.ReadinessMatrixRow `json:"rows"`
-	}{
-		Metrics: metrics,
-		Rows:    rows,
-	}
-
-	return json.MarshalIndent(payload, "", "  ")
+	return buf.Bytes(), nil
 }
 
 func (s *ProductionService) GetReadinessByOrderID(ctx context.Context, orderID uuid.UUID) (*models.ReadinessMatrixRow, error) {
