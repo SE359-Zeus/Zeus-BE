@@ -495,7 +495,12 @@ func (s *goodsReceiptServiceRepo) ListGRs(ctx context.Context, status string, pa
 }
 
 func (s *goodsReceiptServiceRepo) FindAllGRs(ctx context.Context) ([]models.GoodsReceipt, error) {
-	return s.repo.FindAllGRs(ctx)
+	grs, err := s.repo.FindAllGRs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	hydrateGoodsReceiptVendorNames(grs)
+	return grs, nil
 }
 
 func (s *goodsReceiptServiceRepo) GetGR(ctx context.Context, grID string) (*models.GoodsReceipt, error) {

@@ -47,7 +47,7 @@ type IInventoryRepository interface {
 
 	GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error)
 	GetProductBySerialNumber(ctx context.Context, serialNumber string) (*models.Product, error)
-	ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error)
+	ListProducts(ctx context.Context, params pagination.Params, q string, customerID *uuid.UUID) ([]models.Product, *pagination.Meta, error)
 	CreateProduct(ctx context.Context, p *models.Product) error
 	UpdateProduct(ctx context.Context, id uuid.UUID, fields map[string]any) (int64, error)
 

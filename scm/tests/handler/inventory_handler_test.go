@@ -93,7 +93,7 @@ func TestInventoryHandler_ListProducts_200(t *testing.T) {
 	products := []models.Product{{ProductName: "P1"}, {ProductName: "P2"}}
 	meta := &pagination.Meta{Page: 1, Limit: 15, TotalRows: 2, TotalPages: 1}
 
-	mockSvc.On("ListProducts", mock.Anything, mock.AnythingOfType("pagination.Params"), "").Return(products, meta, nil)
+	mockSvc.On("ListProducts", mock.Anything, mock.AnythingOfType("pagination.Params"), "", (*uuid.UUID)(nil)).Return(products, meta, nil)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/inventory/products", nil)

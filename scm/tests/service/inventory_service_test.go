@@ -51,9 +51,9 @@ func TestInventoryService_ListProducts_Success(t *testing.T) {
 	expected := []models.Product{{ProductName: "P1"}, {ProductName: "P2"}}
 	meta := &pagination.Meta{Page: 1, Limit: 15, TotalRows: 2, TotalPages: 1}
 
-	repo.On("ListProducts", anyCtx, params, "").Return(expected, meta, nil)
+	repo.On("ListProducts", anyCtx, params, "", (*uuid.UUID)(nil)).Return(expected, meta, nil)
 
-	products, resultMeta, err := svc.ListProducts(context.Background(), params, "")
+	products, resultMeta, err := svc.ListProducts(context.Background(), params, "", nil)
 	assert.NoError(t, err)
 	assert.Len(t, products, 2)
 	assert.Equal(t, int64(2), resultMeta.TotalRows)
@@ -135,9 +135,12 @@ func TestInventoryService_CreateProductModel_Success(t *testing.T) {
 func TestInventoryService_GetPart_Success(t *testing.T) {
 	svc, repo := setupInventorySvc()
 	id := uuid.New()
-	expected := &models.Part{ID: id, SerialNumber: "SN-001"}
+	catID := uuid.New()
+	expected := &models.Part{ID: id, PartCatalogID: catID, SerialNumber: "SN-001"}
+	cat := &models.PartCatalog{ID: catID}
 
 	repo.On("GetPartByID", anyCtx, id).Return(expected, nil)
+	repo.On("GetPartCatalogByID", anyCtx, catID).Return(cat, nil)
 
 	result, err := svc.GetPart(context.Background(), id)
 	assert.NoError(t, err)
@@ -160,11 +163,14 @@ func TestInventoryService_GetPart_NotFound(t *testing.T) {
 func TestInventoryService_ListParts_Success(t *testing.T) {
 	svc, repo := setupInventorySvc()
 	params := pagination.Params{Page: 1, Limit: 15}
-	expected := []models.Part{{SerialNumber: "SN-001"}}
+	catID := uuid.New()
+	expected := []models.Part{{SerialNumber: "SN-001", PartCatalogID: catID}}
 	meta := &pagination.Meta{Page: 1, Limit: 15, TotalRows: 1}
+	cat := &models.PartCatalog{ID: catID}
 
 	repo.On("ListParts", anyCtx, (*uuid.UUID)(nil), (*uuid.UUID)(nil), (*int32)(nil), params, "").
 		Return(expected, meta, nil)
+	repo.On("GetPartCatalogByID", anyCtx, catID).Return(cat, nil)
 
 	parts, resultMeta, err := svc.ListParts(context.Background(), nil, nil, nil, params, "")
 	assert.NoError(t, err)
@@ -359,11 +365,14 @@ func TestInventoryService_ListParts_WithProductID(t *testing.T) {
 	svc, repo := setupInventorySvc()
 	params := pagination.Params{Page: 1, Limit: 15}
 	productID := uuid.New()
-	expected := []models.Part{{SerialNumber: "SN-001"}}
+	catID := uuid.New()
+	expected := []models.Part{{SerialNumber: "SN-001", PartCatalogID: catID}}
 	meta := &pagination.Meta{Page: 1, Limit: 15, TotalRows: 1}
+	cat := &models.PartCatalog{ID: catID}
 
 	repo.On("ListParts", anyCtx, (*uuid.UUID)(nil), &productID, (*int32)(nil), params, "").
 		Return(expected, meta, nil)
+	repo.On("GetPartCatalogByID", anyCtx, catID).Return(cat, nil)
 
 	parts, resultMeta, err := svc.ListParts(context.Background(), nil, &productID, nil, params, "")
 	assert.NoError(t, err)

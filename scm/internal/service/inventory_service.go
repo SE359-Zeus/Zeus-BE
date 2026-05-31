@@ -20,7 +20,7 @@ import (
 type IInventoryService interface {
 	GetProduct(ctx context.Context, id uuid.UUID) (*models.Product, error)
 	GetProductBySerialNumber(ctx context.Context, serialNumber string) (*models.Product, error)
-	ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error)
+	ListProducts(ctx context.Context, params pagination.Params, q string, customerID *uuid.UUID) ([]models.Product, *pagination.Meta, error)
 	CreateProduct(ctx context.Context, p *models.Product) error
 	UpdateProduct(ctx context.Context, id uuid.UUID, fields map[string]any) (*models.Product, error)
 
@@ -88,7 +88,7 @@ func (s *inventoryService) GetProduct(ctx context.Context, id uuid.UUID) (*model
 	}
 
 	var p models.Product
-	if err := s.db.WithContext(ctx).First(&p, "id = ?", id).Error; err != nil {
+	if err := s.db.WithContext(ctx).Preload("ProductModel").First(&p, "id = ?", id).Error; err != nil {
 		return nil, ErrNotFound
 	}
 
@@ -110,8 +110,11 @@ func (s *inventoryService) GetProductBySerialNumber(ctx context.Context, serialN
 	return &p, nil
 }
 
-func (s *inventoryService) ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error) {
+func (s *inventoryService) ListProducts(ctx context.Context, params pagination.Params, q string, customerID *uuid.UUID) ([]models.Product, *pagination.Meta, error) {
 	query := s.db.WithContext(ctx).Model(&models.Product{}).Preload("ProductModel")
+	if customerID != nil {
+		query = query.Where("customer_id = ?", *customerID)
+	}
 	if q != "" {
 		like := "%" + q + "%"
 		query = query.Where(
@@ -144,8 +147,8 @@ func (s *inventoryServiceRepo) GetProductBySerialNumber(ctx context.Context, ser
 	return p, nil
 }
 
-func (s *inventoryServiceRepo) ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error) {
-	return s.repo.ListProducts(ctx, params, q)
+func (s *inventoryServiceRepo) ListProducts(ctx context.Context, params pagination.Params, q string, customerID *uuid.UUID) ([]models.Product, *pagination.Meta, error) {
+	return s.repo.ListProducts(ctx, params, q, customerID)
 }
 
 func (s *inventoryServiceRepo) UpdateProduct(ctx context.Context, id uuid.UUID, fields map[string]any) (*models.Product, error) {
@@ -180,11 +183,17 @@ func (s *inventoryServiceRepo) GetPart(ctx context.Context, id uuid.UUID) (*mode
 	if err != nil || p == nil {
 		return nil, ErrNotFound
 	}
+	s.hydratePartImageUrl(ctx, p)
 	return p, nil
 }
 
 func (s *inventoryServiceRepo) ListParts(ctx context.Context, catalogID *uuid.UUID, productID *uuid.UUID, conditionID *int32, params pagination.Params, q string) ([]models.Part, *pagination.Meta, error) {
-	return s.repo.ListParts(ctx, catalogID, productID, conditionID, params, q)
+	parts, meta, err := s.repo.ListParts(ctx, catalogID, productID, conditionID, params, q)
+	if err != nil {
+		return nil, nil, err
+	}
+	s.hydratePartImageUrls(ctx, parts)
+	return parts, meta, nil
 }
 
 func (s *inventoryServiceRepo) CreatePart(ctx context.Context, p *models.Part) error {
@@ -578,6 +587,7 @@ func (s *inventoryService) GetPart(ctx context.Context, id uuid.UUID) (*models.P
 	if err := s.db.WithContext(ctx).First(&p, "id = ?", id).Error; err != nil {
 		return nil, ErrNotFound
 	}
+	s.hydratePartImageUrl(ctx, &p)
 	if s.cache != nil {
 		key := fmt.Sprintf("part:%s", id.String())
 		if b, err := json.Marshal(&p); err == nil {
@@ -607,6 +617,7 @@ func (s *inventoryService) ListParts(ctx context.Context, catalogID *uuid.UUID, 
 	if err != nil {
 		return nil, nil, err
 	}
+	s.hydratePartImageUrls(ctx, parts)
 	return parts, meta, nil
 }
 
@@ -995,4 +1006,75 @@ func (s *inventoryService) GetInventoryMetrics(ctx context.Context) (totalSKUs i
 
 func (s *inventoryServiceRepo) GetInventoryMetrics(ctx context.Context) (int64, int64, int64, float64, error) {
 	return s.repo.GetInventoryMetrics(ctx)
+}
+
+func (s *inventoryService) hydratePartImageUrl(ctx context.Context, p *models.Part) {
+	if p == nil {
+		return
+	}
+	var cat models.PartCatalog
+	if err := s.db.WithContext(ctx).Select("image_url").First(&cat, "id = ?", p.PartCatalogID).Error; err == nil {
+		p.ImageUrl = cat.ImageUrl
+	}
+}
+
+func (s *inventoryService) hydratePartImageUrls(ctx context.Context, parts []models.Part) {
+	if len(parts) == 0 {
+		return
+	}
+	ids := make(map[uuid.UUID]struct{})
+	for i := range parts {
+		ids[parts[i].PartCatalogID] = struct{}{}
+	}
+	unique := make([]uuid.UUID, 0, len(ids))
+	for id := range ids {
+		unique = append(unique, id)
+	}
+	var catalogs []models.PartCatalog
+	s.db.WithContext(ctx).Select("id", "image_url").Where("id IN ?", unique).Find(&catalogs)
+	urlMap := make(map[uuid.UUID]*string, len(catalogs))
+	for i := range catalogs {
+		urlMap[catalogs[i].ID] = catalogs[i].ImageUrl
+	}
+	for i := range parts {
+		if url, ok := urlMap[parts[i].PartCatalogID]; ok {
+			parts[i].ImageUrl = url
+		}
+	}
+}
+
+func (s *inventoryServiceRepo) hydratePartImageUrl(ctx context.Context, p *models.Part) {
+	if p == nil {
+		return
+	}
+	cat, err := s.repo.GetPartCatalogByID(ctx, p.PartCatalogID)
+	if err == nil && cat != nil {
+		p.ImageUrl = cat.ImageUrl
+	}
+}
+
+func (s *inventoryServiceRepo) hydratePartImageUrls(ctx context.Context, parts []models.Part) {
+	if len(parts) == 0 {
+		return
+	}
+	ids := make(map[uuid.UUID]struct{})
+	for i := range parts {
+		ids[parts[i].PartCatalogID] = struct{}{}
+	}
+	unique := make([]uuid.UUID, 0, len(ids))
+	for id := range ids {
+		unique = append(unique, id)
+	}
+	urlMap := make(map[uuid.UUID]*string, len(unique))
+	for _, id := range unique {
+		cat, err := s.repo.GetPartCatalogByID(ctx, id)
+		if err == nil && cat != nil {
+			urlMap[id] = cat.ImageUrl
+		}
+	}
+	for i := range parts {
+		if url, ok := urlMap[parts[i].PartCatalogID]; ok {
+			parts[i].ImageUrl = url
+		}
+	}
 }

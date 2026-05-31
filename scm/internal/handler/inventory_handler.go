@@ -74,7 +74,14 @@ func (h *InventoryHandler) ListProducts(c *gin.Context) {
 	params := parsePaginationParams(c)
 	q := c.Query("q")
 
-	products, meta, err := h.svc.ListProducts(c.Request.Context(), params, q)
+	var customerID *uuid.UUID
+	if v := c.Query("customer_id"); v != "" {
+		if id, err := uuid.Parse(v); err == nil {
+			customerID = &id
+		}
+	}
+
+	products, meta, err := h.svc.ListProducts(c.Request.Context(), params, q, customerID)
 	if err != nil {
 		exception.WriteError(c, exception.ErrInternal.WithError(err))
 		return

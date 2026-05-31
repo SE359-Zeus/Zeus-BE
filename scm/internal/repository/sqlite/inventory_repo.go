@@ -54,8 +54,11 @@ func (r *inventoryRepository) GetProductBySerialNumber(ctx context.Context, seri
 	return &p, nil
 }
 
-func (r *inventoryRepository) ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error) {
+func (r *inventoryRepository) ListProducts(ctx context.Context, params pagination.Params, q string, customerID *uuid.UUID) ([]models.Product, *pagination.Meta, error) {
 	query := r.db.WithContext(ctx).Model(&models.Product{}).Preload("ProductModel")
+	if customerID != nil {
+		query = query.Where("customer_id = ?", *customerID)
+	}
 	if q != "" {
 		like := "%" + q + "%"
 		query = query.Where(

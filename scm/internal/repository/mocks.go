@@ -235,8 +235,8 @@ func (m *MockInventoryRepository) GetProductBySerialNumber(ctx context.Context, 
 	return nil, args.Error(1)
 }
 
-func (m *MockInventoryRepository) ListProducts(ctx context.Context, params pagination.Params, q string) ([]models.Product, *pagination.Meta, error) {
-	args := m.Called(ctx, params, q)
+func (m *MockInventoryRepository) ListProducts(ctx context.Context, params pagination.Params, q string, customerID *uuid.UUID) ([]models.Product, *pagination.Meta, error) {
+	args := m.Called(ctx, params, q, customerID)
 	if args.Get(0) != nil {
 		return args.Get(0).([]models.Product), args.Get(1).(*pagination.Meta), args.Error(2)
 	}

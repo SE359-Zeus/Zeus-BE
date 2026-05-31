@@ -380,7 +380,10 @@ func (s *shipmentServiceRepo) MarkDelivered(ctx context.Context, shipmentID stri
 
 	// Auto-create GR from shipment
 	if s.grRepo != nil && s.poRepo != nil {
-		poItems, _ := s.poRepo.GetPOLineItemsByPOID(ctx, shipment.PORef)
+		poItems, err := s.poRepo.GetPOLineItemsByPOID(ctx, shipment.PORef)
+		if err != nil {
+			return err
+		}
 		existingGRs, _ := s.grRepo.FindGRsByPOID(ctx, shipment.PORef)
 		grIdx := len(existingGRs) + 1
 		grID := fmt.Sprintf("%s-GR-%03d", shipment.PORef, grIdx)
@@ -408,7 +411,9 @@ func (s *shipmentServiceRepo) MarkDelivered(ctx context.Context, shipmentID stri
 				Name:       item.Description,
 				OrderedQty: item.OrderedQty,
 			}
-			_ = s.grRepo.SaveGRLineItem(ctx, grLine)
+			if err := s.grRepo.SaveGRLineItem(ctx, grLine); err != nil {
+				return err
+			}
 		}
 	}
 

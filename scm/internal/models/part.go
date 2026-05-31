@@ -16,6 +16,7 @@ type Part struct {
 	InstallationDate *time.Time `json:"installation_date,omitempty"`
 	RemovalDate      *time.Time `json:"removal_date,omitempty"`
 	ScrappedDate     *time.Time `json:"scrapped_date,omitempty"`
+	ImageUrl         *string    `gorm:"-" json:"image_url,omitempty"`
 	CreatedAt        time.Time  `gorm:"not null" json:"created_at"`
 	UpdatedAt        time.Time  `gorm:"not null" json:"updated_at"`
 	DeletedAt        *time.Time `json:"deleted_at,omitempty"`
