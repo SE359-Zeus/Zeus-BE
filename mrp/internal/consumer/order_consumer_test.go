@@ -99,6 +99,14 @@ func (m *MockMRPRepository) GetShortagesByOrderID(ctx context.Context, orderID u
 	return nil, args.Error(1)
 }
 
+func (m *MockMRPRepository) GetShortagesByOrderIDs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID][]models.ShortageLog, error) {
+	args := m.Called(ctx, orderIDs)
+	if args.Get(0) != nil {
+		return args.Get(0).(map[uuid.UUID][]models.ShortageLog), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockMRPRepository) GetAggregatedShortages(ctx context.Context) ([]models.BOMExplosionResult, error) {
 	args := m.Called(ctx)
 	if args.Get(0) != nil {

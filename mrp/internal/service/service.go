@@ -21,6 +21,7 @@ type SCMClient interface {
 	GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error)
 	GetProductModelByCode(ctx context.Context, code string) (*models.ProductModel, error)
 	ListStocks(ctx context.Context, page, limit int, sortBy, sortDir, q string) ([]models.ComponentStock, bool, error)
+	GetInventoryLedger(ctx context.Context, page, limit int, sortBy, sortDir, txnType, sku string) ([]models.LedgerEntry, bool, error)
 	CreateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error)
 	UpdateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error)
 	DeleteCatalogPart(ctx context.Context, sku string) error

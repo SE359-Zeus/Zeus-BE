@@ -22,17 +22,22 @@ func (s *ProductionService) GetDemandSummary(ctx context.Context) ([]models.Dema
 		return []models.DemandPOSummary{}, nil
 	}
 
+	orderIDs := make([]uuid.UUID, len(orders))
+	for i, o := range orders {
+		orderIDs[i] = o.ID
+	}
+	shortageMap, err := s.repo.GetShortagesByOrderIDs(ctx, orderIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	result := make([]models.DemandPOSummary, 0, len(orders))
 	for _, order := range orders {
-		shortages, err := s.repo.GetShortagesByOrderID(ctx, order.ID)
-		if err != nil {
-			return nil, err
-		}
+		shortages := shortageMap[order.ID]
 
-		// derive qty_ready: if shortage exists, available qty from BOM explosion
 		qtyReady := order.TargetQuantity
 		if len(shortages) > 0 {
-			qtyReady = 0 // simplified; full explosion calculates exact qty
+			qtyReady = 0
 		}
 
 		result = append(result, models.DemandPOSummary{
@@ -41,9 +46,9 @@ func (s *ProductionService) GetDemandSummary(ctx context.Context) ([]models.Dema
 			Quantity:     order.TargetQuantity,
 			QtyReady:     qtyReady,
 			Status:       string(order.Status),
-			Priority:     "NORMAL", // default until priority field is in the order model
+			Priority:     "NORMAL",
 			MissingCount: len(shortages),
-			POCount:      0, // populated when SCM PO handoff is wired
+			POCount:      0,
 			TargetDate:   order.ScheduledAt,
 		})
 	}

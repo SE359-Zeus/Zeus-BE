@@ -371,3 +371,59 @@ func (c *Client) DeleteCatalogPart(ctx context.Context, sku string) error {
 
 	return nil
 }
+
+func (c *Client) GetInventoryLedger(ctx context.Context, page, limit int, sortBy, sortDir, txnType, sku string) ([]models.LedgerEntry, bool, error) {
+	query := url.Values{}
+	if page > 0 {
+		query.Set("page", fmt.Sprintf("%d", page))
+	}
+	if limit > 0 {
+		query.Set("limit", fmt.Sprintf("%d", limit))
+	}
+	if sortBy != "" {
+		query.Set("sort_by", sortBy)
+	}
+	if sortDir != "" {
+		query.Set("sort_dir", sortDir)
+	}
+	if txnType != "" {
+		query.Set("type", txnType)
+	}
+	if sku != "" {
+		query.Set("sku", sku)
+	}
+
+	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/ledger?%s", c.baseURL, query.Encode())
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return nil, false, err
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, false, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, false, fmt.Errorf("SCM ledger API returned status %d", resp.StatusCode)
+	}
+
+	var envelope struct {
+		Data []models.LedgerEntry `json:"data"`
+		Metadata struct {
+			Pagination struct {
+				Page       int `json:"page"`
+				TotalPages int `json:"total_pages"`
+			} `json:"pagination"`
+		} `json:"metadata"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, false, err
+	}
+
+	hasMore := envelope.Metadata.Pagination.TotalPages > 0 && envelope.Metadata.Pagination.Page < envelope.Metadata.Pagination.TotalPages
+	return envelope.Data, hasMore, nil
+}

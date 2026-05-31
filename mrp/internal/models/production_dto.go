@@ -169,3 +169,17 @@ type Part struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
 }
+
+type LedgerEntry struct {
+	ID             string    `json:"id"`
+	SKU            string    `json:"sku"`
+	Type           string    `json:"type"`
+	QtyChange      int       `json:"qty_change"`
+	RunningBalance int       `json:"running_balance"`
+	Location       string    `json:"location"`
+	OperatorName   string    `json:"operator_name"`
+	Reference      string    `json:"reference"`
+	ReferenceType  string    `json:"reference_type"`
+	ReferenceID    string    `json:"reference_id"`
+	CreatedAt      time.Time `json:"created_at"`
+}

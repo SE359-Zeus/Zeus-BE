@@ -92,6 +92,64 @@ func (r *sqliteMRPRepository) GetShortagesByOrderID(ctx context.Context, orderID
 	return logs, nil
 }
 
+func (r *sqliteMRPRepository) GetShortagesByOrderIDs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID][]models.ShortageLog, error) {
+	if len(orderIDs) == 0 {
+		return map[uuid.UUID][]models.ShortageLog{}, nil
+	}
+
+	strIDs := make([]string, len(orderIDs))
+	for i, id := range orderIDs {
+		strIDs[i] = id.String()
+	}
+
+	type row struct {
+		ID                 string
+		ProductionOrderID  string
+		PartID             string
+		ShortageQty        int
+		ResolutionStatusID int
+		ResolutionStatus   string
+	}
+
+	var rows []row
+	err := r.db.WithContext(ctx).
+		Table("shortage_logs").
+		Select("id, production_order_id, part_id, shortage_qty, resolution_status_id, resolution_status").
+		Where("production_order_id IN ?", strIDs).
+		Order("id ASC").
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[uuid.UUID][]models.ShortageLog, len(orderIDs))
+	for _, row := range rows {
+		id, err := uuid.Parse(row.ID)
+		if err != nil {
+			continue
+		}
+		productionOrderID, err := uuid.Parse(row.ProductionOrderID)
+		if err != nil {
+			continue
+		}
+		partID, err := uuid.Parse(row.PartID)
+		if err != nil {
+			continue
+		}
+
+		result[productionOrderID] = append(result[productionOrderID], models.ShortageLog{
+			ID:                 id,
+			ProductionOrderID:  productionOrderID,
+			PartID:             partID,
+			ShortageQty:        row.ShortageQty,
+			ResolutionStatusID: row.ResolutionStatusID,
+			ResolutionStatus:   row.ResolutionStatus,
+		})
+	}
+
+	return result, nil
+}
+
 func (r *sqliteMRPRepository) GetAggregatedShortages(ctx context.Context) ([]models.BOMExplosionResult, error) {
 	type row struct {
 		PartID           string

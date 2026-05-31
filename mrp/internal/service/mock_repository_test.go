@@ -98,6 +98,14 @@ func (m *MockMRPRepository) GetShortagesByOrderID(ctx context.Context, orderID u
 	return nil, args.Error(1)
 }
 
+func (m *MockMRPRepository) GetShortagesByOrderIDs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID][]models.ShortageLog, error) {
+	args := m.Called(ctx, orderIDs)
+	if args.Get(0) != nil {
+		return args.Get(0).(map[uuid.UUID][]models.ShortageLog), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockMRPRepository) GetAggregatedShortages(ctx context.Context) ([]models.BOMExplosionResult, error) {
 	args := m.Called(ctx)
 	if args.Get(0) != nil {
@@ -138,6 +146,7 @@ func setupMockRepo() *MockMRPRepository {
 	m.On("DeleteBOMEntriesByModelCode", mock.Anything, mock.Anything).Return(nil)
 	m.On("CreateShortageLog", mock.Anything, mock.Anything).Return(nil)
 	m.On("GetShortagesByOrderID", mock.Anything, mock.Anything).Return([]models.ShortageLog{}, nil)
+	m.On("GetShortagesByOrderIDs", mock.Anything, mock.Anything).Return(map[uuid.UUID][]models.ShortageLog{}, nil)
 	m.On("GetAggregatedShortages", mock.Anything).Return([]models.BOMExplosionResult{}, nil)
 	m.On("GetInventoryTransactions", mock.Anything).Return([]models.InventoryTransactionDTO{{ID: "TXN-1", SKU: "PART-1", QtyChange: 10, RunningBalance: 10, Timestamp: time.Now()}}, nil)
 	m.On("GetInventoryMetrics", mock.Anything).Return(&models.InventoryMetrics{ActiveSKUs: 154}, nil)
@@ -185,6 +194,14 @@ func (m *MockSCMClient) ListStocks(ctx context.Context, page, limit int, sortBy,
 	args := m.Called(ctx, page, limit, sortBy, sortDir, q)
 	if args.Get(0) != nil {
 		return args.Get(0).([]models.ComponentStock), args.Bool(1), args.Error(2)
+	}
+	return nil, args.Bool(1), args.Error(2)
+}
+
+func (m *MockSCMClient) GetInventoryLedger(ctx context.Context, page, limit int, sortBy, sortDir, txnType, sku string) ([]models.LedgerEntry, bool, error) {
+	args := m.Called(ctx, page, limit, sortBy, sortDir, txnType, sku)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.LedgerEntry), args.Bool(1), args.Error(2)
 	}
 	return nil, args.Bool(1), args.Error(2)
 }

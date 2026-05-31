@@ -26,6 +26,7 @@ type DbRepository interface {
 	// Shortages & Demand
 	CreateShortageLog(ctx context.Context, log *models.ShortageLog) error
 	GetShortagesByOrderID(ctx context.Context, orderID uuid.UUID) ([]models.ShortageLog, error)
+	GetShortagesByOrderIDs(ctx context.Context, orderIDs []uuid.UUID) (map[uuid.UUID][]models.ShortageLog, error)
 	GetAggregatedShortages(ctx context.Context) ([]models.BOMExplosionResult, error)
 
 	// External/Interop (Read-only proxy to Product/Audit services)
