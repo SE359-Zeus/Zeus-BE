@@ -31,7 +31,7 @@ func TestPOService_CreateDraft_Success(t *testing.T) {
 		return po.VendorID == vendorID && po.Status == models.POStatusDraft
 	})).Return(nil)
 
-	po, err := svc.CreateDraft(context.Background(), vendorID, "Build-1")
+	po, err := svc.CreateDraft(context.Background(), vendorID)
 	assert.NoError(t, err)
 	assert.NotNil(t, po)
 	assert.Equal(t, models.POStatusDraft, po.Status)
@@ -46,7 +46,7 @@ func TestPOService_CreateDraft_MonoVendorViolation(t *testing.T) {
 
 	poRepo.On("FindPOByVendorAndStatuses", anyCtx, vendorID, mock.Anything).Return(existingPO, nil)
 
-	po, err := svc.CreateDraft(context.Background(), vendorID, "Build-1")
+	po, err := svc.CreateDraft(context.Background(), vendorID)
 	assert.ErrorIs(t, err, service.ErrMonoVendorViolation)
 	assert.Nil(t, po)
 	poRepo.AssertExpectations(t)

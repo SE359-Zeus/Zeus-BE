@@ -4,7 +4,6 @@ import (
 	"encoding/csv"
 	"net/http"
 	"strconv"
-	"time"
 	"zeus-scm-service/internal/exception"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
@@ -23,8 +22,7 @@ func NewPOHandler(svc service.IPOService) *POHandler {
 }
 
 type createDraftRequest struct {
-	VendorID    string `json:"vendor_id" binding:"required"`
-	TargetBuild string `json:"target_build"`
+	VendorID string `json:"vendor_id" binding:"required"`
 }
 
 func (h *POHandler) CreateDraft(c *gin.Context) {
@@ -38,7 +36,7 @@ func (h *POHandler) CreateDraft(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInvalidResourceID.WithMessage("invalid vendor_id"))
 		return
 	}
-	po, err := h.svc.CreateDraft(c.Request.Context(), vendorID, req.TargetBuild)
+	po, err := h.svc.CreateDraft(c.Request.Context(), vendorID)
 	if err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			exception.WriteError(c, appErr)
@@ -148,7 +146,7 @@ func (h *POHandler) ExportPOReport(c *gin.Context) {
 
 	csvWriter := csv.NewWriter(c.Writer)
 	header := []string{
-		"PO ID", "Vendor Name", "Target Build", "Status", "Expected Delivery",
+		"PO ID", "Vendor Name", "Status",
 		"Total Value", "Notes", "Line Item SKU", "Line Item Description",
 		"Ordered Qty", "Unit Price", "Line Item Subtotal",
 	}
@@ -163,9 +161,7 @@ func (h *POHandler) ExportPOReport(c *gin.Context) {
 			row := []string{
 				po.ID,
 				po.VendorName,
-				po.TargetBuild,
 				string(po.Status),
-				po.ExpectedDelivery.Format(time.RFC3339),
 				strconv.FormatFloat(po.TotalValue, 'f', 2, 64),
 				po.Notes,
 				"", "", "", "", "",
@@ -180,9 +176,7 @@ func (h *POHandler) ExportPOReport(c *gin.Context) {
 			row := []string{
 				po.ID,
 				po.VendorName,
-				po.TargetBuild,
 				string(po.Status),
-				po.ExpectedDelivery.Format(time.RFC3339),
 				strconv.FormatFloat(po.TotalValue, 'f', 2, 64),
 				po.Notes,
 				item.SKU,
@@ -223,53 +217,126 @@ func (h *POHandler) GetMetrics(c *gin.Context) {
 }
 
 type createPOLineItemRequest struct {
-	SKU string `json:"sku" binding:"required"`
-	Qty int    `json:"qty" binding:"required,min=1"`
+	SKU        string `json:"sku"`
+	PartNumber string `json:"part_number"`
+	Qty        int    `json:"qty"`
+	Quantity   int    `json:"quantity"`
 }
 
 type createPORequest struct {
-	ID               string                    `json:"id" binding:"required"`
-	ExpectedDelivery time.Time                 `json:"expected_delivery" binding:"required"`
-	VendorID         string                    `json:"vendor_id" binding:"required"`
-	TargetBuild      string                    `json:"target_build"`
-	Items            []createPOLineItemRequest `json:"items" binding:"required,min=1"`
-	Notes            string                    `json:"notes"`
+	ID             string                    `json:"id"`
+	PONumber       string                    `json:"po_number"`
+	VendorID       string                    `json:"vendor_id"`
+	Supplier       string                    `json:"supplier"`
+	Items          []createPOLineItemRequest `json:"items"`
+	ListOrderItems []createPOLineItemRequest `json:"list_order_items"`
+	Notes          string                    `json:"notes"`
 }
 
 func (h *POHandler) CreatePO(c *gin.Context) {
 	var req createPORequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		exception.WriteError(c, exception.ErrInvalidBody)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "invalid request body: " + err.Error(),
+		})
 		return
 	}
 
-	vendorUUID, err := uuid.Parse(req.VendorID)
+	poID := req.PONumber
+	if poID == "" {
+		poID = req.ID
+	}
+	if poID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "po_number or id is required",
+		})
+		return
+	}
+
+	supplierStr := req.Supplier
+	if supplierStr == "" {
+		supplierStr = req.VendorID
+	}
+	if supplierStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "supplier or vendor_id is required",
+		})
+		return
+	}
+
+	vendorUUID, err := uuid.Parse(supplierStr)
 	if err != nil {
-		exception.WriteError(c, exception.ErrInvalidResourceID.WithMessage("invalid vendor_id"))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "invalid supplier uuid: " + err.Error(),
+		})
 		return
 	}
 
-	lineItems := make([]models.POLineItem, len(req.Items))
-	for i, item := range req.Items {
+	itemsReq := req.Items
+	if len(itemsReq) == 0 {
+		itemsReq = req.ListOrderItems
+	}
+	if len(itemsReq) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "items list is required and cannot be empty",
+		})
+		return
+	}
+
+	lineItems := make([]models.POLineItem, len(itemsReq))
+	for i, item := range itemsReq {
+		itemSKU := item.PartNumber
+		if itemSKU == "" {
+			itemSKU = item.SKU
+		}
+		if itemSKU == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "sku or part_number is required for all line items",
+			})
+			return
+		}
+
+		itemQty := item.Quantity
+		if itemQty <= 0 {
+			itemQty = item.Qty
+		}
+		if itemQty <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "quantity/qty must be greater than 0 for all line items",
+			})
+			return
+		}
+
 		lineItems[i] = models.POLineItem{
-			SKU:        item.SKU,
-			OrderedQty: item.Qty,
+			SKU:        itemSKU,
+			OrderedQty: itemQty,
 		}
 	}
 
 	poModel := &models.PurchaseOrder{
-		ID:               req.ID,
-		VendorID:         vendorUUID,
-		TargetBuild:      req.TargetBuild,
-		ExpectedDelivery: req.ExpectedDelivery,
-		Notes:            req.Notes,
-		LineItems:        lineItems,
+		ID:        poID,
+		VendorID:  vendorUUID,
+		Notes:     req.Notes,
+		LineItems: lineItems,
 	}
 
 	if err := h.svc.CreatePO(c.Request.Context(), poModel); err != nil {
-		exception.WriteError(c, exception.Resolve(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
 		return
 	}
 
-	writeJSON(c, 201, poModel)
+	c.JSON(http.StatusCreated, gin.H{
+		"success":     true,
+		"total_value": poModel.TotalValue,
+	})
 }

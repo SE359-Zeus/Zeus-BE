@@ -23,3 +23,4 @@ count_parts.py
 *.pem
 scm-manifest.json
 scm-manifest.json
+.crush

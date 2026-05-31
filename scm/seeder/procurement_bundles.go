@@ -3,7 +3,6 @@ package seeder
 import (
 	"fmt"
 	"math"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,7 +13,6 @@ import (
 
 func buildProcurementBundles(suppliers []models.Supplier, mappingsBySupplier map[uuid.UUID][]models.SkuMapping) []procurementBundle {
 	baseTime := time.Date(2026, 5, 19, 9, 0, 0, 0, time.UTC)
-	labels := []string{"Atlas", "Orion", "Nimbus", "Helix", "Aurora"}
 	carriers := []string{"TransGlobal Freight", "Northwind Logistics", "Skyline Couriers", "BlueRoute Cargo", "Apex Transit"}
 	lineCount := 3
 	if len(suppliers) < 5 {
@@ -84,13 +82,11 @@ func buildProcurementBundles(suppliers []models.Supplier, mappingsBySupplier map
 		}
 
 		bundle := procurementBundle{
-			POID:             fmt.Sprintf("PO-2026-%03d", i+1),
-			VendorID:         supplier.ID,
-			TargetBuild:      fmt.Sprintf("%s-%s", labels[i], strings.ReplaceAll(supplier.Name, " ", "")),
-			POStatus:         templates[i].poStatus,
-			PaymentTerms:     "Net 30",
-			ExpectedDelivery: baseTime.AddDate(0, 0, 10+i*3),
-			LineItems:        lineItems,
+			POID:         fmt.Sprintf("PO-2026-%03d", i+1),
+			VendorID:     supplier.ID,
+			POStatus:     templates[i].poStatus,
+			PaymentTerms: "Net 30",
+			LineItems:    lineItems,
 		}
 
 		if templates[i].includeDocs {
@@ -124,13 +120,11 @@ func seedProcurementBundle(db *gorm.DB, bundle procurementBundle) {
 	}
 
 	po := models.PurchaseOrder{
-		ID:               bundle.POID,
-		VendorID:         bundle.VendorID,
-		TargetBuild:      bundle.TargetBuild,
-		Status:           bundle.POStatus,
-		TotalValue:       math.Round(totalValue*100) / 100,
-		PaymentTerms:     bundle.PaymentTerms,
-		ExpectedDelivery: bundle.ExpectedDelivery,
+		ID:           bundle.POID,
+		VendorID:     bundle.VendorID,
+		Status:       bundle.POStatus,
+		TotalValue:   math.Round(totalValue*100) / 100,
+		PaymentTerms: bundle.PaymentTerms,
 	}
 	db.FirstOrCreate(&po, models.PurchaseOrder{ID: po.ID})
 

@@ -19,7 +19,7 @@ func TestPOOrchestration_CreateDraft(t *testing.T) {
 	stockRepo := sqlite.NewStockRepository(db)
 	svc := service.NewPOService(poRepo, stockRepo, "")
 
-	po, err := svc.CreateDraft(context.Background(), uuid.New(), "Build-X1")
+	po, err := svc.CreateDraft(context.Background(), uuid.New())
 	assert.NoError(t, err, "Should successfully create draft")
 	assert.NotNil(t, po)
 	if po != nil {

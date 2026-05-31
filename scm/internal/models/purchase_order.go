@@ -19,16 +19,14 @@ const (
 )
 
 type PurchaseOrder struct {
-	ID               string             `gorm:"type:varchar(50);primary_key" json:"id"`
-	VendorID         uuid.UUID          `gorm:"type:uuid;not null" json:"-"`
-	VendorName       string             `gorm:"-" json:"vendor_name,omitempty"`
-	TargetBuild      string             `gorm:"type:varchar(255)" json:"target_build,omitempty"`
-	Status           POStatus           `gorm:"type:varchar(50);not null" json:"status"`
-	State            PurchaseOrderState `gorm:"foreignKey:Status;references:Name" json:"-"`
-	TotalValue       float64            `gorm:"not null" json:"total_value"`
-	PaymentTerms     string             `gorm:"type:varchar(100)" json:"payment_terms,omitempty"`
-	ExpectedDelivery time.Time          `gorm:"not null" json:"expected_delivery"`
-	Notes            string             `gorm:"type:text" json:"notes,omitempty"`
+	ID           string             `gorm:"type:varchar(50);primary_key" json:"id"`
+	VendorID     uuid.UUID          `gorm:"type:uuid;not null" json:"-"`
+	VendorName   string             `gorm:"-" json:"vendor_name,omitempty"`
+	Status       POStatus           `gorm:"type:varchar(50);not null" json:"status"`
+	State        PurchaseOrderState `gorm:"foreignKey:Status;references:Name" json:"-"`
+	TotalValue   float64            `gorm:"not null" json:"total_value"`
+	PaymentTerms string             `gorm:"type:varchar(100)" json:"payment_terms,omitempty"`
+	Notes        string             `gorm:"type:text" json:"notes,omitempty"`
 	CreatedAt        time.Time          `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt        time.Time          `gorm:"autoUpdateTime" json:"updated_at"`
 	DeletedAt        gorm.DeletedAt     `gorm:"index" json:"-"`

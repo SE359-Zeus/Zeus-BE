@@ -18,7 +18,7 @@ import (
 )
 
 type IPOService interface {
-	CreateDraft(ctx context.Context, vendorID uuid.UUID, targetBuild string) (*models.PurchaseOrder, error)
+	CreateDraft(ctx context.Context, vendorID uuid.UUID) (*models.PurchaseOrder, error)
 	AddLineItemWithLock(ctx context.Context, poID string, sku string, qty int) error
 	ApprovePO(ctx context.Context, poID string) error
 	TransitionState(ctx context.Context, poID string, newState models.POStatus) error
@@ -95,7 +95,7 @@ func NewPOService(arg interface{}, args ...interface{}) IPOService {
 	}
 }
 
-func (s *poService) CreateDraft(ctx context.Context, vendorID uuid.UUID, targetBuild string) (*models.PurchaseOrder, error) {
+func (s *poService) CreateDraft(ctx context.Context, vendorID uuid.UUID) (*models.PurchaseOrder, error) {
 	var existingPO models.PurchaseOrder
 	if err := s.db.WithContext(ctx).
 		Where("vendor_id = ? AND status IN ?", vendorID, []models.POStatus{models.POStatusDraft, models.POStatusApproved, models.POStatusInTransit}).
@@ -110,11 +110,10 @@ func (s *poService) CreateDraft(ctx context.Context, vendorID uuid.UUID, targetB
 		Count(&count)
 
 	po := &models.PurchaseOrder{
-		ID:          fmt.Sprintf("PO-%d-%d", year, count+1),
-		VendorID:    vendorID,
-		TargetBuild: targetBuild,
-		Status:      models.POStatusDraft,
-		TotalValue:  0,
+		ID:         fmt.Sprintf("PO-%d-%d", year, count+1),
+		VendorID:   vendorID,
+		Status:     models.POStatusDraft,
+		TotalValue: 0,
 	}
 	if err := s.db.WithContext(ctx).Create(po).Error; err != nil {
 		return nil, err
@@ -161,7 +160,7 @@ func (s *poService) AddLineItemWithLock(ctx context.Context, poID string, sku st
 }
 
 // repo-backed implementation
-func (s *poServiceRepo) CreateDraft(ctx context.Context, vendorID uuid.UUID, targetBuild string) (*models.PurchaseOrder, error) {
+func (s *poServiceRepo) CreateDraft(ctx context.Context, vendorID uuid.UUID) (*models.PurchaseOrder, error) {
 	existing, err := s.poRepo.FindPOByVendorAndStatuses(ctx, vendorID, []models.POStatus{models.POStatusDraft, models.POStatusApproved, models.POStatusInTransit})
 	if err == nil && existing != nil {
 		return nil, ErrMonoVendorViolation
@@ -172,11 +171,10 @@ func (s *poServiceRepo) CreateDraft(ctx context.Context, vendorID uuid.UUID, tar
 		return nil, err
 	}
 	po := &models.PurchaseOrder{
-		ID:          fmt.Sprintf("PO-%d-%d", year, count+1),
-		VendorID:    vendorID,
-		TargetBuild: targetBuild,
-		Status:      models.POStatusDraft,
-		TotalValue:  0,
+		ID:         fmt.Sprintf("PO-%d-%d", year, count+1),
+		VendorID:   vendorID,
+		Status:     models.POStatusDraft,
+		TotalValue: 0,
 	}
 	if err := s.poRepo.CreatePO(ctx, po); err != nil {
 		return nil, err

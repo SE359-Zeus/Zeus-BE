@@ -77,8 +77,8 @@ type MockPOService struct {
 	mock.Mock
 }
 
-func (m *MockPOService) CreateDraft(ctx context.Context, vendorID uuid.UUID, targetBuild string) (*models.PurchaseOrder, error) {
-	args := m.Called(ctx, vendorID, targetBuild)
+func (m *MockPOService) CreateDraft(ctx context.Context, vendorID uuid.UUID) (*models.PurchaseOrder, error) {
+	args := m.Called(ctx, vendorID)
 	if args.Get(0) != nil {
 		return args.Get(0).(*models.PurchaseOrder), args.Error(1)
 	}

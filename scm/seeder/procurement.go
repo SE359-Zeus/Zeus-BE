@@ -21,13 +21,11 @@ type procurementLineSpec struct {
 }
 
 type procurementBundle struct {
-	POID             string
-	VendorID         uuid.UUID
-	TargetBuild      string
-	POStatus         models.POStatus
-	PaymentTerms     string
-	ExpectedDelivery time.Time
-	LineItems        []procurementLineSpec
+	POID         string
+	VendorID     uuid.UUID
+	POStatus     models.POStatus
+	PaymentTerms string
+	LineItems    []procurementLineSpec
 
 	ShipmentID     string
 	ShipmentStatus models.ShipmentStatus
