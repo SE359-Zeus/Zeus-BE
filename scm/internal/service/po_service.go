@@ -2,13 +2,12 @@ package service
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
-	"zeus-scm-service/internal/infrastructure/messaging"
+	"zeus-scm-service/internal/consumer"
 	"zeus-scm-service/internal/infrastructure/observability"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
@@ -133,97 +132,18 @@ func (s *poService) AddLineItemWithLock(ctx context.Context, poID string, sku st
 		return ErrInvalidTransition
 	}
 
-	conn, err := messaging.Dial(s.mqURL)
-	if err != nil {
-		slog.Warn("rabbitmq unavailable in degraded mode; proceeding without deficit reservation",
-			slog.String("service", "scm"),
-			slog.String("component", "purchase_order"),
-			slog.String("event", "dependency_unavailable"),
-			slog.Any("error", err),
-		)
-	} else {
-		defer conn.Close()
-
-		done := make(chan struct{}, 1)
-		var consumeErr error
-
-		go func() {
-			defer func() { close(done) }()
-			msg, ok, err := conn.GetFromPool(false)
-			if err != nil {
-				consumeErr = err
-				return
-			}
-			if !ok {
-				consumeErr = ErrInsufficientDeficit
-				return
-			}
-
-			// Extract trace context from message headers
-			msgTraceID := ""
-			msgSpanID := ""
-			if msg.Headers != nil {
-				if tpVal, ok := msg.Headers["traceparent"].(string); ok && tpVal != "" {
-					parts := strings.Split(tpVal, "-")
-					if len(parts) == 4 && len(parts[1]) == 32 {
-						msgTraceID = parts[1]
-					}
-				}
-				if msgTraceID == "" {
-					if tidVal, ok := msg.Headers["trace_id"].(string); ok && tidVal != "" {
-						msgTraceID = tidVal
-					}
-				}
-				if sidVal, ok := msg.Headers["span_id"].(string); ok && sidVal != "" {
-					msgSpanID = sidVal
-				}
-			}
-
-			msgCtx := ctx
-			if msgTraceID != "" {
-				msgCtx = observability.WithTraceID(ctx, msgTraceID)
-				if msgSpanID != "" {
-					msgCtx = observability.WithSpanID(msgCtx, msgSpanID)
-				}
-			}
-
-			var d messaging.DeficitMessage
-			if err := json.Unmarshal(msg.Body, &d); err != nil {
-				_ = conn.Nack(msg.DeliveryTag, true)
-				consumeErr = err
-				return
-			}
-			if d.SKU != sku || d.Qty < qty {
-				_ = conn.Nack(msg.DeliveryTag, true)
-				consumeErr = ErrInsufficientDeficit
-				return
-			}
-			reservedMsg := messaging.DeficitMessage{
-				SKU: sku,
-				Qty: qty,
-			}
-			if err := conn.PublishToReserved(msgCtx, reservedMsg); err != nil {
-				_ = conn.Nack(msg.DeliveryTag, true)
-				consumeErr = err
-				return
-			}
-			if err := conn.Ack(msg.DeliveryTag); err != nil {
-				consumeErr = err
-				return
-			}
-		}()
-
-		select {
-		case <-done:
-			if consumeErr != nil {
-				return consumeErr
-			}
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(5 * time.Second):
+	lockMgr := consumer.NewDeficitLockManager(s.mqURL)
+	if err := lockMgr.LockDeficit(ctx, sku, qty); err != nil {
+		if errors.Is(err, consumer.ErrInsufficientDeficit) {
 			return ErrInsufficientDeficit
 		}
+		slog.Warn("deficit locking failed or rabbitmq unavailable; proceeding in degraded mode",
+			slog.String("service", "scm"),
+			slog.String("component", "purchase_order"),
+			slog.Any("error", err),
+		)
 	}
+
 
 	var catalog models.ComponentStock
 	if err := s.db.WithContext(ctx).First(&catalog, "sku = ?", sku).Error; err != nil {
@@ -274,58 +194,12 @@ func (s *poServiceRepo) AddLineItemWithLock(ctx context.Context, poID string, sk
 		return ErrInvalidTransition
 	}
 
-	conn, err := messaging.Dial(s.mqURL)
-	if err != nil {
+	lockMgr := consumer.NewDeficitLockManager(s.mqURL)
+	if err := lockMgr.LockDeficit(ctx, sku, qty); err != nil {
+		if errors.Is(err, consumer.ErrInsufficientDeficit) {
+			return ErrInsufficientDeficit
+		}
 		return err
-	}
-	defer conn.Close()
-
-	done := make(chan struct{}, 1)
-	var consumeErr error
-
-	go func() {
-		defer func() { close(done) }()
-		msg, ok, err := conn.GetFromPool(false)
-		if err != nil {
-			consumeErr = err
-			return
-		}
-		if !ok {
-			consumeErr = ErrInsufficientDeficit
-			return
-		}
-		var d messaging.DeficitMessage
-		if err := json.Unmarshal(msg.Body, &d); err != nil {
-			_ = conn.Nack(msg.DeliveryTag, true)
-			consumeErr = err
-			return
-		}
-		if d.SKU != sku || d.Qty < qty {
-			_ = conn.Nack(msg.DeliveryTag, true)
-			consumeErr = ErrInsufficientDeficit
-			return
-		}
-		reservedMsg := messaging.DeficitMessage{SKU: sku, Qty: qty}
-		if err := conn.PublishToReserved(ctx, reservedMsg); err != nil {
-			_ = conn.Nack(msg.DeliveryTag, true)
-			consumeErr = err
-			return
-		}
-		if err := conn.Ack(msg.DeliveryTag); err != nil {
-			consumeErr = err
-			return
-		}
-	}()
-
-	select {
-	case <-done:
-		if consumeErr != nil {
-			return consumeErr
-		}
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(5 * time.Second):
-		return ErrInsufficientDeficit
 	}
 
 	catalog, err := s.stockRepo.GetStockBySKU(ctx, sku)

@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 
+	"zeus-scm-service/internal/infrastructure/messaging"
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
 	"zeus-scm-service/internal/repository"
@@ -21,22 +22,31 @@ type IVendorService interface {
 	CreateSkuMapping(ctx context.Context, mapping *models.SkuMapping) error
 	GetSupplierMetrics(ctx context.Context) (int64, float64, error)
 	FindAllSuppliersWithMappings(ctx context.Context) ([]models.Supplier, error)
+	GetShortageSummary(ctx context.Context) ([]models.ShortageSummaryDTO, error)
 }
 
 type vendorService struct {
-	db *gorm.DB
+	db    *gorm.DB
+	mqURL string
 }
 
 type vendorServiceRepo struct {
-	repo repository.IVendorRepository
+	repo  repository.IVendorRepository
+	mqURL string
 }
 
-func NewVendorService(arg interface{}) IVendorService {
+func NewVendorService(arg interface{}, args ...interface{}) IVendorService {
+	mqURL := ""
+	for _, a := range args {
+		if val, ok := a.(string); ok {
+			mqURL = val
+		}
+	}
 	switch v := arg.(type) {
 	case *gorm.DB:
-		return &vendorService{db: v}
+		return &vendorService{db: v, mqURL: mqURL}
 	case repository.IVendorRepository:
-		return &vendorServiceRepo{repo: v}
+		return &vendorServiceRepo{repo: v, mqURL: mqURL}
 	default:
 		panic("invalid NewVendorService usage")
 	}
@@ -244,6 +254,52 @@ func (s *vendorService) FindAllSuppliersWithMappings(ctx context.Context) ([]mod
 	return suppliers, nil
 }
 
+func (s *vendorService) GetShortageSummary(ctx context.Context) ([]models.ShortageSummaryDTO, error) {
+	conn, err := messaging.Dial(s.mqURL)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	msgs, err := conn.PeekPool()
+	if err != nil {
+		return nil, err
+	}
+
+	qtyBySKU := make(map[string]int)
+	skuOrder := make([]string, 0)
+	for _, d := range msgs {
+		if _, exists := qtyBySKU[d.SKU]; !exists {
+			skuOrder = append(skuOrder, d.SKU)
+		}
+		qtyBySKU[d.SKU] += d.Qty
+	}
+
+	summaries := make([]models.ShortageSummaryDTO, 0, len(skuOrder))
+	for idx, sku := range skuOrder {
+		reqQty := qtyBySKU[sku]
+
+		var bestMapping models.SkuMapping
+		var bestSupplier string = "No Supplier Mapping"
+		if err := s.db.WithContext(ctx).
+			Preload("Supplier").
+			Where("sku = ?", sku).
+			Order("unit_price ASC").
+			First(&bestMapping).Error; err == nil {
+			bestSupplier = bestMapping.Supplier.Name
+		}
+
+		summaries = append(summaries, models.ShortageSummaryDTO{
+			STT:          idx + 1,
+			SKU:          sku,
+			ReqQty:       reqQty,
+			BestSupplier: bestSupplier,
+		})
+	}
+
+	return summaries, nil
+}
+
 func (s *vendorServiceRepo) ListSuppliers(ctx context.Context, tier string, params pagination.Params, q string) ([]models.Supplier, *pagination.Meta, error) {
 	return s.repo.ListSuppliers(ctx, tier, params, q)
 }
@@ -270,4 +326,57 @@ func (s *vendorServiceRepo) GetSupplierMetrics(ctx context.Context) (int64, floa
 
 func (s *vendorServiceRepo) FindAllSuppliersWithMappings(ctx context.Context) ([]models.Supplier, error) {
 	return s.repo.FindAllSuppliersWithMappings(ctx)
+}
+
+func (s *vendorServiceRepo) GetShortageSummary(ctx context.Context) ([]models.ShortageSummaryDTO, error) {
+	conn, err := messaging.Dial(s.mqURL)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	msgs, err := conn.PeekPool()
+	if err != nil {
+		return nil, err
+	}
+
+	qtyBySKU := make(map[string]int)
+	skuOrder := make([]string, 0)
+	for _, d := range msgs {
+		if _, exists := qtyBySKU[d.SKU]; !exists {
+			skuOrder = append(skuOrder, d.SKU)
+		}
+		qtyBySKU[d.SKU] += d.Qty
+	}
+
+	summaries := make([]models.ShortageSummaryDTO, 0, len(skuOrder))
+	for idx, sku := range skuOrder {
+		reqQty := qtyBySKU[sku]
+
+		mappings, err := s.repo.FindSkuMappingsBySKU(ctx, sku)
+		bestSupplier := "No Supplier Mapping"
+		if err == nil && len(mappings) > 0 {
+			var cheapestMapping *models.SkuMapping
+			for i := range mappings {
+				if cheapestMapping == nil || mappings[i].UnitPrice < cheapestMapping.UnitPrice {
+					cheapestMapping = &mappings[i]
+				}
+			}
+			if cheapestMapping != nil {
+				supplier, err := s.repo.GetSupplierByID(ctx, cheapestMapping.SupplierID)
+				if err == nil && supplier != nil {
+					bestSupplier = supplier.Name
+				}
+			}
+		}
+
+		summaries = append(summaries, models.ShortageSummaryDTO{
+			STT:          idx + 1,
+			SKU:          sku,
+			ReqQty:       reqQty,
+			BestSupplier: bestSupplier,
+		})
+	}
+
+	return summaries, nil
 }

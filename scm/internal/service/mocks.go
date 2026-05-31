@@ -64,6 +64,15 @@ func (m *MockVendorService) FindAllSuppliersWithMappings(ctx context.Context) ([
 	return suppliers, args.Error(1)
 }
 
+func (m *MockVendorService) GetShortageSummary(ctx context.Context) ([]models.ShortageSummaryDTO, error) {
+	args := m.Called(ctx)
+	var summaries []models.ShortageSummaryDTO
+	if args.Get(0) != nil {
+		summaries = args.Get(0).([]models.ShortageSummaryDTO)
+	}
+	return summaries, args.Error(1)
+}
+
 type MockPOService struct {
 	mock.Mock
 }

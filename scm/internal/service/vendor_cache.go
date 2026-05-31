@@ -93,3 +93,7 @@ func (s *cachedVendorService) GetSupplierMetrics(ctx context.Context) (int64, fl
 func (s *cachedVendorService) FindAllSuppliersWithMappings(ctx context.Context) ([]models.Supplier, error) {
 	return s.base.FindAllSuppliersWithMappings(ctx)
 }
+
+func (s *cachedVendorService) GetShortageSummary(ctx context.Context) ([]models.ShortageSummaryDTO, error) {
+	return s.base.GetShortageSummary(ctx)
+}

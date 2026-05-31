@@ -102,7 +102,7 @@ func main() {
 	ledgerRepo := sqliteRepo.NewLedgerRepository(db)
 	carrierRepo := sqliteRepo.NewCarrierRepository(db)
 
-	vendorSvc := service.NewVendorService(vendorRepo)
+	vendorSvc := service.NewVendorService(vendorRepo, cfg.RabbitMQURL)
 	lutSvc := service.NewLUTService(lutRepo)
 	ledgerSvc := service.NewLedgerService(ledgerRepo)
 	poSvc := service.NewPOService(poRepo, stockRepo, vendorRepo, cfg.RabbitMQURL)
@@ -225,6 +225,7 @@ func main() {
 		api.POST("/vendors", middleware.RequireRoles(rolesOperator...), vendorH.CreateSupplier)
 		api.POST("/vendors/:id/sku-mappings", middleware.RequireRoles(rolesOperator...), vendorH.CreateSkuMapping)
 		api.GET("/vendors/export", middleware.RequireRoles(rolesWorker...), vendorH.ExportSuppliersReport)
+		api.GET("/vendors/shortage-summary", middleware.RequireRoles(rolesWorker...), vendorH.GetShortageSummary)
 
 		api.POST("/purchase-orders/draft", middleware.RequireRoles(rolesWorker...), poH.CreateDraft)
 		api.POST("/purchase-orders/:poId/line-items", middleware.RequireRoles(rolesWorker...), poH.AddLineItemWithLock)

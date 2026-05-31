@@ -101,10 +101,14 @@ func buildProcurementBundles(suppliers []models.Supplier, mappingsBySupplier map
 			bundle.Origin = "Shenzhen, CN"
 			bundle.ShipDate = baseTime.AddDate(0, 0, 3+i*2)
 			bundle.ETA = baseTime.AddDate(0, 0, 7+i*2)
-			bundle.GRID = fmt.Sprintf("GR-2026-%03d", i+1)
-			bundle.GRStatus = templates[i].grStatus
-			bundle.ArrivalDate = baseTime.AddDate(0, 0, 8+i*2)
-			bundle.OperatorID = stableUUID("user:scm-operator").String()
+
+			// Seed Goods Receipt (GR) only if the shipment is delivered/received
+			if templates[i].shipmentStatus == models.ShipmentStatusDelivered || templates[i].grStatus == models.GRStatusComplete || templates[i].grStatus == models.GRStatusDiscrepancy {
+				bundle.GRID = fmt.Sprintf("GR-2026-%03d", i+1)
+				bundle.GRStatus = templates[i].grStatus
+				bundle.ArrivalDate = baseTime.AddDate(0, 0, 8+i*2)
+				bundle.OperatorID = stableUUID("user:scm-operator").String()
+			}
 		}
 
 		bundles = append(bundles, bundle)

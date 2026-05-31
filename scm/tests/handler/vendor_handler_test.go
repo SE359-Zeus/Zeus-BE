@@ -164,3 +164,33 @@ func TestVendorHandler_ExportSuppliersReport(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "SKU-1")
 	mockSvc.AssertExpectations(t)
 }
+
+func TestVendorHandler_GetShortageSummary(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(service.MockVendorService)
+	h := handler.NewVendorHandler(mockSvc)
+
+	r := gin.New()
+	r.GET("/vendors/shortage-summary", h.GetShortageSummary)
+
+	summaries := []models.ShortageSummaryDTO{
+		{
+			STT:          1,
+			SKU:          "COMP-SKU-1",
+			ReqQty:       10,
+			BestSupplier: "Best Supplier 1",
+		},
+	}
+
+	mockSvc.On("GetShortageSummary", mock.Anything).Return(summaries, nil)
+
+	req, _ := http.NewRequest("GET", "/vendors/shortage-summary", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, 200, w.Code)
+	assert.Contains(t, w.Body.String(), `"sku":"COMP-SKU-1"`)
+	assert.Contains(t, w.Body.String(), `"best_supplier":"Best Supplier 1"`)
+	assert.Contains(t, w.Body.String(), `"req_qty":10`)
+	mockSvc.AssertExpectations(t)
+}

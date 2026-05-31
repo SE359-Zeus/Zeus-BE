@@ -148,3 +148,22 @@ func TestVendorService_UpdateSupplierMetrics_WithReceipts(t *testing.T) {
 func intPtr(v int) *int {
 	return &v
 }
+
+func TestVendorService_GetShortageSummary_Error(t *testing.T) {
+	svc, repo := setupVendorSvc()
+
+	result, err := svc.GetShortageSummary(context.Background())
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	repo.AssertExpectations(t)
+}
+
+func TestVendorServiceRepo_GetShortageSummary_Error(t *testing.T) {
+	repo := new(repository.MockVendorRepository)
+	// Passing an invalid URL so messaging.Dial fails
+	svc := service.NewVendorService(repo, "amqp://invalid-host-name-that-does-not-exist:5672")
+
+	result, err := svc.GetShortageSummary(context.Background())
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}

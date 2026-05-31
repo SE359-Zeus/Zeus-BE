@@ -219,3 +219,12 @@ func (h *VendorHandler) ExportSuppliersReport(c *gin.Context) {
 		c.Writer.Flush()
 	}
 }
+
+func (h *VendorHandler) GetShortageSummary(c *gin.Context) {
+	summaries, err := h.svc.GetShortageSummary(c.Request.Context())
+	if err != nil {
+		exception.WriteError(c, exception.Resolve(err))
+		return
+	}
+	writeJSON(c, 200, summaries)
+}

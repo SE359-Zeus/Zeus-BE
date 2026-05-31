@@ -42,3 +42,10 @@ type SkuMapping struct {
 	CreatedAt    time.Time `gorm:"autoCreateTime"`
 	UpdatedAt    time.Time `gorm:"autoUpdateTime"`
 }
+
+type ShortageSummaryDTO struct {
+	STT          int    `json:"stt"`
+	SKU          string `json:"sku"`
+	ReqQty       int    `json:"req_qty"`
+	BestSupplier string `json:"best_supplier"`
+}

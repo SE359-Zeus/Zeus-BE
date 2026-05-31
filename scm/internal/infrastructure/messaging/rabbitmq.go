@@ -452,6 +452,37 @@ func (c *Connection) GetFromPool(autoAck bool) (amqp.Delivery, bool, error) {
 	return msg, ok, nil
 }
 
+func (c *Connection) PeekPool() ([]DeficitMessage, error) {
+	if c == nil || c.channel == nil {
+		return nil, ErrUnavailable
+	}
+	var msgs []DeficitMessage
+	var deliveries []uint64
+	for {
+		msg, ok, err := c.channel.Get(PoolQueue, false)
+		if err != nil {
+			for _, tag := range deliveries {
+				_ = c.channel.Nack(tag, false, true)
+			}
+			return nil, err
+		}
+		if !ok {
+			break
+		}
+		deliveries = append(deliveries, msg.DeliveryTag)
+		var d DeficitMessage
+		if err := json.Unmarshal(msg.Body, &d); err == nil {
+			msgs = append(msgs, d)
+		}
+	}
+	for _, tag := range deliveries {
+		_ = c.channel.Nack(tag, false, true)
+	}
+	return msgs, nil
+}
+
+
+
 func injectTraceHeaders(ctx context.Context, headers amqp.Table) amqp.Table {
 	if headers == nil {
 		headers = amqp.Table{}

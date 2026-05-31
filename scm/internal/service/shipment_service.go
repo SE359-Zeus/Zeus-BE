@@ -124,6 +124,7 @@ func (s *shipmentService) AcquireDispatchLock(ctx context.Context, shipmentID st
 	}).Error
 }
 
+
 func (s *shipmentService) DispatchShipment(ctx context.Context, shipmentID string, operatorID string) error {
 	var shipment models.Shipment
 	if err := s.db.WithContext(ctx).First(&shipment, "id = ?", shipmentID).Error; err != nil {
@@ -145,6 +146,7 @@ func (s *shipmentService) DispatchShipment(ctx context.Context, shipmentID strin
 	observability.DefaultRegistry.Counter(observability.MetricShipmentDispatched).Inc()
 	return tx.Commit().Error
 }
+
 
 func (s *shipmentService) MarkDelivered(ctx context.Context, shipmentID string, operatorID string) error {
 	var shipment models.Shipment
@@ -355,7 +357,7 @@ func (s *shipmentServiceRepo) DispatchShipment(ctx context.Context, shipmentID s
 		return ErrInvalidTransition
 	}
 
-	shipment.Status = models.ShipmentStatusInTransit
+		shipment.Status = models.ShipmentStatusInTransit
 	shipment.ShipDate = time.Now()
 	err = s.repo.UpdateShipment(ctx, shipment)
 	if err == nil {
