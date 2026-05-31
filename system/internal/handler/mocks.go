@@ -40,8 +40,8 @@ func (m *MockUserService) List(ctx context.Context, page, limit int, q string) (
 	return users, meta, args.Error(2)
 }
 
-func (m *MockUserService) Update(ctx context.Context, id uuid.UUID, req models.UpdateUserRequest) (*models.User, error) {
-	args := m.Called(ctx, id, req)
+func (m *MockUserService) Update(ctx context.Context, id uuid.UUID, req models.UpdateUserRequest, currentRole string, currentID uuid.UUID) (*models.User, error) {
+	args := m.Called(ctx, id, req, currentRole, currentID)
 	if args.Get(0) != nil {
 		return args.Get(0).(*models.User), args.Error(1)
 	}

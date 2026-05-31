@@ -157,7 +157,7 @@ func (s *userService) List(ctx context.Context, page, limit int, q string) ([]mo
 	return users, meta, nil
 }
 
-func (s *userService) Update(ctx context.Context, id uuid.UUID, req models.UpdateUserRequest) (*models.User, error) {
+func (s *userService) Update(ctx context.Context, id uuid.UUID, req models.UpdateUserRequest, currentRole string, currentID uuid.UUID) (*models.User, error) {
 	if id == uuid.Nil {
 		return nil, ErrNilID
 	}
@@ -168,6 +168,11 @@ func (s *userService) Update(ctx context.Context, id uuid.UUID, req models.Updat
 	}
 	if user == nil {
 		return nil, ErrNotFound
+	}
+
+	// Admin cannot edit another admin (but can edit themselves)
+	if strings.EqualFold(user.Role, "admin") && strings.EqualFold(currentRole, "admin") && user.ID != currentID {
+		return nil, ErrForbidden
 	}
 
 	if req.FullName != nil {

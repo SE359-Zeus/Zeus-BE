@@ -236,7 +236,7 @@ func TestUserService_Update_Success(t *testing.T) {
 	repo.On("GetByID", anyCtx, id).Return(existing, nil)
 	repo.On("Update", anyCtx, mock.AnythingOfType("*models.User")).Return(nil)
 
-	user, err := svc.Update(context.Background(), id, req)
+	user, err := svc.Update(context.Background(), id, req, "admin", uuid.New())
 	assert.NoError(t, err)
 	assert.Equal(t, newName, user.FullName)
 	assert.Equal(t, newRole, user.Role)
@@ -251,7 +251,7 @@ func TestUserService_Update_NotFound(t *testing.T) {
 	repo.On("GetByID", anyCtx, id).Return(nil, nil)
 
 	name := "Name"
-	user, err := svc.Update(context.Background(), id, models.UpdateUserRequest{FullName: &name})
+	user, err := svc.Update(context.Background(), id, models.UpdateUserRequest{FullName: &name}, "admin", uuid.New())
 	assert.ErrorIs(t, err, service.ErrNotFound)
 	assert.Nil(t, user)
 	repo.AssertExpectations(t)
@@ -261,7 +261,7 @@ func TestUserService_Update_RejectsNilID(t *testing.T) {
 	svc, _, _ := setupUserSvc()
 	name := "Name"
 
-	user, err := svc.Update(context.Background(), uuid.Nil, models.UpdateUserRequest{FullName: &name})
+	user, err := svc.Update(context.Background(), uuid.Nil, models.UpdateUserRequest{FullName: &name}, "admin", uuid.New())
 	assert.ErrorIs(t, err, service.ErrNilID)
 	assert.Nil(t, user)
 }
@@ -273,7 +273,7 @@ func TestUserService_Update_RejectsEmptyName(t *testing.T) {
 
 	repo.On("GetByID", anyCtx, id).Return(&models.User{ID: id}, nil)
 
-	user, err := svc.Update(context.Background(), id, models.UpdateUserRequest{FullName: &empty})
+	user, err := svc.Update(context.Background(), id, models.UpdateUserRequest{FullName: &empty}, "admin", uuid.New())
 	assert.ErrorIs(t, err, service.ErrEmptyName)
 	assert.Nil(t, user)
 	repo.AssertExpectations(t)
@@ -287,11 +287,41 @@ func TestUserService_Update_RejectsInvalidRole(t *testing.T) {
 	rbacSvc.On("ValidateRole", anyCtx, "SuperAdmin").Return(service.ErrInvalidRole)
 	repo.On("GetByID", anyCtx, id).Return(&models.User{ID: id}, nil)
 
-	user, err := svc.Update(context.Background(), id, models.UpdateUserRequest{Role: &badRole})
+	user, err := svc.Update(context.Background(), id, models.UpdateUserRequest{Role: &badRole}, "admin", uuid.New())
 	assert.ErrorIs(t, err, service.ErrInvalidRole)
 	assert.Nil(t, user)
 	repo.AssertExpectations(t)
 	rbacSvc.AssertExpectations(t)
+}
+
+func TestUserService_Update_AdminCannotEditAnotherAdmin(t *testing.T) {
+	svc, repo, _ := setupUserSvc()
+	adminA := uuid.New()
+	adminB := uuid.New()
+	existing := &models.User{ID: adminB, FullName: "Admin B", Role: "admin"}
+
+	repo.On("GetByID", anyCtx, adminB).Return(existing, nil)
+
+	name := "Hacked Name"
+	user, err := svc.Update(context.Background(), adminB, models.UpdateUserRequest{FullName: &name}, "admin", adminA)
+	assert.ErrorIs(t, err, service.ErrForbidden)
+	assert.Nil(t, user)
+	repo.AssertExpectations(t)
+}
+
+func TestUserService_Update_AdminCanEditSelf(t *testing.T) {
+	svc, repo, _ := setupUserSvc()
+	adminID := uuid.New()
+	existing := &models.User{ID: adminID, FullName: "Admin Self", Role: "admin"}
+
+	repo.On("GetByID", anyCtx, adminID).Return(existing, nil)
+	repo.On("Update", anyCtx, mock.AnythingOfType("*models.User")).Return(nil)
+
+	name := "Updated Self"
+	user, err := svc.Update(context.Background(), adminID, models.UpdateUserRequest{FullName: &name}, "admin", adminID)
+	assert.NoError(t, err)
+	assert.Equal(t, name, user.FullName)
+	repo.AssertExpectations(t)
 }
 
 func TestUserService_ChangePassword_Success(t *testing.T) {

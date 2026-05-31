@@ -289,7 +289,7 @@ func TestUserHandler_Update_200(t *testing.T) {
 	body, _ := json.Marshal(req)
 	updated := &models.User{ID: id, FullName: name, Role: role}
 
-	mockSvc.On("Update", mock.Anything, id, mock.AnythingOfType("models.UpdateUserRequest")).Return(updated, nil)
+	mockSvc.On("Update", mock.Anything, id, mock.AnythingOfType("models.UpdateUserRequest"), mock.Anything, mock.Anything).Return(updated, nil)
 
 	w := httptest.NewRecorder()
 	reqHTTP, _ := http.NewRequest("PUT", "/users/"+id.String(), bytes.NewReader(body))
@@ -317,7 +317,7 @@ func TestUserHandler_Update_404(t *testing.T) {
 	id := uuid.New()
 	body, _ := json.Marshal(models.UpdateUserRequest{})
 
-	mockSvc.On("Update", mock.Anything, id, mock.AnythingOfType("models.UpdateUserRequest")).Return(nil, service.ErrNotFound)
+	mockSvc.On("Update", mock.Anything, id, mock.AnythingOfType("models.UpdateUserRequest"), mock.Anything, mock.Anything).Return(nil, service.ErrNotFound)
 
 	w := httptest.NewRecorder()
 	reqHTTP, _ := http.NewRequest("PUT", "/users/"+id.String(), bytes.NewReader(body))

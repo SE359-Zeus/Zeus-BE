@@ -12,7 +12,7 @@ type UserService interface {
 	Create(ctx context.Context, req models.CreateUserRequest) (*models.User, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
 	List(ctx context.Context, page, limit int, q string) ([]models.User, *models.PaginationMeta, error)
-	Update(ctx context.Context, id uuid.UUID, req models.UpdateUserRequest) (*models.User, error)
+	Update(ctx context.Context, id uuid.UUID, req models.UpdateUserRequest, currentRole string, currentID uuid.UUID) (*models.User, error)
 	SetStatus(ctx context.Context, id uuid.UUID, status models.AccountStatus) error
 	Authenticate(ctx context.Context, email, password string) (*models.User, error)
 	ChangePassword(ctx context.Context, id uuid.UUID, oldPassword, newPassword string) (*models.User, error)

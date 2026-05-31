@@ -122,7 +122,15 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	user, err := h.svc.Update(c.Request.Context(), id, req)
+	currentRole, _ := c.Get("role")
+	currentUserID, _ := c.Get("user_id")
+	role, _ := currentRole.(string)
+	var uid uuid.UUID
+	if v, ok := currentUserID.(uuid.UUID); ok {
+		uid = v
+	}
+
+	user, err := h.svc.Update(c.Request.Context(), id, req, role, uid)
 	if err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			WriteAppError(c, appErr)
