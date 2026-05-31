@@ -2028,7 +2028,7 @@ paths:
               schema:
                 allOf:
                   - $ref: '#/components/schemas/SuccessResponse'
-                    - properties:
+                  - properties:
                       data:
                         $ref: '#/components/schemas/InventoryLedger'
 
