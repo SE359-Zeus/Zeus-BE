@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"fmt"
+	"time"
 	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
@@ -57,7 +58,7 @@ func (r *sqliteMRPRepository) GetShortagesByOrderID(ctx context.Context, orderID
 	err := r.db.WithContext(ctx).
 		Table("shortage_logs").
 		Select("id, production_order_id, part_id, shortage_qty, resolution_status_id, resolution_status").
-		Where("production_order_id = ?", orderID.String()).
+		Where("production_order_id = ? AND deleted_at IS NULL", orderID.String()).
 		Order("id ASC").
 		Find(&rows).Error
 	if err != nil {
@@ -115,7 +116,7 @@ func (r *sqliteMRPRepository) GetShortagesByOrderIDs(ctx context.Context, orderI
 	err := r.db.WithContext(ctx).
 		Table("shortage_logs").
 		Select("id, production_order_id, part_id, shortage_qty, resolution_status_id, resolution_status").
-		Where("production_order_id IN ?", strIDs).
+		Where("production_order_id IN ? AND deleted_at IS NULL", strIDs).
 		Order("id ASC").
 		Find(&rows).Error
 	if err != nil {
@@ -160,6 +161,7 @@ func (r *sqliteMRPRepository) GetAggregatedShortages(ctx context.Context) ([]mod
 	err := r.db.WithContext(ctx).
 		Table("shortage_logs").
 		Select("part_id, SUM(shortage_qty) AS total_required_qty").
+		Where("deleted_at IS NULL").
 		Group("part_id").
 		Order("part_id ASC").
 		Scan(&rows).Error
@@ -206,7 +208,7 @@ func (r *sqliteMRPRepository) UpdateShortageLog(ctx context.Context, log *models
 	}
 	statusID, status := resolutionStatusDetails(log.ResolutionStatus)
 	return r.db.WithContext(ctx).Table("shortage_logs").
-		Where("id = ?", log.ID.String()).
+		Where("id = ? AND deleted_at IS NULL", log.ID.String()).
 		Updates(map[string]any{
 			"shortage_qty":         log.ShortageQty,
 			"resolution_status_id": statusID,
@@ -219,6 +221,6 @@ func (r *sqliteMRPRepository) DeleteShortageLog(ctx context.Context, orderID uui
 		return fmt.Errorf("orderID and partID must not be Nil")
 	}
 	return r.db.WithContext(ctx).Table("shortage_logs").
-		Where("production_order_id = ? AND part_id = ?", orderID.String(), partID.String()).
-		Delete(nil).Error
+		Where("production_order_id = ? AND part_id = ? AND deleted_at IS NULL", orderID.String(), partID.String()).
+		Update("deleted_at", time.Now().UTC()).Error
 }
