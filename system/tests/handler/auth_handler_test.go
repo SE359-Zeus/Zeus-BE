@@ -27,6 +27,7 @@ func setupAuthTest() (*gin.Engine, *handler.MockAuthService) {
 	{
 		auth.POST("/login", h.Login)
 		auth.POST("/refresh", h.Refresh)
+		auth.POST("/change-password", h.ChangePassword)
 	}
 
 	return r, mockSvc
@@ -38,11 +39,17 @@ func setupAuthAuditTest() (*gin.Engine, *handler.MockAuthService, *handler.MockA
 	auditSvc := new(handler.MockAuditService)
 	h := handler.NewAuthHandler(authSvc, auditSvc)
 	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("user_id", uuid.MustParse("11111111-1111-1111-1111-111111111111"))
+		c.Set("email", "admin@zeus.com")
+		c.Next()
+	})
 
 	auth := r.Group("/auth")
 	{
 		auth.POST("/login", h.Login)
 		auth.POST("/refresh", h.Refresh)
+		auth.POST("/change-password", h.ChangePassword)
 	}
 
 	return r, authSvc, auditSvc
@@ -80,7 +87,6 @@ func TestAuthHandler_Login_200(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	// Refresh token must be in Set-Cookie, not in the body.
 	assert.Contains(t, w.Header().Get("Set-Cookie"), models.RefreshTokenCookieName)
-	assert.Contains(t, w.Header().Get("Set-Cookie"), "HttpOnly")
 
 	var env struct {
 		StatusCode int             `json:"statusCode"`
@@ -246,7 +252,6 @@ func TestAuthHandler_Refresh_200(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Header().Get("Set-Cookie"), models.RefreshTokenCookieName)
-	assert.Contains(t, w.Header().Get("Set-Cookie"), "HttpOnly")
 
 	var env struct {
 		StatusCode int             `json:"statusCode"`
@@ -278,6 +283,45 @@ func TestAuthHandler_Refresh_401_MissingCookie(t *testing.T) {
 	mockSvc.AssertExpectations(t)
 }
 
+func TestAuthHandler_Refresh_200_FromBody(t *testing.T) {
+	r, mockSvc := setupAuthTest()
+
+	userID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+	result := &models.AuthLoginResult{
+		Tokens: &models.TokenPair{
+			AccessToken:  "new-access-token",
+			RefreshToken: "new-refresh-token",
+			TokenType:    "Bearer",
+			ExpiresIn:    900,
+		},
+		User: &models.User{
+			ID:     userID,
+			Email:  "admin@zeus.com",
+			Role:   "admin",
+			Status: models.AccountStatusActive,
+		},
+	}
+
+	mockSvc.On("Refresh", mock.Anything, mock.AnythingOfType("models.RefreshRequest")).Return(result, nil)
+
+	w := httptest.NewRecorder()
+	reqHTTP, _ := http.NewRequest("POST", "/auth/refresh", bytes.NewReader([]byte(`{"refresh_token":"valid-refresh-token"}`)))
+	reqHTTP.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, reqHTTP)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Header().Get("Set-Cookie"), models.RefreshTokenCookieName)
+
+	var env struct {
+		StatusCode int             `json:"statusCode"`
+		Data       json.RawMessage `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &env)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, env.StatusCode)
+	mockSvc.AssertExpectations(t)
+}
+
 func TestAuthHandler_Refresh_401_InvalidCookie(t *testing.T) {
 	r, mockSvc := setupAuthTest()
 
@@ -291,6 +335,60 @@ func TestAuthHandler_Refresh_401_InvalidCookie(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	mockSvc.AssertExpectations(t)
+}
+
+func TestAuthHandler_ChangePassword_200_WritesAudit(t *testing.T) {
+	r, authSvc, auditSvc := setupAuthAuditTest()
+
+	userID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	oldPassword := "oldpass123"
+	newPassword := "newpass123"
+	updated := &models.User{
+		ID:       userID,
+		Email:    "admin@zeus.com",
+		FullName: "Admin User",
+		Role:     "admin",
+		Status:   models.AccountStatusActive,
+	}
+	req := models.ChangePasswordRequest{OldPassword: oldPassword, NewPassword: newPassword}
+	body, _ := json.Marshal(req)
+
+	authSvc.On("ChangePassword", mock.Anything, userID, oldPassword, newPassword).Return(updated, nil)
+	auditSvc.On("Ingest", mock.Anything, mock.MatchedBy(func(req models.IngestAuditRequest) bool {
+		return req.UserID == userID &&
+			req.UserEmail == "admin@zeus.com" &&
+			req.ActionType == models.ActionType("UPDATE") &&
+			req.TargetResource == "users/"+userID.String()+"/password" &&
+			req.Details == "Changed password" &&
+			!req.IsSecurityEvent
+	})).Return(nil)
+
+	w := httptest.NewRecorder()
+	reqHTTP, _ := http.NewRequest("POST", "/auth/change-password", bytes.NewReader(body))
+	reqHTTP.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, reqHTTP)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var env struct {
+		StatusCode int             `json:"statusCode"`
+		Data       json.RawMessage `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &env)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, env.StatusCode)
+	authSvc.AssertExpectations(t)
+	auditSvc.AssertExpectations(t)
+}
+
+func TestAuthHandler_ChangePassword_400_InvalidBody(t *testing.T) {
+	r, _ := setupAuthTest()
+
+	w := httptest.NewRecorder()
+	reqHTTP, _ := http.NewRequest("POST", "/auth/change-password", bytes.NewReader([]byte(`not json`)))
+	reqHTTP.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, reqHTTP)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestAuthHandler_Refresh_400(t *testing.T) {

@@ -40,8 +40,8 @@ func (m *MockUserService) List(ctx context.Context, page, limit int, q string) (
 	return users, meta, args.Error(2)
 }
 
-func (m *MockUserService) Update(ctx context.Context, id uuid.UUID, req models.UpdateUserRequest) (*models.User, error) {
-	args := m.Called(ctx, id, req)
+func (m *MockUserService) Update(ctx context.Context, id uuid.UUID, req models.UpdateUserRequest, currentRole string, currentID uuid.UUID) (*models.User, error) {
+	args := m.Called(ctx, id, req, currentRole, currentID)
 	if args.Get(0) != nil {
 		return args.Get(0).(*models.User), args.Error(1)
 	}
@@ -55,6 +55,14 @@ func (m *MockUserService) SetStatus(ctx context.Context, id uuid.UUID, status mo
 
 func (m *MockUserService) Authenticate(ctx context.Context, email, password string) (*models.User, error) {
 	args := m.Called(ctx, email, password)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.User), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockUserService) ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) (*models.User, error) {
+	args := m.Called(ctx, userID, oldPassword, newPassword)
 	if args.Get(0) != nil {
 		return args.Get(0).(*models.User), args.Error(1)
 	}
@@ -77,6 +85,14 @@ func (m *MockAuthService) Refresh(ctx context.Context, req models.RefreshRequest
 	args := m.Called(ctx, req)
 	if args.Get(0) != nil {
 		return args.Get(0).(*models.AuthLoginResult), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockAuthService) ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) (*models.User, error) {
+	args := m.Called(ctx, userID, oldPassword, newPassword)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.User), args.Error(1)
 	}
 	return nil, args.Error(1)
 }

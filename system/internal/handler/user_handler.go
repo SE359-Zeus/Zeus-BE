@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"zeus-be/pkg/exception"
+	"zeus-system-service/internal/infrastructure/observability"
 	"zeus-system-service/internal/models"
 	"zeus-system-service/internal/service"
 
@@ -64,6 +65,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		}
 	}
 
+	observability.DefaultRegistry.Counter(observability.MetricUserCreatedTotal).Inc()
 	WriteEnvelope(c, 201, "created", gin.H{}, models.ToUserResponse(user))
 }
 
@@ -120,7 +122,15 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	user, err := h.svc.Update(c.Request.Context(), id, req)
+	currentRole, _ := c.Get("role")
+	currentUserID, _ := c.Get("user_id")
+	role, _ := currentRole.(string)
+	var uid uuid.UUID
+	if v, ok := currentUserID.(uuid.UUID); ok {
+		uid = v
+	}
+
+	user, err := h.svc.Update(c.Request.Context(), id, req, role, uid)
 	if err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			WriteAppError(c, appErr)

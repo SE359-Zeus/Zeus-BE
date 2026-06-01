@@ -157,7 +157,7 @@ func (s *userService) List(ctx context.Context, page, limit int, q string) ([]mo
 	return users, meta, nil
 }
 
-func (s *userService) Update(ctx context.Context, id uuid.UUID, req models.UpdateUserRequest) (*models.User, error) {
+func (s *userService) Update(ctx context.Context, id uuid.UUID, req models.UpdateUserRequest, currentRole string, currentID uuid.UUID) (*models.User, error) {
 	if id == uuid.Nil {
 		return nil, ErrNilID
 	}
@@ -168,6 +168,11 @@ func (s *userService) Update(ctx context.Context, id uuid.UUID, req models.Updat
 	}
 	if user == nil {
 		return nil, ErrNotFound
+	}
+
+	// Admin cannot edit another admin (but can edit themselves)
+	if strings.EqualFold(user.Role, "admin") && strings.EqualFold(currentRole, "admin") && user.ID != currentID {
+		return nil, ErrForbidden
 	}
 
 	if req.FullName != nil {
@@ -257,6 +262,46 @@ func (s *userService) Authenticate(ctx context.Context, email, password string) 
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		return nil, ErrUnauthorized
+	}
+
+	return user, nil
+}
+
+func (s *userService) ChangePassword(ctx context.Context, id uuid.UUID, oldPassword, newPassword string) (*models.User, error) {
+	if id == uuid.Nil {
+		return nil, ErrNilID
+	}
+	if oldPassword == "" || newPassword == "" {
+		return nil, ErrEmptyPassword
+	}
+	if len(newPassword) < 8 {
+		return nil, ErrShortPassword
+	}
+
+	user, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, ErrNotFound
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(oldPassword)); err != nil {
+		return nil, ErrUnauthorized
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	user.PasswordHash = string(hash)
+	if err := s.repo.Update(ctx, user); err != nil {
+		return nil, err
+	}
+
+	if s.cacheRepo != nil {
+		_ = s.cacheRepo.Set(ctx, user)
 	}
 
 	return user, nil

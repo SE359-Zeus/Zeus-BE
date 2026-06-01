@@ -154,6 +154,10 @@ func (s *authService) Refresh(ctx context.Context, req models.RefreshRequest) (*
 	}, nil
 }
 
+func (s *authService) ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) (*models.User, error) {
+	return s.userService.ChangePassword(ctx, userID, oldPassword, newPassword)
+}
+
 func (s *authService) VerifyAccessToken(tokenString string) (*JWTClaims, error) {
 	claims := &jwtAccessClaims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {

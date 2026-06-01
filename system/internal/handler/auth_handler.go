@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"zeus-be/pkg/exception"
+	"zeus-system-service/internal/infrastructure/observability"
 	"zeus-system-service/internal/models"
 	"zeus-system-service/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type AuthHandler struct {
@@ -26,23 +28,22 @@ func NewAuthHandler(authSvc service.AuthService, auditSvc ...service.AuditServic
 	return h
 }
 
-// setRefreshCookie writes the refresh token as an HttpOnly cookie.
+// setRefreshCookie writes the refresh token as a regular cookie.
 func setRefreshCookie(c *gin.Context, token string) {
-	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetSameSite(http.SameSiteNoneMode)
 	c.SetCookie(
 		models.RefreshTokenCookieName,
 		token,
 		int(models.RefreshTokenDuration/time.Second),
 		"/",
-		"",   // domain — empty = same host
-		true, // Secure (HTTPS only)
-		true, // HttpOnly
+		"",    // domain — empty = same host
+		true,  // Secure (HTTPS only)
+		false, // HttpOnly
 	)
 }
 
 // clearRefreshCookie removes the refresh token cookie on logout.
 func clearRefreshCookie(c *gin.Context) {
-	c.SetSameSite(http.SameSiteStrictMode)
 	c.SetCookie(
 		models.RefreshTokenCookieName,
 		"",
@@ -50,7 +51,7 @@ func clearRefreshCookie(c *gin.Context) {
 		"/",
 		"",
 		true,
-		true,
+		false,
 	)
 }
 
@@ -63,6 +64,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	result, err := h.authSvc.Login(c.Request.Context(), req)
 	if err != nil {
+		observability.DefaultRegistry.Counter(observability.MetricAuthLoginFailure).Inc()
 		if appErr := exception.Resolve(err); appErr != nil {
 			WriteAppError(c, appErr)
 			return
@@ -90,6 +92,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	setRefreshCookie(c, result.Tokens.RefreshToken)
 
+	observability.DefaultRegistry.Counter(observability.MetricAuthLoginSuccess).Inc()
 	WriteJSON(c, 200, models.AuthResponse{
 		AccessToken: result.Tokens.AccessToken,
 		TokenType:   result.Tokens.TokenType,
@@ -99,8 +102,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 }
 
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	refreshToken, err := c.Cookie(models.RefreshTokenCookieName)
-	if err != nil || refreshToken == "" {
+	refreshToken := resolveRefreshToken(c)
+	if refreshToken == "" {
 		WriteAppError(c, exception.ErrInvalidBody)
 		return
 	}
@@ -125,6 +128,72 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		ExpiresIn:   result.Tokens.ExpiresIn,
 		User:        models.ToUserResponse(result.User),
 	})
+}
+
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	var req models.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		WriteAppError(c, exception.ErrInvalidBody)
+		return
+	}
+
+	userIDVal, okID := c.Get("user_id")
+	emailVal, okEmail := c.Get("email")
+	if !okID || !okEmail {
+		WriteAppError(c, exception.ErrMissingAuth)
+		return
+	}
+
+	userID, ok := userIDVal.(uuid.UUID)
+	if !ok {
+		WriteAppError(c, exception.ErrMissingAuth)
+		return
+	}
+	email, _ := emailVal.(string)
+
+	user, err := h.authSvc.ChangePassword(c.Request.Context(), userID, req.OldPassword, req.NewPassword)
+	if err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			WriteAppError(c, appErr)
+			return
+		}
+		WriteAppError(c, exception.ErrInternal)
+		return
+	}
+
+	if h.auditSvc != nil {
+		if err := h.auditSvc.Ingest(c.Request.Context(), models.IngestAuditRequest{
+			UserID:         userID,
+			UserEmail:      email,
+			ActionType:     models.ActionType("UPDATE"),
+			TargetResource: "users/" + userID.String() + "/password",
+			Details:        "Changed password",
+			IPAddress:      c.ClientIP(),
+		}); err != nil {
+			log.Printf("warning: failed to record password change audit event: %v", err)
+		}
+	}
+
+	WriteEnvelope(c, 200, "password updated", gin.H{}, models.ToUserResponse(user))
+}
+
+func resolveRefreshToken(c *gin.Context) string {
+	var body models.RefreshRequest
+	if c.Request != nil && c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&body); err == nil {
+			if token := strings.TrimSpace(body.RefreshToken); token != "" {
+				return token
+			}
+		} else if token, err := c.Cookie(models.RefreshTokenCookieName); err == nil && token != "" {
+			return token
+		}
+	}
+
+	if token, err := c.Cookie(models.RefreshTokenCookieName); err == nil {
+		return strings.TrimSpace(token)
+	}
+
+	return ""
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {

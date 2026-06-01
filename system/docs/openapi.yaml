@@ -293,6 +293,40 @@ paths:
         '401':
           description: Missing, invalid, or expired access token
 
+  /auth/change-password:
+    post:
+      summary: Change the current user's password
+      tags: [Authentication]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [old_password, new_password]
+              properties:
+                old_password:
+                  type: string
+                new_password:
+                  type: string
+      responses:
+        '200':
+          description: Password updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Invalid request body or password policy failure
+        '401':
+          description: Missing, invalid, or expired access token
+
   /users:
     post:
       summary: Create a new user
