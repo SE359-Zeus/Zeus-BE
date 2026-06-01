@@ -2,6 +2,7 @@ package consumer
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -250,4 +251,31 @@ func TestOrderConsumer_ProcessOrderPayload_QtyAliasSupported(t *testing.T) {
 	err := consumer.processOrderPayload(context.Background(), payload)
 	assert.NoError(t, err)
 	mockRepo.AssertExpectations(t)
+}
+
+func TestOrderConsumer_UnmarshalSalesPayload(t *testing.T) {
+	jsonStr := `{
+		"order_id": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+		"client_id": "9f8e7d6c-5b4a-3f2e-1d0c-9b8a7f6e5d4c",
+		"total": 999.99,
+		"required_date": "2026-06-05T15:04:05Z",
+		"items": [
+			{"sku": "ZEUS-PHONE", "qty": 5}
+		]
+	}`
+
+	var payload OrderCreatedPayload
+	err := json.Unmarshal([]byte(jsonStr), &payload)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	assert.Equal(t, "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d", payload.OrderID)
+	assert.Equal(t, "9f8e7d6c-5b4a-3f2e-1d0c-9b8a7f6e5d4c", payload.ClientID)
+	assert.Equal(t, 999.99, payload.Total)
+	assert.Equal(t, "2026-06-05T15:04:05Z", payload.RequiredDate.Format(time.RFC3339))
+	if assert.Len(t, payload.Items, 1) {
+		assert.Equal(t, "ZEUS-PHONE", payload.Items[0].SKU)
+		assert.Equal(t, 5, payload.Items[0].requestedQuantity())
+	}
 }

@@ -91,7 +91,35 @@ func (s *ProductionService) ExportInventoryCSV(ctx context.Context) ([]byte, err
 }
 
 func (s *ProductionService) GetInventoryTransactionByID(ctx context.Context, txnID string) (*models.InventoryTransactionDTO, error) {
-	txns, err := s.GetInventoryLedger(ctx)
+	txnID = strings.TrimSpace(txnID)
+	if txnID == "" {
+		return nil, fmt.Errorf("transaction ID is required")
+	}
+
+	if s.scmClient != nil {
+		entry, err := s.scmClient.GetInventoryTransactionByID(ctx, txnID)
+		if err != nil {
+			return nil, fmt.Errorf("SCM transaction lookup unavailable: %w", err)
+		}
+		if entry == nil {
+			return nil, fmt.Errorf("transaction not found")
+		}
+		dto := &models.InventoryTransactionDTO{
+			ID:             entry.ID,
+			SKU:            entry.SKU,
+			Type:           entry.Type,
+			QtyChange:      entry.QtyChange,
+			RunningBalance: entry.RunningBalance,
+			Location:       entry.Location,
+			Timestamp:      entry.CreatedAt,
+			Operator:       entry.OperatorName,
+			Reference:      entry.Reference,
+		}
+		return dto, nil
+	}
+
+	// Fallback to local repo
+	txns, err := s.repo.GetInventoryTransactions(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -164,30 +192,15 @@ func (s *ProductionService) inventoryMetricsFromSCM(ctx context.Context) (*model
 		return nil, nil
 	}
 
-	page := 1
-	limit := 100
-	activeSKUs := 0
-	cycleCountGaps := 0
-
-	for {
-		items, hasMore, err := s.scmClient.ListStocks(ctx, page, limit, "sku", "asc", "")
-		if err != nil {
-			return nil, err
-		}
-		for _, item := range items {
-			activeSKUs++
-			if item.StockQty < item.ReorderPoint {
-				cycleCountGaps++
-			}
-		}
-		if !hasMore || len(items) == 0 {
-			break
-		}
-		page++
+	scmMetrics, err := s.scmClient.GetInventoryMetrics(ctx)
+	if err != nil {
+		return nil, err
 	}
 
+	cycleCountGaps := scmMetrics.LowStock + scmMetrics.OutOfStock
+
 	return &models.InventoryMetrics{
-		ActiveSKUs:        activeSKUs,
+		ActiveSKUs:        scmMetrics.TotalSKUs,
 		StockAccuracy:     100,
 		InventoryTurnover: 0,
 		CycleCountGaps:    cycleCountGaps,

@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"zeus-mrp-service/internal/infrastructure/messaging"
+	"zeus-mrp-service/internal/infrastructure/observability"
 	"zeus-mrp-service/internal/models"
 	"zeus-mrp-service/internal/service"
 
@@ -71,7 +73,7 @@ func (c *OrderConsumer) Start(ctx context.Context) error {
 	}
 	c.channel = ch
 
-	if err := messaging.DeclareQueues(ch); err != nil {
+	if err := messaging.DeclareQueues(conn, ch); err != nil {
 		return err
 	}
 
@@ -125,23 +127,107 @@ func (c *OrderConsumer) loop(ctx context.Context, msgs <-chan amqp.Delivery, eve
 
 			// Extract trace context from AMQP headers using OTel propagator
 			headers := propagation.MapCarrier{}
+			traceID := ""
+			spanID := ""
 			if msg.Headers != nil {
-				if tpVal, ok := msg.Headers["traceparent"].(string); ok && tpVal != "" {
-					headers.Set("traceparent", tpVal)
+				// Helper to get header value in case-insensitive way
+				getHeader := func(key string) any {
+					lowerKey := strings.ToLower(key)
+					for k, v := range msg.Headers {
+						if strings.ToLower(k) == lowerKey {
+							return v
+						}
+					}
+					return nil
+				}
+
+				// Try traceparent first
+				if tpVal := getHeader("traceparent"); tpVal != nil {
+					var tpStr string
+					switch v := tpVal.(type) {
+					case string:
+						tpStr = v
+					case []byte:
+						tpStr = string(v)
+					}
+					if tpStr != "" {
+						headers.Set("traceparent", tpStr)
+						parts := strings.Split(tpStr, "-")
+						if len(parts) == 4 {
+							if len(parts[1]) == 32 {
+								traceID = parts[1]
+							}
+							if len(parts[2]) == 16 {
+								spanID = parts[2]
+							}
+						}
+					}
+				}
+
+				// Fallback to trace_id and span_id
+				if traceID == "" {
+					if tidVal := getHeader("trace_id"); tidVal != nil {
+						switch v := tidVal.(type) {
+						case string:
+							traceID = v
+						case []byte:
+							traceID = string(v)
+						}
+					}
+				}
+				if spanID == "" {
+					if sidVal := getHeader("span_id"); sidVal != nil {
+						switch v := sidVal.(type) {
+						case string:
+							spanID = v
+						case []byte:
+							spanID = string(v)
+						}
+					}
+				}
+
+				// Ensure traceparent is set in map carrier if traceID is available
+				if traceID != "" && headers.Get("traceparent") == "" {
+					if spanID == "" {
+						spanID = observability.NewSpanID()
+					}
+					headers.Set("traceparent", fmt.Sprintf("00-%s-%s-01", traceID, spanID))
 				}
 			}
 			propagator := otel.GetTextMapPropagator()
 			msgCtx := propagator.Extract(ctx, headers)
 
 			// Start an OTel child span so it gets exported to the tracing backend
-			tracer := otel.Tracer("mrp-consumer")
+			tracer := otel.Tracer("mrp")
 			msgCtx, span := tracer.Start(msgCtx, fmt.Sprintf("consume sales.order.%s", eventType))
 
 			sc := span.SpanContext()
-			traceID := sc.TraceID().String()
-			_ = traceID // used in logs below
+			if sc.IsValid() && sc.TraceID().String() != "00000000000000000000000000000000" {
+				traceID = sc.TraceID().String()
+				spanID = sc.SpanID().String()
+			} else {
+				if traceID == "" {
+					traceID = observability.NewTraceID()
+				}
+				if spanID == "" {
+					spanID = observability.NewSpanID()
+				}
+			}
 
-			slog.InfoContext(msgCtx, "received sales order event", slog.String("service", "mrp"), slog.String("event_type", eventType), slog.String("trace_id", traceID), slog.String("body", string(msg.Body)))
+			msgCtx = observability.WithTraceID(msgCtx, traceID)
+			msgCtx = observability.WithSpanID(msgCtx, spanID)
+
+			slog.InfoContext(msgCtx, "received sales order event",
+				slog.String("service", "mrp"),
+				slog.String("event_type", eventType),
+				slog.String("trace_id", traceID),
+				slog.String("extracted_span_id", spanID),
+				slog.Bool("otel_span_valid", sc.IsValid()),
+				slog.String("otel_trace_id", sc.TraceID().String()),
+				slog.String("otel_span_id", sc.SpanID().String()),
+				slog.Any("msg_headers", msg.Headers),
+				slog.String("body", string(msg.Body)),
+			)
 
 			var payload OrderCreatedPayload
 			if err := json.Unmarshal(msg.Body, &payload); err != nil {

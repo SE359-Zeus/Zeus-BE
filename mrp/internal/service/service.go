@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"zeus-mrp-service/internal/infrastructure/messaging"
+	"zeus-mrp-service/internal/infrastructure/scm"
 	"zeus-mrp-service/internal/middlewares"
 	"zeus-mrp-service/internal/models"
 	"zeus-mrp-service/internal/repository"
@@ -25,6 +26,8 @@ type SCMClient interface {
 	UpdateCatalogPart(ctx context.Context, sku, description string, price float64) (*models.Part, error)
 	DeleteCatalogPart(ctx context.Context, sku string) error
 	GetInventoryLedger(ctx context.Context, page, limit int, sortBy, sortDir, txnType, sku string) ([]models.InventoryLedgerEntry, bool, error)
+	GetInventoryMetrics(ctx context.Context) (*scm.SCMInventoryMetrics, error)
+	GetInventoryTransactionByID(ctx context.Context, txnID string) (*models.InventoryLedgerEntry, error)
 	GetLUTs(ctx context.Context) (*models.LUTCollection, error)
 	GetOptimalSupplier(ctx context.Context, sku string) (uuid.UUID, float64, error)
 	CreateDraftPO(ctx context.Context, vendorID uuid.UUID, targetBuild string) (string, error)

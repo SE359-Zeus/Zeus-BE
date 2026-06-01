@@ -111,7 +111,7 @@ func (s *ProductionService) CreateAssembly(ctx context.Context, req models.Creat
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if req.Name == "" {
+	if req.ProductModelCode == "" {
 		return nil, fmt.Errorf("assembly name is required")
 	}
 
@@ -131,32 +131,32 @@ func (s *ProductionService) CreateAssembly(ctx context.Context, req models.Creat
 			return nil, fmt.Errorf("component[%d] %w", i, err)
 		}
 		entries = append(entries, models.BomEntry{
-			ParentModelCode:         req.Name,
+			ParentModelCode:         req.ProductModelCode,
 			ComponentPartID:         pid,
 			RequiredQuantityPerUnit: c.Quantity,
 		})
 	}
 
 	// replace existing BOM for this model
-	if err := s.repo.HardDeleteBOMEntriesByModelCode(ctx, req.Name); err != nil {
+	if err := s.repo.HardDeleteBOMEntriesByModelCode(ctx, req.ProductModelCode); err != nil {
 		return nil, err
 	}
 	if err := s.repo.CreateBOMEntries(ctx, entries); err != nil {
 		return nil, err
 	}
 	if s.cache != nil {
-		_ = s.cache.InvalidateBOM(ctx, req.Name, uniquePartIDs(entries)...)
+		_ = s.cache.InvalidateBOM(ctx, req.ProductModelCode, uniquePartIDs(entries)...)
 	}
 	if s.scmClient != nil {
-		modelName := req.ModelName
+		modelName := req.ProductModelName
 		if modelName == "" {
-			modelName = req.Name
+			modelName = req.ProductModelCode
 		}
-		if err := s.scmClient.CreateProductModel(ctx, req.Name, modelName, req.UnitPrice); err != nil {
+		if err := s.scmClient.CreateProductModel(ctx, req.ProductModelCode, modelName, req.UnitPrice); err != nil {
 			return nil, fmt.Errorf("failed to sync product model to SCM: %w", err)
 		}
 	}
-	s.publishAudit(ctx, "CREATE", "mrp/assemblies/"+req.Name, "Created assembly "+req.Name)
+	s.publishAudit(ctx, "CREATE", "mrp/assemblies/"+req.ProductModelCode, "Created assembly "+req.ProductModelCode)
 
 	return req, nil
 }
@@ -170,7 +170,7 @@ func (s *ProductionService) UpdateAssembly(ctx context.Context, id uuid.UUID, re
 	}
 
 	// For this simple implementation we treat id as the model code UUID string
-	modelCode := req.Name
+	modelCode := req.ProductModelCode
 	if modelCode == "" {
 		return nil, fmt.Errorf("assembly name is required")
 	}
@@ -202,7 +202,7 @@ func (s *ProductionService) UpdateAssembly(ctx context.Context, id uuid.UUID, re
 		_ = s.cache.InvalidateBOM(ctx, modelCode, uniquePartIDs(entries)...)
 	}
 	if s.scmClient != nil {
-		modelName := req.ModelName
+		modelName := req.ProductModelName
 		if modelName == "" {
 			modelName = modelCode
 		}
