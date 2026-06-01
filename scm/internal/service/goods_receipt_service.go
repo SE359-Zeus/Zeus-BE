@@ -248,7 +248,7 @@ func (s *goodsReceiptService) ProcessBlindReceipt(ctx context.Context, grID stri
 
 	var incompleteGRs int64
 	tx.Model(&models.GoodsReceipt{}).
-		Where("po_ref = ? AND status != ?", po.ID, models.GRStatusComplete).
+		Where("po_ref = ? AND status != ? AND status != ?", po.ID, models.GRStatusComplete, models.GRStatusDiscrepancy).
 		Count(&incompleteGRs)
 	if incompleteGRs == 0 {
 		if allReceived {

@@ -305,12 +305,15 @@ func (s *poService) TransitionState(ctx context.Context, poID string, newState m
 }
 
 func validTransition(current, new models.POStatus) bool {
+	if current == models.POStatusPartial && new == models.POStatusInTransit {
+		return true
+	}
 	order := []models.POStatus{
 		models.POStatusDraft,
 		models.POStatusApproved,
 		models.POStatusInTransit,
-		models.POStatusReceived,
 		models.POStatusPartial,
+		models.POStatusReceived,
 		models.POStatusVoid,
 	}
 	currentIdx := -1

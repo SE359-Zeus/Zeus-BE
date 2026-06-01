@@ -186,3 +186,37 @@ func TestPOService_TransitionState_AllowsVoidWithIncompleteGRs(t *testing.T) {
 	assert.NoError(t, err)
 	poRepo.AssertExpectations(t)
 }
+
+func TestPOService_TransitionState_PartialToReceived(t *testing.T) {
+	svc, poRepo, _, grRepo := setupPOSvc()
+	po := &models.PurchaseOrder{
+		ID:     "PO-2025-001",
+		Status: models.POStatusPartial,
+	}
+
+	poRepo.On("GetPOByID", anyCtx, "PO-2025-001").Return(po, nil)
+	grRepo.On("CountByPOIDAndNotStatus", anyCtx, "PO-2025-001", models.GRStatusComplete).Return(int64(0), nil)
+	poRepo.On("UpdatePOStatus", anyCtx, "PO-2025-001", models.POStatusReceived).Return(nil)
+
+	err := svc.TransitionState(context.Background(), "PO-2025-001", models.POStatusReceived)
+	assert.NoError(t, err)
+	poRepo.AssertExpectations(t)
+	grRepo.AssertExpectations(t)
+}
+
+func TestPOService_TransitionState_PartialToInTransit(t *testing.T) {
+	svc, poRepo, _, grRepo := setupPOSvc()
+	po := &models.PurchaseOrder{
+		ID:     "PO-2025-001",
+		Status: models.POStatusPartial,
+	}
+
+	poRepo.On("GetPOByID", anyCtx, "PO-2025-001").Return(po, nil)
+	grRepo.On("CountByPOIDAndNotStatus", anyCtx, "PO-2025-001", models.GRStatusComplete).Return(int64(0), nil)
+	poRepo.On("UpdatePOStatus", anyCtx, "PO-2025-001", models.POStatusInTransit).Return(nil)
+
+	err := svc.TransitionState(context.Background(), "PO-2025-001", models.POStatusInTransit)
+	assert.NoError(t, err)
+	poRepo.AssertExpectations(t)
+	grRepo.AssertExpectations(t)
+}

@@ -83,7 +83,7 @@ func (r *goodsReceiptRepository) FindAllGRs(ctx context.Context) ([]models.Goods
 func (r *goodsReceiptRepository) CountByPOIDAndNotStatus(ctx context.Context, poID string, status models.GRStatus) (int64, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Model(&models.GoodsReceipt{}).
-		Where("po_ref = ? AND status != ? AND deleted_at IS NULL", poID, status).
+		Where("po_ref = ? AND status != ? AND status != ? AND deleted_at IS NULL", poID, status, models.GRStatusDiscrepancy).
 		Count(&count).Error
 	return count, err
 }
