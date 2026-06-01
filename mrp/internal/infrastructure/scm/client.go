@@ -669,4 +669,69 @@ func (c *Client) DeleteProductModel(ctx context.Context, code string) error {
 	return nil
 }
 
+type SCMInventoryMetrics struct {
+	TotalSKUs  int     `json:"total_skus"`
+	LowStock   int     `json:"low_stock"`
+	OutOfStock int     `json:"out_of_stock"`
+	StockValue float64 `json:"stock_value"`
+}
+
+func (c *Client) GetInventoryMetrics(ctx context.Context) (*SCMInventoryMetrics, error) {
+	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/metrics", c.baseURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("SCM inventory metrics returned status %d", resp.StatusCode)
+	}
+
+	var envelope struct {
+		Data SCMInventoryMetrics `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, err
+	}
+	return &envelope.Data, nil
+}
+
+func (c *Client) GetInventoryTransactionByID(ctx context.Context, txnID string) (*models.InventoryLedgerEntry, error) {
+	urlStr := fmt.Sprintf("%s/api/v1/scm/inventory/ledger/%s", c.baseURL, url.PathEscape(txnID))
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+	propagateTrace(ctx, req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("SCM ledger lookup returned status %d", resp.StatusCode)
+	}
+
+	var envelope struct {
+		Data models.InventoryLedgerEntry `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		return nil, err
+	}
+	return &envelope.Data, nil
+}
 

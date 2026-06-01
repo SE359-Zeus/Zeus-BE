@@ -33,7 +33,15 @@ func (h *LedgerHandler) GetEntryByID(c *gin.Context) {
 	id := c.Param("id")
 	entry, err := h.svc.GetEntryByID(c.Request.Context(), id)
 	if err != nil {
-		exception.WriteError(c, exception.Resolve(err))
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrNotFound.WithMessage("Ledger entry not found"))
+		return
+	}
+	if entry == nil {
+		exception.WriteError(c, exception.ErrNotFound.WithMessage("Ledger entry not found"))
 		return
 	}
 	writeJSON(c, 200, entry)
