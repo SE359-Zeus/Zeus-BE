@@ -130,7 +130,19 @@ func (c *OrderConsumer) loop(ctx context.Context, msgs <-chan amqp.Delivery, eve
 			traceID := ""
 			spanID := ""
 			if msg.Headers != nil {
-				if tpVal, ok := msg.Headers["traceparent"]; ok {
+				// Helper to get header value in case-insensitive way
+				getHeader := func(key string) any {
+					lowerKey := strings.ToLower(key)
+					for k, v := range msg.Headers {
+						if strings.ToLower(k) == lowerKey {
+							return v
+						}
+					}
+					return nil
+				}
+
+				// Try traceparent first
+				if tpVal := getHeader("traceparent"); tpVal != nil {
 					var tpStr string
 					switch v := tpVal.(type) {
 					case string:
@@ -141,13 +153,20 @@ func (c *OrderConsumer) loop(ctx context.Context, msgs <-chan amqp.Delivery, eve
 					if tpStr != "" {
 						headers.Set("traceparent", tpStr)
 						parts := strings.Split(tpStr, "-")
-						if len(parts) == 4 && len(parts[1]) == 32 {
-							traceID = parts[1]
+						if len(parts) == 4 {
+							if len(parts[1]) == 32 {
+								traceID = parts[1]
+							}
+							if len(parts[2]) == 16 {
+								spanID = parts[2]
+							}
 						}
 					}
 				}
+
+				// Fallback to trace_id and span_id
 				if traceID == "" {
-					if tidVal, ok := msg.Headers["trace_id"]; ok {
+					if tidVal := getHeader("trace_id"); tidVal != nil {
 						switch v := tidVal.(type) {
 						case string:
 							traceID = v
@@ -157,7 +176,7 @@ func (c *OrderConsumer) loop(ctx context.Context, msgs <-chan amqp.Delivery, eve
 					}
 				}
 				if spanID == "" {
-					if sidVal, ok := msg.Headers["span_id"]; ok {
+					if sidVal := getHeader("span_id"); sidVal != nil {
 						switch v := sidVal.(type) {
 						case string:
 							spanID = v
@@ -166,12 +185,20 @@ func (c *OrderConsumer) loop(ctx context.Context, msgs <-chan amqp.Delivery, eve
 						}
 					}
 				}
+
+				// Ensure traceparent is set in map carrier if traceID is available
+				if traceID != "" && headers.Get("traceparent") == "" {
+					if spanID == "" {
+						spanID = observability.NewSpanID()
+					}
+					headers.Set("traceparent", fmt.Sprintf("00-%s-%s-01", traceID, spanID))
+				}
 			}
 			propagator := otel.GetTextMapPropagator()
 			msgCtx := propagator.Extract(ctx, headers)
 
 			// Start an OTel child span so it gets exported to the tracing backend
-			tracer := otel.Tracer("mrp-consumer")
+			tracer := otel.Tracer("mrp")
 			msgCtx, span := tracer.Start(msgCtx, fmt.Sprintf("consume sales.order.%s", eventType))
 
 			sc := span.SpanContext()
@@ -190,7 +217,17 @@ func (c *OrderConsumer) loop(ctx context.Context, msgs <-chan amqp.Delivery, eve
 			msgCtx = observability.WithTraceID(msgCtx, traceID)
 			msgCtx = observability.WithSpanID(msgCtx, spanID)
 
-			slog.InfoContext(msgCtx, "received sales order event", slog.String("service", "mrp"), slog.String("event_type", eventType), slog.String("trace_id", traceID), slog.String("body", string(msg.Body)))
+			slog.InfoContext(msgCtx, "received sales order event",
+				slog.String("service", "mrp"),
+				slog.String("event_type", eventType),
+				slog.String("trace_id", traceID),
+				slog.String("extracted_span_id", spanID),
+				slog.Bool("otel_span_valid", sc.IsValid()),
+				slog.String("otel_trace_id", sc.TraceID().String()),
+				slog.String("otel_span_id", sc.SpanID().String()),
+				slog.Any("msg_headers", msg.Headers),
+				slog.String("body", string(msg.Body)),
+			)
 
 			var payload OrderCreatedPayload
 			if err := json.Unmarshal(msg.Body, &payload); err != nil {
