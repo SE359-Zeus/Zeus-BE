@@ -102,7 +102,7 @@ func (repo *Repository) GetOrder(ctx context.Context, id uuid.UUID) (*models.Sal
 
 func (repo *Repository) ListOrders(ctx context.Context) ([]models.SalesOrder, error) {
 	var records []salesOrderRecord
-	if err := repo.db.WithContext(ctx).Preload("Status").Order("created_at ASC").Find(&records).Error; err != nil {
+	if err := repo.db.WithContext(ctx).Preload("Status").Order("created_at DESC").Find(&records).Error; err != nil {
 		return nil, err
 	}
 	orders := make([]models.SalesOrder, 0, len(records))
@@ -118,7 +118,7 @@ func (repo *Repository) ListPendingOrders(ctx context.Context) ([]models.SalesOr
 		return nil, err
 	}
 	var records []salesOrderRecord
-	if err := repo.db.WithContext(ctx).Preload("Status").Where("status_id = ?", pendingStatus.ID.String()).Order("created_at ASC").Find(&records).Error; err != nil {
+	if err := repo.db.WithContext(ctx).Preload("Status").Where("status_id = ?", pendingStatus.ID.String()).Order("created_at DESC").Find(&records).Error; err != nil {
 		return nil, err
 	}
 	orders := make([]models.SalesOrder, 0, len(records))
