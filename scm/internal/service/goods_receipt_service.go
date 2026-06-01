@@ -322,7 +322,8 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 
 	// emulate transaction semantics via sequence of operations; repo implementations/tests should simulate rollback behavior if needed
 	hasDiscrepancy := false
-	for _, item := range items {
+	for i := range items {
+		item := &items[i]
 		count, ok := counts[item.SKU]
 		if !ok {
 			continue
@@ -341,7 +342,7 @@ func (s *goodsReceiptServiceRepo) ProcessBlindReceipt(ctx context.Context, grID 
 				item.AgingLabel = "Over-Age"
 			}
 		}
-		if err := s.repo.SaveGRLineItem(ctx, &item); err != nil {
+		if err := s.repo.SaveGRLineItem(ctx, item); err != nil {
 			return err
 		}
 
