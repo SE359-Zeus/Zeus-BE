@@ -541,7 +541,10 @@ func (svc *OrderService) ReserveInventory(ctx context.Context, id uuid.UUID) err
 
 	traceID := observability.TraceIDFromContext(ctx)
 	if traceID != "" {
-		spanID := observability.NewSpanID()
+		spanID := observability.SpanIDFromContext(ctx)
+		if spanID == "" {
+			spanID = observability.NewSpanID()
+		}
 		req.Header.Set("traceparent", "00-"+traceID+"-"+spanID+"-01")
 	}
 
