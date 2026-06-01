@@ -4,8 +4,11 @@ import (
 	"net/http"
 	"strings"
 
+	"zeus-sales-service/internal/middlewares"
 	"zeus-sales-service/internal/models"
 	"zeus-sales-service/internal/service"
+
+	"github.com/google/uuid"
 )
 
 type ClientController struct {
@@ -98,4 +101,58 @@ func (controller *ClientController) HandleClientByID(w http.ResponseWriter, r *h
 	default:
 		writeErrorJSON(w, http.StatusMethodNotAllowed, http.StatusText(http.StatusMethodNotAllowed), nil)
 	}
+}
+
+// PATCH /api/v1/sales/clients/me
+// Clients update their own profile using API key authentication.
+func (controller *ClientController) HandleUpdateMyProfile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		writeErrorJSON(w, http.StatusMethodNotAllowed, http.StatusText(http.StatusMethodNotAllowed), nil)
+		return
+	}
+
+	userIDVal := r.Context().Value(middlewares.ContextKeyUserID)
+	if userIDVal == nil {
+		writeErrorJSON(w, http.StatusUnauthorized, "unauthenticated", nil)
+		return
+	}
+
+	var clientID uuid.UUID
+	switch v := userIDVal.(type) {
+	case string:
+		id, err := uuid.Parse(v)
+		if err != nil {
+			writeErrorJSON(w, http.StatusUnauthorized, "invalid client identity", nil)
+			return
+		}
+		clientID = id
+	case uuid.UUID:
+		clientID = v
+	default:
+		writeErrorJSON(w, http.StatusUnauthorized, "invalid client identity", nil)
+		return
+	}
+
+	var req models.UpdateMyProfileRequest
+	if err := readJSON(r, &req); err != nil {
+		writeErrorJSON(w, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	if req.Name == nil && req.DefaultDestinationAddress == nil {
+		writeErrorJSON(w, http.StatusBadRequest, "update request is empty", nil)
+		return
+	}
+
+	updateReq := models.UpdateClientRequest{
+		Name:                      req.Name,
+		DefaultDestinationAddress: req.DefaultDestinationAddress,
+	}
+
+	client, err := controller.svc.UpdateClient(r.Context(), clientID, updateReq)
+	if err != nil {
+		panic(err)
+	}
+
+	writeJSON(w, http.StatusOK, client)
 }

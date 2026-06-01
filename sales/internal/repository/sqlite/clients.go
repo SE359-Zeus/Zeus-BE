@@ -106,15 +106,23 @@ func (repo *Repository) ListClients(ctx context.Context) ([]models.Client, error
 
 func (repo *Repository) UpdateClient(ctx context.Context, client *models.Client) error {
 	client.UpdatedAt = time.Now().UTC()
-	result := repo.db.WithContext(ctx).Model(&clientRecord{}).Where("id = ?", client.ID.String()).Updates(map[string]any{
+	updates := map[string]any{
 		"name":                        client.Name,
 		"tier":                        string(client.Tier),
 		"default_destination_address": client.DefaultDestinationAddress,
 		"total_lifetime_orders":       client.TotalLifetimeOrders,
-		"api_key_prefix":              client.ApiKeyPrefix,
-		"api_key_hash":                client.ApiKeyHash,
 		"updated_at":                  client.UpdatedAt,
-	})
+	}
+	// Only update API key fields when explicitly provided.
+	// Cached clients (json:"-") lose these fields, so empty values
+	// would silently overwrite valid DB data.
+	if client.ApiKeyPrefix != "" {
+		updates["api_key_prefix"] = client.ApiKeyPrefix
+	}
+	if client.ApiKeyHash != "" {
+		updates["api_key_hash"] = client.ApiKeyHash
+	}
+	result := repo.db.WithContext(ctx).Model(&clientRecord{}).Where("id = ?", client.ID.String()).Updates(updates)
 	if result.Error != nil {
 		return result.Error
 	}

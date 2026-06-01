@@ -37,6 +37,11 @@ type UpdateClientRequest struct {
 	DefaultDestinationAddress *string     `json:"defaultDestinationAddress"`
 }
 
+type UpdateMyProfileRequest struct {
+	Name                      *string `json:"name"`
+	DefaultDestinationAddress *string `json:"defaultDestinationAddress"`
+}
+
 type OrderResponse struct {
 	Order  SalesOrder       `json:"order"`
 	Client Client           `json:"client"`

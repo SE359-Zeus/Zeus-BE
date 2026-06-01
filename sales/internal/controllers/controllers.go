@@ -46,6 +46,9 @@ func NewMux(services *service.Services, authVerifier middlewares.TokenVerifier) 
 		http.MethodPatch:  {"sales_operator", "admin"},
 		http.MethodDelete: {"sales_operator", "admin"},
 	}))
+	mux.Handle("/api/v1/sales/clients/me", protect(http.HandlerFunc(clientController.HandleUpdateMyProfile), map[string][]string{
+		http.MethodPatch: {"client"},
+	}))
 	mux.Handle("/api/v1/sales/fulfillment/process", protect(http.HandlerFunc(fulfillmentController.HandleProcessQueue), map[string][]string{
 		http.MethodPost: {"sales_worker", "admin"},
 	}))
