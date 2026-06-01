@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"zeus-mrp-service/internal/infrastructure/messaging"
+	"zeus-mrp-service/internal/infrastructure/observability"
 	"zeus-mrp-service/internal/models"
 	"zeus-mrp-service/internal/service"
 
@@ -125,9 +127,23 @@ func (c *OrderConsumer) loop(ctx context.Context, msgs <-chan amqp.Delivery, eve
 
 			// Extract trace context from AMQP headers using OTel propagator
 			headers := propagation.MapCarrier{}
+			traceID := ""
+			spanID := ""
 			if msg.Headers != nil {
 				if tpVal, ok := msg.Headers["traceparent"].(string); ok && tpVal != "" {
 					headers.Set("traceparent", tpVal)
+					parts := strings.Split(tpVal, "-")
+					if len(parts) == 4 && len(parts[1]) == 32 {
+						traceID = parts[1]
+					}
+				}
+				if traceID == "" {
+					if tidVal, ok := msg.Headers["trace_id"].(string); ok && tidVal != "" {
+						traceID = tidVal
+					}
+				}
+				if sidVal, ok := msg.Headers["span_id"].(string); ok && sidVal != "" {
+					spanID = sidVal
 				}
 			}
 			propagator := otel.GetTextMapPropagator()
@@ -138,8 +154,20 @@ func (c *OrderConsumer) loop(ctx context.Context, msgs <-chan amqp.Delivery, eve
 			msgCtx, span := tracer.Start(msgCtx, fmt.Sprintf("consume sales.order.%s", eventType))
 
 			sc := span.SpanContext()
-			traceID := sc.TraceID().String()
-			_ = traceID // used in logs below
+			if sc.IsValid() && sc.TraceID().String() != "00000000000000000000000000000000" {
+				traceID = sc.TraceID().String()
+				spanID = sc.SpanID().String()
+			} else {
+				if traceID == "" {
+					traceID = observability.NewTraceID()
+				}
+				if spanID == "" {
+					spanID = observability.NewSpanID()
+				}
+			}
+
+			msgCtx = observability.WithTraceID(msgCtx, traceID)
+			msgCtx = observability.WithSpanID(msgCtx, spanID)
 
 			slog.InfoContext(msgCtx, "received sales order event", slog.String("service", "mrp"), slog.String("event_type", eventType), slog.String("trace_id", traceID), slog.String("body", string(msg.Body)))
 

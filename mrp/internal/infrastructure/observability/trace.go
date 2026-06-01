@@ -165,11 +165,27 @@ func Tracing(serviceName string) gin.HandlerFunc {
 		ctx, span := tracer.Start(ctx, fmt.Sprintf("%s %s", c.Request.Method, c.Request.URL.Path))
 		defer span.End()
 
-		c.Request = c.Request.WithContext(ctx)
-
 		sc := span.SpanContext()
 		traceID := sc.TraceID().String()
 		spanID := sc.SpanID().String()
+
+		if !sc.IsValid() || traceID == "00000000000000000000000000000000" {
+			traceID = c.GetHeader("trace-id")
+			if traceID == "" {
+				traceparent := c.GetHeader("traceparent")
+				if parts := strings.Split(traceparent, "-"); len(parts) == 4 && len(parts[1]) == 32 {
+					traceID = parts[1]
+				}
+			}
+			if traceID == "" {
+				traceID = NewTraceID()
+			}
+			spanID = NewSpanID()
+		}
+
+		ctx = WithTraceID(ctx, traceID)
+		ctx = WithSpanID(ctx, spanID)
+		c.Request = c.Request.WithContext(ctx)
 
 		c.Set(string(ctxTraceID), traceID)
 		c.Set(string(ctxSpanID), spanID)
