@@ -246,6 +246,8 @@ func main() {
 
 		api.POST("/shipments/:shipmentId/lock", middleware.RequireRoles(rolesWorker...), shipmentH.AcquireDispatchLock)
 		api.POST("/shipments/:shipmentId/dispatch", middleware.RequireRoles(rolesWorker...), shipmentH.DispatchShipment)
+		api.POST("/shipments/:shipmentId/deliver", middleware.RequireRoles(rolesWorker...), shipmentH.MarkDelivered)
+		api.PUT("/shipments/:shipmentId/state", middleware.RequireRoles(rolesWorker...), shipmentH.TransitionState)
 		api.GET("/shipments/export", middleware.RequireRoles(rolesWorker...), shipmentH.ExportShipmentReport)
 		api.GET("/shipments", middleware.RequireRoles(rolesWorker...), shipmentH.ListShipments)
 		api.GET("/shipments/metrics", middleware.RequireRoles(rolesWorker...), shipmentH.GetMetrics)
