@@ -121,20 +121,39 @@ func (m *DeficitLockManager) LockDeficit(ctx context.Context, sku string, qty in
 				msgTraceID := ""
 				msgSpanID := ""
 				if lastMsg.headers != nil {
-					if tpVal, ok := lastMsg.headers["traceparent"].(string); ok && tpVal != "" {
-						parts := strings.Split(tpVal, "-")
-						if len(parts) == 4 && len(parts[1]) == 32 {
-							msgTraceID = parts[1]
+					if tpVal, ok := lastMsg.headers["traceparent"]; ok {
+						var tpStr string
+						switch v := tpVal.(type) {
+						case string:
+							tpStr = v
+						case []byte:
+							tpStr = string(v)
+						}
+						if tpStr != "" {
+							parts := strings.Split(tpStr, "-")
+							if len(parts) == 4 && len(parts[1]) == 32 {
+								msgTraceID = parts[1]
+							}
 						}
 					}
 					if msgTraceID == "" {
-						if tidVal, ok := lastMsg.headers["trace_id"].(string); ok && tidVal != "" {
-							msgTraceID = tidVal
+						if tidVal, ok := lastMsg.headers["trace_id"]; ok {
+							switch v := tidVal.(type) {
+							case string:
+								msgTraceID = v
+							case []byte:
+								msgTraceID = string(v)
+							}
 						}
 					}
 					if msgSpanID == "" {
-						if sidVal, ok := lastMsg.headers["span_id"].(string); ok && sidVal != "" {
-							msgSpanID = sidVal
+						if sidVal, ok := lastMsg.headers["span_id"]; ok {
+							switch v := sidVal.(type) {
+							case string:
+								msgSpanID = v
+							case []byte:
+								msgSpanID = string(v)
+							}
 						}
 					}
 				}
