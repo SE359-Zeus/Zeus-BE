@@ -14,17 +14,29 @@ func (s *ProductionService) GetDemandSummary(ctx context.Context) ([]models.Dema
 		return nil, err
 	}
 
-	// Use cached readiness rows instead of re-running BOM explosion
-	// (which makes N×M sequential SCM HTTP calls and times out).
 	rows, err := s.loadReadinessRows(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	// Batch-fetch production orders to avoid N+1 queries
+	orderMap := make(map[uuid.UUID]*models.ProductionOrder, len(rows))
+	for _, row := range rows {
+		if _, exists := orderMap[row.OrderID]; !exists {
+			order, err := s.repo.GetProductionOrder(ctx, row.OrderID)
+			if err == nil && order != nil {
+				orderMap[row.OrderID] = order
+			}
+		}
+	}
+
+	// Cache assembly name lookups across rows
+	nameCache := make(map[string]string)
+
 	result := make([]models.DemandPOSummary, 0, len(rows))
 	for _, row := range rows {
-		order, err := s.repo.GetProductionOrder(ctx, row.OrderID)
-		if err != nil || order == nil {
+		order := orderMap[row.OrderID]
+		if order == nil {
 			continue
 		}
 
@@ -52,7 +64,16 @@ func (s *ProductionService) GetDemandSummary(ctx context.Context) ([]models.Dema
 			}
 		}
 
-		productName := s.resolveAssemblyName(ctx, order.ProductModelCode)
+		productName := order.ProductModelCode
+		if cached, ok := nameCache[order.ProductModelCode]; ok {
+			productName = cached
+		} else {
+			resolved := s.resolveAssemblyName(ctx, order.ProductModelCode)
+			if resolved != order.ProductModelCode {
+				nameCache[order.ProductModelCode] = resolved
+				productName = resolved
+			}
+		}
 
 		priority := "NORMAL"
 		if row.Status == string(models.StatusShortage) || row.Status == string(models.StatusPartial) {

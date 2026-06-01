@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"time"
+	"zeus-mrp-service/internal/infrastructure/scm"
 	"zeus-mrp-service/internal/models"
 
 	"github.com/google/uuid"
@@ -251,6 +252,22 @@ func (m *MockSCMClient) GetInventoryLedger(ctx context.Context, page, limit int,
 	return nil, args.Bool(1), args.Error(2)
 }
 
+func (m *MockSCMClient) GetInventoryMetrics(ctx context.Context) (*scm.SCMInventoryMetrics, error) {
+	args := m.Called(ctx)
+	if args.Get(0) != nil {
+		return args.Get(0).(*scm.SCMInventoryMetrics), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockSCMClient) GetInventoryTransactionByID(ctx context.Context, txnID string) (*models.InventoryLedgerEntry, error) {
+	args := m.Called(ctx, txnID)
+	if args.Get(0) != nil {
+		return args.Get(0).(*models.InventoryLedgerEntry), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *MockSCMClient) GetLUTs(ctx context.Context) (*models.LUTCollection, error) {
 	args := m.Called(ctx)
 	if args.Get(0) != nil {
@@ -304,6 +321,8 @@ func setupMockSCMClient() *MockSCMClient {
 	m.On("ListPOs", mock.Anything, mock.Anything).Return([]models.PurchaseOrder{}, nil).Maybe()
 	m.On("CreateProductModel", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	m.On("DeleteProductModel", mock.Anything, mock.Anything).Return(nil).Maybe()
+	m.On("GetInventoryMetrics", mock.Anything).Return(&scm.SCMInventoryMetrics{TotalSKUs: 100, LowStock: 5, OutOfStock: 2}, nil).Maybe()
+	m.On("GetInventoryTransactionByID", mock.Anything, mock.Anything).Return((*models.InventoryLedgerEntry)(nil), nil).Maybe()
 	return m
 }
 

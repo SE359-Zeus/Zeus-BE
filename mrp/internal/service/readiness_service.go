@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"strings"
+	"sync"
 	"zeus-mrp-service/internal/infrastructure/messaging"
 	"zeus-mrp-service/internal/models"
 
@@ -311,16 +312,38 @@ func (s *ProductionService) loadReadinessRows(ctx context.Context) ([]models.Rea
 		orders = []models.ProductionOrder{}
 	}
 
+	type result struct {
+		idx int
+		row *models.ReadinessMatrixRow
+		err error
+	}
+
+	results := make([]result, len(orders))
+	sem := make(chan struct{}, 5) // limit concurrent SCM calls
+	var wg sync.WaitGroup
+
+	for i, order := range orders {
+		wg.Add(1)
+		go func(idx int, ord models.ProductionOrder) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			row, err := s.buildReadinessRow(ctx, ord.ID)
+			results[idx] = result{idx: idx, row: row, err: err}
+		}(i, order)
+	}
+	wg.Wait()
+
 	rows := make([]models.ReadinessMatrixRow, 0, len(orders))
-	for _, order := range orders {
-		row, err := s.buildReadinessRow(ctx, order.ID)
-		if err != nil {
-			return nil, err
+	for _, r := range results {
+		if r.err != nil {
+			return nil, r.err
 		}
-		if row == nil {
+		if r.row == nil {
 			continue
 		}
-		rows = append(rows, *row)
+		rows = append(rows, *r.row)
 	}
 
 	s.cacheReadinessRows(ctx, rows)
@@ -596,15 +619,7 @@ func (s *ProductionService) syncShortagesInDB(ctx context.Context, orderID uuid.
 			}
 
 			var partSKU string
-			if s.scmClient != nil {
-				part, err := s.scmClient.GetPartCatalogByID(ctx, res.PartID)
-				if err == nil && part != nil {
-					partSKU = part.SKU
-				}
-			}
-			if partSKU == "" {
-				partSKU = res.ComponentSKU
-			}
+			partSKU = res.ComponentSKU
 			if partSKU == "" {
 				partSKU = fmt.Sprintf("PART-%s", res.PartID.String()[:8])
 			}
