@@ -37,12 +37,12 @@ func (h *POHandler) CreateDraft(c *gin.Context) {
 		supplierStr = req.VendorID
 	}
 	if supplierStr == "" {
-		exception.WriteError(c, exception.ErrInvalidBody.WithMessage("supplier_id is required"))
+		exception.WriteError(c, exception.ErrInvalidBody.WithMessage("The 'supplier_id' field is required"))
 		return
 	}
 	vendorID, err := uuid.Parse(supplierStr)
 	if err != nil {
-		exception.WriteError(c, exception.ErrInvalidResourceID.WithMessage("invalid supplier_id"))
+		exception.WriteError(c, exception.ErrInvalidResourceID.WithMessage("The supplier_id provided is not a valid UUID"))
 		return
 	}
 	po, err := h.svc.CreateDraft(c.Request.Context(), vendorID)

@@ -25,7 +25,7 @@ func NewVendorHandler(svc service.IVendorService) *VendorHandler {
 func (h *VendorHandler) GetOptimalSupplier(c *gin.Context) {
 	sku := c.Query("sku")
 	if sku == "" {
-		exception.WriteError(c, exception.ErrInvalidInput.WithMessage("sku query param required"))
+		exception.WriteError(c, exception.ErrInvalidInput.WithMessage("The 'sku' query parameter is required"))
 		return
 	}
 	supplier, mapping, err := h.svc.GetOptimalSupplier(c.Request.Context(), sku)
@@ -47,7 +47,7 @@ func (h *VendorHandler) UpdateSupplierMetrics(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		exception.WriteError(c, exception.ErrInvalidResourceID.WithMessage("invalid supplier id"))
+		exception.WriteError(c, exception.ErrInvalidResourceID.WithMessage("The supplier ID provided is not a valid UUID"))
 		return
 	}
 	if err := h.svc.UpdateSupplierMetrics(c.Request.Context(), id); err != nil {
@@ -138,7 +138,7 @@ func (h *VendorHandler) CreateSkuMapping(c *gin.Context) {
 	idStr := c.Param("id")
 	supplierID, err := uuid.Parse(idStr)
 	if err != nil {
-		exception.WriteError(c, exception.ErrInvalidResourceID.WithMessage("invalid supplier id"))
+		exception.WriteError(c, exception.ErrInvalidResourceID.WithMessage("The supplier ID provided is not a valid UUID"))
 		return
 	}
 

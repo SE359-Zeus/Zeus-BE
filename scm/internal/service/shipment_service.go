@@ -125,7 +125,7 @@ func (s *shipmentService) AcquireDispatchLock(ctx context.Context, shipmentID st
 	}
 	if shipment.LockedBy != nil && *shipment.LockedBy != operatorID {
 		if shipment.LockExpiresAt != nil && shipment.LockExpiresAt.After(time.Now()) {
-			return nil, ErrShipmentLockConflict.WithMessage(fmt.Sprintf("Shipment %s is currently locked by another operator. Please wait for the lock to expire or ask the operator to release it", shipmentID))
+			return nil, ErrShipmentLockConflict.WithMessage(fmt.Sprintf("Shipment %s is currently locked by another operator", shipmentID))
 		}
 	}
 
@@ -168,10 +168,10 @@ func (s *shipmentService) DispatchShipment(ctx context.Context, shipmentID strin
 		return ErrInvalidTransition
 	}
 	if shipment.LockedBy == nil || *shipment.LockedBy != operatorID {
-		return ErrShipmentNotLocked.WithMessage(fmt.Sprintf("You must acquire a dispatch lock on shipment %s before dispatching", shipmentID))
+		return ErrShipmentNotLocked.WithMessage(fmt.Sprintf("Shipment %s is not locked by you", shipmentID))
 	}
 	if shipment.LockExpiresAt != nil && shipment.LockExpiresAt.Before(time.Now()) {
-		return ErrShipmentLockExpired.WithMessage(fmt.Sprintf("Your lock on shipment %s has expired. Please re-acquire the lock", shipmentID))
+		return ErrShipmentLockExpired.WithMessage(fmt.Sprintf("Your lock on shipment %s has expired", shipmentID))
 	}
 
 	tx := s.db.WithContext(ctx).Begin()
@@ -390,7 +390,7 @@ func (s *shipmentServiceRepo) AcquireDispatchLock(ctx context.Context, shipmentI
 	}
 	if shipment.LockedBy != nil && *shipment.LockedBy != operatorID {
 		if shipment.LockExpiresAt != nil && shipment.LockExpiresAt.After(time.Now()) {
-			return nil, ErrShipmentLockConflict.WithMessage(fmt.Sprintf("Shipment %s is currently locked by another operator. Please wait for the lock to expire or ask the operator to release it", shipmentID))
+			return nil, ErrShipmentLockConflict.WithMessage(fmt.Sprintf("Shipment %s is currently locked by another operator", shipmentID))
 		}
 	}
 
@@ -433,10 +433,10 @@ func (s *shipmentServiceRepo) DispatchShipment(ctx context.Context, shipmentID s
 		return ErrInvalidTransition
 	}
 	if shipment.LockedBy == nil || *shipment.LockedBy != operatorID {
-		return ErrShipmentNotLocked.WithMessage(fmt.Sprintf("You must acquire a dispatch lock on shipment %s before dispatching", shipmentID))
+		return ErrShipmentNotLocked.WithMessage(fmt.Sprintf("Shipment %s is not locked by you", shipmentID))
 	}
 	if shipment.LockExpiresAt != nil && shipment.LockExpiresAt.Before(time.Now()) {
-		return ErrShipmentLockExpired.WithMessage(fmt.Sprintf("Your lock on shipment %s has expired. Please re-acquire the lock", shipmentID))
+		return ErrShipmentLockExpired.WithMessage(fmt.Sprintf("Your lock on shipment %s has expired", shipmentID))
 	}
 
 	shipment.Status = models.ShipmentStatusInTransit

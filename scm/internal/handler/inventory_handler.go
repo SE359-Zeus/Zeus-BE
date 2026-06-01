@@ -283,7 +283,7 @@ func (h *InventoryHandler) InstallPart(c *gin.Context) {
 	}
 	productID, err := uuid.Parse(req.ProductID)
 	if err != nil {
-		exception.WriteError(c, exception.ErrInvalidResourceID.WithMessage("invalid product_id"))
+		exception.WriteError(c, exception.ErrInvalidResourceID.WithMessage("The product_id provided is not a valid UUID"))
 		return
 	}
 	if err := h.svc.InstallPart(c.Request.Context(), id, productID); err != nil {
