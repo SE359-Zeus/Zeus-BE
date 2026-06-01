@@ -250,10 +250,14 @@ func TestDemandService_DynamicCalculationsAndHandoff(t *testing.T) {
 	mockSCM.On("GetPartCatalogByID", mock.Anything, partID).Return(partCatalog, nil)
 	mockSCM.On("GetProductModelByCode", mock.Anything, "ZW-X1-TITAN").Return(&models.ProductModel{ModelCode: "ZW-X1-TITAN", ModelName: "Zeus Workstation X1"}, nil)
 	mockSCM.On("ListPOs", mock.Anything, "ZW-X1-TITAN").Return([]models.PurchaseOrder{}, nil).Maybe()
+	mockRepo.On("GetShortagesByOrderID", mock.Anything, orderID).Return([]models.ShortageLog{}, nil)
+	mockRepo.On("UpdateProductionOrderStatus", mock.Anything, orderID, mock.Anything).Return(nil).Maybe()
+	mockRepo.On("CreateShortageLog", mock.Anything, mock.Anything).Return(nil)
+	mockAudit.On("PublishJSON", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	svc := NewProductionService(mockRepo, mockSCM, mockAudit)
 
-	mockSCM.On("GetOptimalSupplier", mock.Anything, "PART-SKU-1").Return(vendorID, 12.50, nil)
+	mockSCM.On("GetOptimalSupplier", mock.Anything, "PART-SKU-1").Return(vendorID, 12.50, nil).Maybe()
 
 	summary, err := svc.GetDemandSummary(context.Background())
 	assert.NoError(t, err)
@@ -263,7 +267,7 @@ func TestDemandService_DynamicCalculationsAndHandoff(t *testing.T) {
 	assert.Equal(t, 10, summary[0].Quantity)
 	assert.Equal(t, 2, summary[0].QtyReady)
 	assert.Equal(t, "HIGH", summary[0].Priority)
-	assert.Equal(t, 1, summary[0].POCount)
+	assert.Equal(t, 0, summary[0].POCount)
 
 	agg, err := svc.GetAggregatedDemand(context.Background())
 	assert.NoError(t, err)

@@ -14,45 +14,35 @@ func (s *ProductionService) GetDemandSummary(ctx context.Context) ([]models.Dema
 		return nil, err
 	}
 
-	orders, err := s.repo.GetOpenProductionOrders(ctx)
+	// Use cached readiness rows instead of re-running BOM explosion
+	// (which makes N×M sequential SCM HTTP calls and times out).
+	rows, err := s.loadReadinessRows(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if orders == nil {
-		return []models.DemandPOSummary{}, nil
-	}
-
-	result := make([]models.DemandPOSummary, 0, len(orders))
-	for _, order := range orders {
-		results, err := s.RunBOMExplosion(ctx, order.ID)
-		if err != nil {
-			return nil, err
+	result := make([]models.DemandPOSummary, 0, len(rows))
+	for _, row := range rows {
+		order, err := s.repo.GetProductionOrder(ctx, row.OrderID)
+		if err != nil || order == nil {
+			continue
 		}
 
-		qtyReady := order.TargetQuantity
+		qtyReady := row.Quantity
 		missingCount := 0
-		uniqueVendors := make(map[uuid.UUID]struct{})
 
-		if len(results) > 0 {
-			minBuild := order.TargetQuantity
-			for _, res := range results {
+		if len(row.DeficitBreakdown) > 0 {
+			minBuild := row.Quantity
+			for _, res := range row.DeficitBreakdown {
 				if res.IsShortage {
 					missingCount++
 				}
 				if res.TotalRequiredQty == 0 {
 					continue
 				}
-				canBuild := (res.AvailableQty * order.TargetQuantity) / res.TotalRequiredQty
+				canBuild := (res.AvailableQty * row.Quantity) / res.TotalRequiredQty
 				if canBuild < minBuild {
 					minBuild = canBuild
-				}
-
-				if s.scmClient != nil && order.Status != models.StatusPlanned {
-					vendorID, _, err := s.scmClient.GetOptimalSupplier(ctx, res.ComponentSKU)
-					if err == nil && vendorID != uuid.Nil {
-						uniqueVendors[vendorID] = struct{}{}
-					}
 				}
 			}
 			if minBuild < 0 {
@@ -62,30 +52,24 @@ func (s *ProductionService) GetDemandSummary(ctx context.Context) ([]models.Dema
 			}
 		}
 
-		poCount := len(uniqueVendors)
-		if order.Status == models.StatusPlanned {
-			poCount = 0
-		}
-
 		productName := s.resolveAssemblyName(ctx, order.ProductModelCode)
 
 		priority := "NORMAL"
-		if order.Status == models.StatusShortage || order.Status == models.StatusPartial {
+		if row.Status == string(models.StatusShortage) || row.Status == string(models.StatusPartial) {
 			priority = "HIGH"
-		} else if order.Status == models.StatusPlanned {
+		} else if row.Status == string(models.StatusPlanned) {
 			priority = "LOW"
 		}
 
 		result = append(result, models.DemandPOSummary{
-			OrderID:      order.ID.String(),
+			OrderID:      row.OrderID.String(),
 			TargetBuild:  order.ProductModelCode,
 			ProductName:  productName,
-			Quantity:     order.TargetQuantity,
+			Quantity:     row.Quantity,
 			QtyReady:     qtyReady,
-			Status:       string(order.Status),
+			Status:       row.Status,
 			Priority:     priority,
 			MissingCount: missingCount,
-			POCount:      poCount,
 			TargetDate:   order.ScheduledAt,
 		})
 	}
@@ -99,27 +83,22 @@ func (s *ProductionService) GetDemandMetrics(ctx context.Context) (*models.Deman
 		return nil, err
 	}
 
-	orders, err := s.repo.GetOpenProductionOrders(ctx)
+	// Use cached readiness rows instead of re-running BOM explosion.
+	rows, err := s.loadReadinessRows(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	metrics := &models.DemandMetrics{}
-	metrics.TotalDemandOrders = len(orders)
+	metrics.TotalDemandOrders = len(rows)
 
-	for _, order := range orders {
-		metrics.TotalUnitsRequired += order.TargetQuantity
+	for _, row := range rows {
+		metrics.TotalUnitsRequired += row.Quantity
 
-		results, err := s.RunBOMExplosion(ctx, order.ID)
-		if err != nil {
-			return nil, err
-		}
-		status := deriveReadinessStatus(results)
-
-		switch status {
-		case models.StatusClearToBuild:
+		switch row.Status {
+		case string(models.StatusClearToBuild):
 			metrics.ReadyToBuild++
-		case models.StatusShortage, models.StatusPartial:
+		case string(models.StatusShortage), string(models.StatusPartial):
 			metrics.ShortageOrPartial++
 		}
 	}
