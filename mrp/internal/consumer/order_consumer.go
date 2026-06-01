@@ -73,7 +73,7 @@ func (c *OrderConsumer) Start(ctx context.Context) error {
 	}
 	c.channel = ch
 
-	if err := messaging.DeclareQueues(ch); err != nil {
+	if err := messaging.DeclareQueues(conn, ch); err != nil {
 		return err
 	}
 

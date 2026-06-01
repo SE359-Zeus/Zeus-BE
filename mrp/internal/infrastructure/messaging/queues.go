@@ -2,6 +2,8 @@ package messaging
 
 import (
 	"fmt"
+	"log/slog"
+	"strings"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -14,31 +16,46 @@ const (
 	SalesOrderUpdatedQueue = "sales.order.updated"
 )
 
-// queueDef pairs a queue name with optional declaration arguments.
-// Some queues (e.g. DeficitReservedQueue) already exist in RabbitMQ
-// with specific args; the declaration must match or RabbitMQ returns 406.
-type queueDef struct {
-	name string
-	args amqp.Table
-}
-
-func DeclareQueues(channel *amqp.Channel) error {
-	if channel == nil {
+// DeclareQueues declares all queues the consumer needs.
+// DeficitReservedQueue is declared on a separate temporary channel because
+// it is owned by SCM which creates it with custom arguments (x-message-ttl,
+// x-dead-letter-exchange, …). A mismatched QueueDeclare returns 406 and
+// closes the channel — we must not let that kill the main channel.
+func DeclareQueues(conn *amqp.Connection, channel *amqp.Channel) error {
+	if conn == nil || channel == nil {
 		return ErrUnavailable
 	}
 
-	defs := []queueDef{
-		{name: AuditQueue},
-		{name: DeficitPoolQueue},
-		{name: DeficitReservedQueue, args: amqp.Table{"x-message-ttl": int32(1_800_000)}},
-		{name: SalesOrderCreatedQueue},
-		{name: SalesOrderUpdatedQueue},
+	for _, queue := range []string{
+		AuditQueue,
+		DeficitPoolQueue,
+		SalesOrderCreatedQueue,
+		SalesOrderUpdatedQueue,
+	} {
+		if _, err := channel.QueueDeclare(queue, true, false, false, false, nil); err != nil {
+			return fmt.Errorf("failed to declare queue %s: %w", queue, err)
+		}
 	}
 
-	for _, d := range defs {
-		if _, err := channel.QueueDeclare(d.name, true, false, false, false, d.args); err != nil {
-			return fmt.Errorf("failed to declare queue %s: %w", d.name, err)
+	// DeficitReservedQueue: declare on a throwaway channel so a 406
+	// (args mismatch) cannot close the main consumer channel.
+	if tmpCh, err := conn.Channel(); err == nil {
+		if _, err := tmpCh.QueueDeclare(DeficitReservedQueue, true, false, false, false, nil); err != nil {
+			if strings.Contains(err.Error(), "PRECONDITION_FAILED") {
+				slog.Info("deficit.reserved queue already exists with different args, consuming as-is",
+					slog.String("service", "mrp"),
+					slog.String("component", "rabbitmq"),
+					slog.String("queue", DeficitReservedQueue),
+				)
+			} else {
+				slog.Warn("failed to declare deficit.reserved queue",
+					slog.String("service", "mrp"),
+					slog.String("component", "rabbitmq"),
+					slog.String("error", err.Error()),
+				)
+			}
 		}
+		_ = tmpCh.Close()
 	}
 
 	return nil
