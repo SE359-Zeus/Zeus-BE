@@ -349,8 +349,8 @@ func (m *MockInventoryRepository) GetComponentStockBySKU(ctx context.Context, sk
 	return nil, args.Error(1)
 }
 
-func (m *MockInventoryRepository) ListComponentStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error) {
-	args := m.Called(ctx, params, status, q)
+func (m *MockInventoryRepository) ListComponentStocks(ctx context.Context, params pagination.Params, status, q string, supplierID *uuid.UUID) ([]models.ComponentStock, *pagination.Meta, error) {
+	args := m.Called(ctx, params, status, q, supplierID)
 	if args.Get(0) != nil {
 		return args.Get(0).([]models.ComponentStock), args.Get(1).(*pagination.Meta), args.Error(2)
 	}

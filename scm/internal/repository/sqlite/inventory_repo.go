@@ -209,10 +209,13 @@ func (r *inventoryRepository) GetComponentStockBySKU(ctx context.Context, sku st
 	return &s, nil
 }
 
-func (r *inventoryRepository) ListComponentStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error) {
+func (r *inventoryRepository) ListComponentStocks(ctx context.Context, params pagination.Params, status, q string, supplierID *uuid.UUID) ([]models.ComponentStock, *pagination.Meta, error) {
 	query := r.db.WithContext(ctx).Model(&models.ComponentStock{})
 	if status != "" {
 		query = query.Where("status = ?", status)
+	}
+	if supplierID != nil {
+		query = query.Where("primary_supplier_id = ?", *supplierID)
 	}
 	if q != "" {
 		like := "%" + q + "%"

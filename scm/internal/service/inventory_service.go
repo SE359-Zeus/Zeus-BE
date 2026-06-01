@@ -43,7 +43,7 @@ type IInventoryService interface {
 	UpdatePartCatalogBySKU(ctx context.Context, sku string, fields map[string]any) (*models.PartCatalog, error)
 	DeletePartCatalogBySKU(ctx context.Context, sku string) error
 	GetPartCatalogBySKU(ctx context.Context, sku string) (*models.PartCatalog, float64, int, error)
-	ListStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error)
+	ListStocks(ctx context.Context, params pagination.Params, status, q string, supplierID *uuid.UUID) ([]models.ComponentStock, *pagination.Meta, error)
 	FindAllStocks(ctx context.Context) ([]models.ComponentStock, error)
 	CreateComponentStock(ctx context.Context, stock *models.ComponentStock) error
 	GetStockBySKU(ctx context.Context, sku string) (*models.ComponentStock, error)
@@ -448,9 +448,9 @@ func (s *inventoryServiceRepo) GetPartCatalogBySKU(ctx context.Context, sku stri
 	return pc, stock.UnitCost, stock.StockQty, nil
 }
 
-func (s *inventoryServiceRepo) ListStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error) {
+func (s *inventoryServiceRepo) ListStocks(ctx context.Context, params pagination.Params, status, q string, supplierID *uuid.UUID) ([]models.ComponentStock, *pagination.Meta, error) {
 	status = normalizeComponentStatusFilter(status)
-	stocks, meta, err := s.repo.ListComponentStocks(ctx, params, status, q)
+	stocks, meta, err := s.repo.ListComponentStocks(ctx, params, status, q, supplierID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -462,7 +462,7 @@ func (s *inventoryServiceRepo) ListStocks(ctx context.Context, params pagination
 }
 
 func (s *inventoryServiceRepo) FindAllStocks(ctx context.Context) ([]models.ComponentStock, error) {
-	stocks, _, err := s.repo.ListComponentStocks(ctx, pagination.Params{Page: 1, Limit: 100000}, "", "")
+	stocks, _, err := s.repo.ListComponentStocks(ctx, pagination.Params{Page: 1, Limit: 100000}, "", "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -969,11 +969,14 @@ func (s *inventoryService) CreateComponentStock(ctx context.Context, stock *mode
 	return s.db.WithContext(ctx).Create(stock).Error
 }
 
-func (s *inventoryService) ListStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error) {
+func (s *inventoryService) ListStocks(ctx context.Context, params pagination.Params, status, q string, supplierID *uuid.UUID) ([]models.ComponentStock, *pagination.Meta, error) {
 	status = normalizeComponentStatusFilter(status)
 	query := s.db.WithContext(ctx).Model(&models.ComponentStock{})
 	if status != "" && !strings.EqualFold(status, "all") {
 		query = query.Where("status = ?", status)
+	}
+	if supplierID != nil {
+		query = query.Where("primary_supplier_id = ?", *supplierID)
 	}
 	if q != "" {
 		like := "%" + q + "%"

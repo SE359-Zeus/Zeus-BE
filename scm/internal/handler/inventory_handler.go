@@ -600,8 +600,14 @@ func (h *InventoryHandler) ListStocks(c *gin.Context) {
 	params := parsePaginationParams(c)
 	status := c.Query("status")
 	q := c.Query("q")
+	var supplierID *uuid.UUID
+	if v := c.Query("supplier_id"); v != "" {
+		if id, err := uuid.Parse(v); err == nil {
+			supplierID = &id
+		}
+	}
 
-	stocks, meta, err := h.svc.ListStocks(c.Request.Context(), params, status, q)
+	stocks, meta, err := h.svc.ListStocks(c.Request.Context(), params, status, q, supplierID)
 	if err != nil {
 		exception.WriteError(c, exception.ErrInternal.WithError(err))
 		return

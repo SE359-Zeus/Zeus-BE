@@ -360,7 +360,7 @@ func TestInventoryHandler_ListStocks_WithStatus_200(t *testing.T) {
 	stocks := []models.ComponentStock{{SKU: "SOC-XM100-PRO", Status: models.ComponentStatusLowStock, PrimarySupplier: "Intel Corporation"}}
 	meta := &pagination.Meta{Page: 1, Limit: 15, TotalRows: 1}
 
-	mockSvc.On("ListStocks", mock.Anything, mock.AnythingOfType("pagination.Params"), "Low Stock", "").Return(stocks, meta, nil)
+	mockSvc.On("ListStocks", mock.Anything, mock.AnythingOfType("pagination.Params"), "Low Stock", "", (*uuid.UUID)(nil)).Return(stocks, meta, nil)
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/inventory/stocks?status=Low+Stock", nil)

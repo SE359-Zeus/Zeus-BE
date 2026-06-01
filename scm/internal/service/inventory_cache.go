@@ -144,8 +144,8 @@ func (s *cachedInventoryService) GetPartCatalogBySKU(ctx context.Context, sku st
 	return s.base.GetPartCatalogBySKU(ctx, sku)
 }
 
-func (s *cachedInventoryService) ListStocks(ctx context.Context, params pagination.Params, status, q string) ([]models.ComponentStock, *pagination.Meta, error) {
-	return s.base.ListStocks(ctx, params, status, q)
+func (s *cachedInventoryService) ListStocks(ctx context.Context, params pagination.Params, status, q string, supplierID *uuid.UUID) ([]models.ComponentStock, *pagination.Meta, error) {
+	return s.base.ListStocks(ctx, params, status, q, supplierID)
 }
 
 func (s *cachedInventoryService) FindAllStocks(ctx context.Context) ([]models.ComponentStock, error) {
