@@ -38,7 +38,8 @@ func (h *ShipmentHandler) AcquireDispatchLock(c *gin.Context) {
 		return
 	}
 	ctx := context.WithValue(c.Request.Context(), middleware.ContextKeyFullName, c.GetString(middleware.ContextKeyFullName))
-	if err := h.svc.AcquireDispatchLock(ctx, shipmentID, req.OperatorID); err != nil {
+	expiresAt, err := h.svc.AcquireDispatchLock(ctx, shipmentID, req.OperatorID)
+	if err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			exception.WriteError(c, appErr)
 			return
@@ -46,7 +47,28 @@ func (h *ShipmentHandler) AcquireDispatchLock(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInternal)
 		return
 	}
-	writeJSON(c, 200, gin.H{"message": "dispatch lock acquired"})
+	writeJSON(c, 200, gin.H{
+		"message":         "dispatch lock acquired",
+		"shipment_id":     shipmentID,
+		"locked_by":       req.OperatorID,
+		"lock_expires_at": expiresAt,
+	})
+}
+
+func (h *ShipmentHandler) ReleaseDispatchLock(c *gin.Context) {
+	shipmentID := c.Param("shipmentId")
+	if err := h.svc.ReleaseDispatchLock(c.Request.Context(), shipmentID); err != nil {
+		if appErr := exception.Resolve(err); appErr != nil {
+			exception.WriteError(c, appErr)
+			return
+		}
+		exception.WriteError(c, exception.ErrInternal)
+		return
+	}
+	writeJSON(c, 200, gin.H{
+		"message":     "dispatch lock released",
+		"shipment_id": shipmentID,
+	})
 }
 
 type dispatchShipmentRequest struct {

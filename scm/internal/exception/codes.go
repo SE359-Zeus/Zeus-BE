@@ -44,6 +44,9 @@ var (
 	ErrNotImplemented = New("GR_003", "Not implemented", http.StatusNotImplemented)
 
 	ErrShipmentLockConflict = New("SHIP_001", "Shipment already locked by another operator", http.StatusConflict)
+	ErrShipmentLockExpired  = New("SHIP_002", "Dispatch lock has expired. Please re-acquire the lock before dispatching", http.StatusConflict)
+	ErrShipmentNotLocked   = New("SHIP_003", "Shipment must be locked before dispatching. Please acquire a dispatch lock first", http.StatusPreconditionRequired)
+	ErrShipmentAlreadyDispatched = New("SHIP_004", "Shipment has already been dispatched", http.StatusConflict)
 
 	ErrAgingQuarantine     = New("INV_001", "Component exceeds aging threshold", http.StatusBadRequest)
 	ErrInsufficientDeficit = New("INV_002", "Insufficient deficit in pool for this SKU", http.StatusBadRequest)

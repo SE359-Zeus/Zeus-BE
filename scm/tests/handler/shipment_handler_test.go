@@ -27,6 +27,7 @@ func setupShipmentTest() (*gin.Engine, *service.MockShipmentService) {
 	v1 := r.Group("/api/v1")
 	{
 		v1.POST("/shipments/:shipmentId/lock", h.AcquireDispatchLock)
+		v1.DELETE("/shipments/:shipmentId/lock", h.ReleaseDispatchLock)
 		v1.POST("/shipments/:shipmentId/dispatch", h.DispatchShipment)
 		v1.GET("/shipments", h.ListShipments)
 		v1.GET("/shipments/metrics", h.GetMetrics)
@@ -40,7 +41,8 @@ func setupShipmentTest() (*gin.Engine, *service.MockShipmentService) {
 func TestShipmentHandler_AcquireDispatchLock_200(t *testing.T) {
 	r, mockSvc := setupShipmentTest()
 
-	mockSvc.On("AcquireDispatchLock", mock.Anything, "SH-2025-001", "operator-1").Return(nil)
+	expiresAt := time.Now().Add(30 * time.Minute)
+	mockSvc.On("AcquireDispatchLock", mock.Anything, "SH-2025-001", "operator-1").Return(&expiresAt, nil)
 
 	body, _ := json.Marshal(map[string]string{"operator_id": "operator-1"})
 	w := httptest.NewRecorder()
@@ -49,6 +51,20 @@ func TestShipmentHandler_AcquireDispatchLock_200(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	var resp struct {
+		Message string `json:"message"`
+		Data    struct {
+			Message     string     `json:"message"`
+			ShipmentID  string     `json:"shipment_id"`
+			LockedBy    string     `json:"locked_by"`
+			LockExpires *time.Time `json:"lock_expires_at"`
+		} `json:"data"`
+	}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, "dispatch lock acquired", resp.Data.Message)
+	assert.Equal(t, "SH-2025-001", resp.Data.ShipmentID)
+	assert.NotNil(t, resp.Data.LockExpires)
 	mockSvc.AssertExpectations(t)
 }
 
@@ -66,7 +82,7 @@ func TestShipmentHandler_AcquireDispatchLock_400_InvalidBody(t *testing.T) {
 func TestShipmentHandler_AcquireDispatchLock_404(t *testing.T) {
 	r, mockSvc := setupShipmentTest()
 
-	mockSvc.On("AcquireDispatchLock", mock.Anything, "SH-UNKNOWN", "operator-1").Return(service.ErrNotFound)
+	mockSvc.On("AcquireDispatchLock", mock.Anything, "SH-UNKNOWN", "operator-1").Return(nil, service.ErrNotFound)
 
 	body, _ := json.Marshal(map[string]string{"operator_id": "operator-1"})
 	w := httptest.NewRecorder()

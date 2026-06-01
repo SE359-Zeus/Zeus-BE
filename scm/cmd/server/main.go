@@ -245,6 +245,7 @@ func main() {
 		api.GET("/goods-receipts/:grId", middleware.RequireRoles(rolesWorker...), grH.GetGR)
 
 		api.POST("/shipments/:shipmentId/lock", middleware.RequireRoles(rolesWorker...), shipmentH.AcquireDispatchLock)
+		api.DELETE("/shipments/:shipmentId/lock", middleware.RequireRoles(rolesWorker...), shipmentH.ReleaseDispatchLock)
 		api.POST("/shipments/:shipmentId/dispatch", middleware.RequireRoles(rolesWorker...), shipmentH.DispatchShipment)
 		api.POST("/shipments/:shipmentId/deliver", middleware.RequireRoles(rolesWorker...), shipmentH.MarkDelivered)
 		api.PUT("/shipments/:shipmentId/state", middleware.RequireRoles(rolesWorker...), shipmentH.TransitionState)

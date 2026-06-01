@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"zeus-scm-service/internal/infrastructure/observability"
@@ -15,7 +16,8 @@ import (
 )
 
 type IShipmentService interface {
-	AcquireDispatchLock(ctx context.Context, shipmentID string, operatorID string) error
+	AcquireDispatchLock(ctx context.Context, shipmentID string, operatorID string) (*time.Time, error)
+	ReleaseDispatchLock(ctx context.Context, shipmentID string) error
 	DispatchShipment(ctx context.Context, shipmentID string, operatorID string) error
 	MarkDelivered(ctx context.Context, shipmentID string, operatorID string) error
 	TransitionState(ctx context.Context, shipmentID string, newState models.ShipmentStatus) error
@@ -111,16 +113,45 @@ func NewShipmentService(arg interface{}, args ...interface{}) IShipmentService {
 	}
 }
 
-func (s *shipmentService) AcquireDispatchLock(ctx context.Context, shipmentID string, operatorID string) error {
+const dispatchLockTTL = 30 * time.Minute
+
+func (s *shipmentService) AcquireDispatchLock(ctx context.Context, shipmentID string, operatorID string) (*time.Time, error) {
+	var shipment models.Shipment
+	if err := s.db.WithContext(ctx).First(&shipment, "id = ?", shipmentID).Error; err != nil {
+		return nil, ErrNotFound
+	}
+	if shipment.Status == models.ShipmentStatusInTransit || shipment.Status == models.ShipmentStatusDelivered {
+		return nil, ErrShipmentAlreadyDispatched.WithMessage(fmt.Sprintf("Shipment %s is already %s and cannot be locked", shipmentID, strings.ToLower(string(shipment.Status))))
+	}
+	if shipment.LockedBy != nil && *shipment.LockedBy != operatorID {
+		if shipment.LockExpiresAt != nil && shipment.LockExpiresAt.After(time.Now()) {
+			return nil, ErrShipmentLockConflict.WithMessage(fmt.Sprintf("Shipment %s is currently locked by another operator. Please wait for the lock to expire or ask the operator to release it", shipmentID))
+		}
+	}
+
+	operatorName := operatorNameFromContext(ctx)
+	now := time.Now()
+	expiresAt := now.Add(dispatchLockTTL)
+
+	if err := s.db.WithContext(ctx).Model(&shipment).Updates(map[string]interface{}{
+		"locked_by":       operatorID,
+		"operator_id":     operatorID,
+		"operator_name":   operatorName,
+		"lock_expires_at": expiresAt,
+	}).Error; err != nil {
+		return nil, err
+	}
+	return &expiresAt, nil
+}
+
+func (s *shipmentService) ReleaseDispatchLock(ctx context.Context, shipmentID string) error {
 	var shipment models.Shipment
 	if err := s.db.WithContext(ctx).First(&shipment, "id = ?", shipmentID).Error; err != nil {
 		return ErrNotFound
 	}
-	if shipment.Status == models.ShipmentStatusInTransit || shipment.Status == models.ShipmentStatusDelivered {
-		return ErrAlreadyLocked
-	}
 	return s.db.WithContext(ctx).Model(&shipment).Updates(map[string]interface{}{
-		"ship_date": time.Now(),
+		"locked_by":       nil,
+		"lock_expires_at": nil,
 	}).Error
 }
 
@@ -131,13 +162,24 @@ func (s *shipmentService) DispatchShipment(ctx context.Context, shipmentID strin
 		return ErrNotFound
 	}
 	if shipment.Status != models.ShipmentStatusScheduled {
+		if shipment.Status == models.ShipmentStatusInTransit || shipment.Status == models.ShipmentStatusDelivered {
+			return ErrShipmentAlreadyDispatched.WithMessage(fmt.Sprintf("Shipment %s is already %s", shipmentID, strings.ToLower(string(shipment.Status))))
+		}
 		return ErrInvalidTransition
+	}
+	if shipment.LockedBy == nil || *shipment.LockedBy != operatorID {
+		return ErrShipmentNotLocked.WithMessage(fmt.Sprintf("You must acquire a dispatch lock on shipment %s before dispatching", shipmentID))
+	}
+	if shipment.LockExpiresAt != nil && shipment.LockExpiresAt.Before(time.Now()) {
+		return ErrShipmentLockExpired.WithMessage(fmt.Sprintf("Your lock on shipment %s has expired. Please re-acquire the lock", shipmentID))
 	}
 
 	tx := s.db.WithContext(ctx).Begin()
 
 	shipment.Status = models.ShipmentStatusInTransit
 	shipment.ShipDate = time.Now()
+	shipment.LockedBy = nil
+	shipment.LockExpiresAt = nil
 	if err := tx.Save(&shipment).Error; err != nil {
 		tx.Rollback()
 		return err
@@ -338,15 +380,45 @@ func (s *shipmentService) ListCarriers(ctx context.Context) ([]models.Carrier, e
 	return s.carrierRepo.ListCarriers(ctx)
 }
 
-func (s *shipmentServiceRepo) AcquireDispatchLock(ctx context.Context, shipmentID string, operatorID string) error {
+func (s *shipmentServiceRepo) AcquireDispatchLock(ctx context.Context, shipmentID string, operatorID string) (*time.Time, error) {
+	shipment, err := s.repo.GetShipmentByID(ctx, shipmentID)
+	if err != nil || shipment == nil {
+		return nil, ErrNotFound
+	}
+	if shipment.Status == models.ShipmentStatusInTransit || shipment.Status == models.ShipmentStatusDelivered {
+		return nil, ErrShipmentAlreadyDispatched.WithMessage(fmt.Sprintf("Shipment %s is already %s and cannot be locked", shipmentID, strings.ToLower(string(shipment.Status))))
+	}
+	if shipment.LockedBy != nil && *shipment.LockedBy != operatorID {
+		if shipment.LockExpiresAt != nil && shipment.LockExpiresAt.After(time.Now()) {
+			return nil, ErrShipmentLockConflict.WithMessage(fmt.Sprintf("Shipment %s is currently locked by another operator. Please wait for the lock to expire or ask the operator to release it", shipmentID))
+		}
+	}
+
+	operatorName := operatorNameFromContext(ctx)
+	now := time.Now()
+	expiresAt := now.Add(dispatchLockTTL)
+
+	err = s.repo.UpdateShipmentFields(ctx, shipmentID, map[string]interface{}{
+		"locked_by":       operatorID,
+		"operator_id":     operatorID,
+		"operator_name":   operatorName,
+		"lock_expires_at": expiresAt,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &expiresAt, nil
+}
+
+func (s *shipmentServiceRepo) ReleaseDispatchLock(ctx context.Context, shipmentID string) error {
 	shipment, err := s.repo.GetShipmentByID(ctx, shipmentID)
 	if err != nil || shipment == nil {
 		return ErrNotFound
 	}
-	if shipment.Status == models.ShipmentStatusInTransit || shipment.Status == models.ShipmentStatusDelivered {
-		return ErrAlreadyLocked
-	}
-	return s.repo.UpdateShipmentFields(ctx, shipmentID, map[string]interface{}{"ship_date": time.Now()})
+	return s.repo.UpdateShipmentFields(ctx, shipmentID, map[string]interface{}{
+		"locked_by":       nil,
+		"lock_expires_at": nil,
+	})
 }
 
 func (s *shipmentServiceRepo) DispatchShipment(ctx context.Context, shipmentID string, operatorID string) error {
@@ -355,11 +427,22 @@ func (s *shipmentServiceRepo) DispatchShipment(ctx context.Context, shipmentID s
 		return ErrNotFound
 	}
 	if shipment.Status != models.ShipmentStatusScheduled {
+		if shipment.Status == models.ShipmentStatusInTransit || shipment.Status == models.ShipmentStatusDelivered {
+			return ErrShipmentAlreadyDispatched.WithMessage(fmt.Sprintf("Shipment %s is already %s", shipmentID, strings.ToLower(string(shipment.Status))))
+		}
 		return ErrInvalidTransition
 	}
+	if shipment.LockedBy == nil || *shipment.LockedBy != operatorID {
+		return ErrShipmentNotLocked.WithMessage(fmt.Sprintf("You must acquire a dispatch lock on shipment %s before dispatching", shipmentID))
+	}
+	if shipment.LockExpiresAt != nil && shipment.LockExpiresAt.Before(time.Now()) {
+		return ErrShipmentLockExpired.WithMessage(fmt.Sprintf("Your lock on shipment %s has expired. Please re-acquire the lock", shipmentID))
+	}
 
-		shipment.Status = models.ShipmentStatusInTransit
+	shipment.Status = models.ShipmentStatusInTransit
 	shipment.ShipDate = time.Now()
+	shipment.LockedBy = nil
+	shipment.LockExpiresAt = nil
 	err = s.repo.UpdateShipment(ctx, shipment)
 	if err == nil {
 		observability.DefaultRegistry.Counter(observability.MetricShipmentDispatched).Inc()

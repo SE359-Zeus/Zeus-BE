@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"zeus-scm-service/internal/models"
 	"zeus-scm-service/internal/pagination"
@@ -328,8 +329,16 @@ type MockShipmentService struct {
 	mock.Mock
 }
 
-func (m *MockShipmentService) AcquireDispatchLock(ctx context.Context, shipmentID string, operatorID string) error {
+func (m *MockShipmentService) AcquireDispatchLock(ctx context.Context, shipmentID string, operatorID string) (*time.Time, error) {
 	args := m.Called(ctx, shipmentID, operatorID)
+	if args.Get(0) != nil {
+		return args.Get(0).(*time.Time), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *MockShipmentService) ReleaseDispatchLock(ctx context.Context, shipmentID string) error {
+	args := m.Called(ctx, shipmentID)
 	return args.Error(0)
 }
 

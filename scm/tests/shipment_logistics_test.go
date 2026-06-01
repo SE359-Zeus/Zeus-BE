@@ -18,8 +18,9 @@ func TestShipment_DispatchLockingProcedure(t *testing.T) {
 	stockRepo := sqlite.NewStockRepository(db)
 	svc := service.NewShipmentService(db, shipmentRepo, stockRepo)
 
-	err := svc.AcquireDispatchLock(context.Background(), "SHP-2024-201", "Operator-B")
+	expiresAt, err := svc.AcquireDispatchLock(context.Background(), "SHP-2024-201", "Operator-B")
 	assert.Error(t, err, "Should fail when shipment does not exist")
+	assert.Nil(t, expiresAt)
 }
 
 func TestShipment_InventoryDeductionTrigger(t *testing.T) {

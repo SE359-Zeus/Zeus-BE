@@ -17,20 +17,24 @@ const (
 )
 
 type Shipment struct {
-	ID           string         `gorm:"type:varchar(50);primary_key"`
-	PORef        string         `gorm:"type:varchar(50);not null"`
-	SupplierID   uuid.UUID      `gorm:"type:uuid;not null" json:"-"`
-	SupplierName string         `gorm:"-" json:"supplier_name,omitempty"`
-	Status       ShipmentStatus `gorm:"type:varchar(50);not null"`
-	State        ShipmentState  `gorm:"foreignKey:Status;references:Name"`
-	Carrier      string         `gorm:"type:varchar(100)"`
-	TrackingNo   string         `gorm:"type:varchar(100)"`
-	Origin       string         `gorm:"type:varchar(255)"`
-	ShipDate     time.Time      `gorm:""`
-	ETA          time.Time      `gorm:""`
-	CreatedAt    time.Time      `gorm:"autoCreateTime"`
-	UpdatedAt    time.Time      `gorm:"autoUpdateTime"`
-	DeletedAt    gorm.DeletedAt `gorm:"index"`
+	ID             string         `gorm:"type:varchar(50);primary_key"`
+	PORef          string         `gorm:"type:varchar(50);not null"`
+	SupplierID     uuid.UUID      `gorm:"type:uuid;not null" json:"-"`
+	SupplierName   string         `gorm:"-" json:"supplier_name,omitempty"`
+	Status         ShipmentStatus `gorm:"type:varchar(50);not null"`
+	State          ShipmentState  `gorm:"foreignKey:Status;references:Name"`
+	Carrier        string         `gorm:"type:varchar(100)"`
+	TrackingNo     string         `gorm:"type:varchar(100)"`
+	Origin         string         `gorm:"type:varchar(255)"`
+	ShipDate       time.Time      `gorm:""`
+	ETA            time.Time      `gorm:""`
+	LockedBy       *string        `gorm:"type:varchar(100)"`
+	LockExpiresAt  *time.Time     `gorm:""`
+	OperatorID     string         `gorm:"type:varchar(100)" json:"-"`
+	OperatorName   string         `gorm:"type:varchar(255)" json:"operator_name,omitempty"`
+	CreatedAt      time.Time      `gorm:"autoCreateTime"`
+	UpdatedAt      time.Time      `gorm:"autoUpdateTime"`
+	DeletedAt      gorm.DeletedAt `gorm:"index"`
 
 	Items    []ShipmentItem `gorm:"foreignKey:ShipmentID"`
 	Supplier *Supplier      `gorm:"foreignKey:SupplierID;references:ID" json:"-"`
