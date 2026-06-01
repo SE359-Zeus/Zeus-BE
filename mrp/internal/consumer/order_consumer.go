@@ -130,20 +130,41 @@ func (c *OrderConsumer) loop(ctx context.Context, msgs <-chan amqp.Delivery, eve
 			traceID := ""
 			spanID := ""
 			if msg.Headers != nil {
-				if tpVal, ok := msg.Headers["traceparent"].(string); ok && tpVal != "" {
-					headers.Set("traceparent", tpVal)
-					parts := strings.Split(tpVal, "-")
-					if len(parts) == 4 && len(parts[1]) == 32 {
-						traceID = parts[1]
+				if tpVal, ok := msg.Headers["traceparent"]; ok {
+					var tpStr string
+					switch v := tpVal.(type) {
+					case string:
+						tpStr = v
+					case []byte:
+						tpStr = string(v)
+					}
+					if tpStr != "" {
+						headers.Set("traceparent", tpStr)
+						parts := strings.Split(tpStr, "-")
+						if len(parts) == 4 && len(parts[1]) == 32 {
+							traceID = parts[1]
+						}
 					}
 				}
 				if traceID == "" {
-					if tidVal, ok := msg.Headers["trace_id"].(string); ok && tidVal != "" {
-						traceID = tidVal
+					if tidVal, ok := msg.Headers["trace_id"]; ok {
+						switch v := tidVal.(type) {
+						case string:
+							traceID = v
+						case []byte:
+							traceID = string(v)
+						}
 					}
 				}
-				if sidVal, ok := msg.Headers["span_id"].(string); ok && sidVal != "" {
-					spanID = sidVal
+				if spanID == "" {
+					if sidVal, ok := msg.Headers["span_id"]; ok {
+						switch v := sidVal.(type) {
+						case string:
+							spanID = v
+						case []byte:
+							spanID = string(v)
+						}
+					}
 				}
 			}
 			propagator := otel.GetTextMapPropagator()

@@ -42,7 +42,10 @@ func propagateTrace(ctx context.Context, req *http.Request) {
 	if traceID == "" {
 		return
 	}
-	spanID := observability.NewSpanID()
+	spanID := observability.SpanIDFromContext(ctx)
+	if spanID == "" {
+		spanID = observability.NewSpanID()
+	}
 	req.Header.Set("traceparent", "00-"+traceID+"-"+spanID+"-01")
 }
 
