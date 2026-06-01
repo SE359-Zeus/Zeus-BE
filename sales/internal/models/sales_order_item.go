@@ -12,7 +12,7 @@ type SalesOrderItem struct {
 	SKU          string    `json:"sku"`
 	RequestedQty int       `json:"requested_qty"`
 	AllocatedQty int       `json:"-"`
-	UnitPrice    float64   `json:"-"`
+	UnitPrice    float64   `json:"unit_price"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }

@@ -244,19 +244,15 @@ func (svc *OrderService) ListOrdersWithFilters(ctx context.Context, states []str
 				continue
 			}
 		}
-		// load status code for filtering
-		includeByState := true
+		// use preloaded status for filtering (already loaded via Preload("Status"))
 		if len(stateSet) > 0 {
-			status, err := svc.getStatusByID(ctx, order.StatusID)
-			if err != nil || status == nil {
+			statusCode := ""
+			if order.Status != nil {
+				statusCode = strings.ToUpper(order.Status.Code)
+			}
+			if _, ok := stateSet[statusCode]; !ok {
 				continue
 			}
-			if _, ok := stateSet[strings.ToUpper(status.Code)]; !ok {
-				includeByState = false
-			}
-		}
-		if !includeByState {
-			continue
 		}
 		client, _ := svc.clients.GetClient(ctx, order.ClientID)
 		if client == nil {
