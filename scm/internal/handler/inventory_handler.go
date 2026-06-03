@@ -120,6 +120,18 @@ func (h *InventoryHandler) GetProductModel(c *gin.Context) {
 	writeJSON(c, 200, m)
 }
 
+func (h *InventoryHandler) ListProductModels(c *gin.Context) {
+	params := parsePaginationParams(c)
+	q := c.Query("q")
+
+	models, meta, err := h.svc.ListProductModels(c.Request.Context(), params, q)
+	if err != nil {
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+	writeJSON(c, 200, pagination.Response{Data: models, Pagination: *meta})
+}
+
 func (h *InventoryHandler) CreateProductModel(c *gin.Context) {
 	var m models.ProductModel
 	if err := c.ShouldBindJSON(&m); err != nil {

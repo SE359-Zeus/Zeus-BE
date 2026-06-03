@@ -52,6 +52,7 @@ type IInventoryRepository interface {
 	UpdateProduct(ctx context.Context, id uuid.UUID, fields map[string]any) (int64, error)
 
 	GetProductModelByCode(ctx context.Context, code string) (*models.ProductModel, error)
+	ListProductModels(ctx context.Context, params pagination.Params, q string) ([]models.ProductModel, *pagination.Meta, error)
 	CreateProductModel(ctx context.Context, m *models.ProductModel) error
 	DeleteProductModel(ctx context.Context, code string) error
 

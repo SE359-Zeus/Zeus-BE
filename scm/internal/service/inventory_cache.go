@@ -80,6 +80,10 @@ func (s *cachedInventoryService) GetProductModel(ctx context.Context, code strin
 	return s.base.GetProductModel(ctx, code)
 }
 
+func (s *cachedInventoryService) ListProductModels(ctx context.Context, params pagination.Params, q string) ([]models.ProductModel, *pagination.Meta, error) {
+	return s.base.ListProductModels(ctx, params, q)
+}
+
 func (s *cachedInventoryService) CreateProductModel(ctx context.Context, m *models.ProductModel) error {
 	return s.base.CreateProductModel(ctx, m)
 }

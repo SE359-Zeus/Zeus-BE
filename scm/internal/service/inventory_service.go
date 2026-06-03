@@ -25,6 +25,7 @@ type IInventoryService interface {
 	UpdateProduct(ctx context.Context, id uuid.UUID, fields map[string]any) (*models.Product, error)
 
 	GetProductModel(ctx context.Context, code string) (*models.ProductModel, error)
+	ListProductModels(ctx context.Context, params pagination.Params, q string) ([]models.ProductModel, *pagination.Meta, error)
 	CreateProductModel(ctx context.Context, m *models.ProductModel) error
 	DeleteProductModel(ctx context.Context, code string) error
 
@@ -173,6 +174,10 @@ func (s *inventoryServiceRepo) GetProductModel(ctx context.Context, code string)
 		return nil, ErrNotFound
 	}
 	return m, nil
+}
+
+func (s *inventoryServiceRepo) ListProductModels(ctx context.Context, params pagination.Params, q string) ([]models.ProductModel, *pagination.Meta, error) {
+	return s.repo.ListProductModels(ctx, params, q)
 }
 
 func (s *inventoryServiceRepo) CreateProductModel(ctx context.Context, m *models.ProductModel) error {
@@ -562,6 +567,20 @@ func (s *inventoryService) GetProductModel(ctx context.Context, code string) (*m
 		}
 	}
 	return &m, nil
+}
+
+func (s *inventoryService) ListProductModels(ctx context.Context, params pagination.Params, q string) ([]models.ProductModel, *pagination.Meta, error) {
+	query := s.db.WithContext(ctx).Model(&models.ProductModel{})
+	if q != "" {
+		like := "%" + q + "%"
+		query = query.Where("model_code LIKE ? OR model_name LIKE ?", like, like)
+	}
+	var models_ []models.ProductModel
+	meta, err := pagination.Paginate(query, params, &models_, "created_at", "updated_at", "model_code", "model_name")
+	if err != nil {
+		return nil, nil, err
+	}
+	return models_, meta, nil
 }
 
 func (s *inventoryService) CreateProductModel(ctx context.Context, m *models.ProductModel) error {

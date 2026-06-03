@@ -190,6 +190,14 @@ func (m *MockInventoryService) GetProductModel(ctx context.Context, code string)
 	return nil, args.Error(1)
 }
 
+func (m *MockInventoryService) ListProductModels(ctx context.Context, params pagination.Params, q string) ([]models.ProductModel, *pagination.Meta, error) {
+	args := m.Called(ctx, params, q)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.ProductModel), args.Get(1).(*pagination.Meta), args.Error(2)
+	}
+	return nil, args.Get(1).(*pagination.Meta), args.Error(2)
+}
+
 func (m *MockInventoryService) CreateProductModel(ctx context.Context, model *models.ProductModel) error {
 	args := m.Called(ctx, model)
 	return args.Error(0)

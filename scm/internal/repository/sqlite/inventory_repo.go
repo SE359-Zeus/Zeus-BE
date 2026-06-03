@@ -90,6 +90,21 @@ func (r *inventoryRepository) GetProductModelByCode(ctx context.Context, code st
 	}
 	return &m, nil
 }
+
+func (r *inventoryRepository) ListProductModels(ctx context.Context, params pagination.Params, q string) ([]models.ProductModel, *pagination.Meta, error) {
+	query := r.db.WithContext(ctx).Model(&models.ProductModel{})
+	if q != "" {
+		like := "%" + q + "%"
+		query = query.Where("model_code LIKE ? OR model_name LIKE ?", like, like)
+	}
+	var models_ []models.ProductModel
+	meta, err := pagination.Paginate(query, params, &models_, "created_at", "updated_at", "model_code", "model_name")
+	if err != nil {
+		return nil, nil, err
+	}
+	return models_, meta, nil
+}
+
 func (r *inventoryRepository) CreateProductModel(ctx context.Context, m *models.ProductModel) error {
 	var existing models.ProductModel
 	err := r.db.WithContext(ctx).Unscoped().First(&existing, "model_code = ? ", m.ModelCode).Error

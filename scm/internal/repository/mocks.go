@@ -261,6 +261,14 @@ func (m *MockInventoryRepository) GetProductModelByCode(ctx context.Context, cod
 	return nil, args.Error(1)
 }
 
+func (m *MockInventoryRepository) ListProductModels(ctx context.Context, params pagination.Params, q string) ([]models.ProductModel, *pagination.Meta, error) {
+	args := m.Called(ctx, params, q)
+	if args.Get(0) != nil {
+		return args.Get(0).([]models.ProductModel), args.Get(1).(*pagination.Meta), args.Error(2)
+	}
+	return nil, args.Get(1).(*pagination.Meta), args.Error(2)
+}
+
 func (m *MockInventoryRepository) CreateProductModel(ctx context.Context, m2 *models.ProductModel) error {
 	args := m.Called(ctx, m2)
 	return args.Error(0)

@@ -261,6 +261,7 @@ func main() {
 		api.POST("/inventory/products", middleware.RequireRoles(rolesOperator...), inventoryH.CreateProduct)
 		api.POST("/inventory/products/register", middleware.RequireRoles(rolesOperator...), inventoryH.RegisterProduct)
 		api.PUT("/inventory/products/:id", middleware.RequireRoles(rolesOperator...), inventoryH.UpdateProduct)
+		api.GET("/inventory/product-models", middleware.RequireRoles(rolesWorker...), inventoryH.ListProductModels)
 		api.GET("/inventory/product-models/:code", middleware.RequireRoles(rolesWorker...), inventoryH.GetProductModel)
 		api.POST("/inventory/product-models", middleware.RequireRoles(rolesOperator...), inventoryH.CreateProductModel)
 		api.DELETE("/inventory/product-models/:code", middleware.RequireRoles(rolesOperator...), inventoryH.DeleteProductModel)
