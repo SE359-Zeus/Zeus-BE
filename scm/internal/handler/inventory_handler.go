@@ -608,6 +608,28 @@ func (h *InventoryHandler) GetPartCatalogBySKU(c *gin.Context) {
 	})
 }
 
+func (h *InventoryHandler) ListInventoryAssets(c *gin.Context) {
+	params := parsePaginationParams(c)
+	q := c.Query("q")
+
+	productModels, _, err := h.svc.ListProductModels(c.Request.Context(), params, q)
+	if err != nil {
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+
+	partCatalogs, _, err := h.svc.ListPartCatalog(c.Request.Context(), nil, params, q)
+	if err != nil {
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+
+	writeJSON(c, 200, gin.H{
+		"product_models": productModels,
+		"part_catalogs":  partCatalogs,
+	})
+}
+
 func (h *InventoryHandler) ListStocks(c *gin.Context) {
 	params := parsePaginationParams(c)
 	status := c.Query("status")

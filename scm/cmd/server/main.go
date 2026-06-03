@@ -285,6 +285,8 @@ func main() {
 		api.DELETE("/inventory/part-catalog/:sku", middleware.RequireRoles(rolesOperator...), inventoryH.DeletePartCatalog)
 		api.GET("/inventory/part-catalog/sku/:sku", middleware.RequireRoles(rolesWorker...), inventoryH.GetPartCatalogBySKU)
 
+		api.GET("/inventory/assets", middleware.RequireRoles(rolesWorker...), inventoryH.ListInventoryAssets)
+
 		api.GET("/luts", middleware.RequireRoles(rolesWorker...), lutH.GetAllLUTs)
 
 		api.GET("/inventory/ledger", middleware.RequireRoles(rolesWorker...), ledgerH.ListEntries)

@@ -374,6 +374,65 @@ components:
         created_at:
           type: string
           format: date-time
+    PartCatalog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        part_number:
+          type: string
+        part_types_id:
+          type: integer
+        mfg_number:
+          type: string
+        description:
+          type: string
+          nullable: true
+        image_url:
+          type: string
+          nullable: true
+        part_mfg_status:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+    ProductModel:
+      type: object
+      properties:
+        model_code:
+          type: string
+        model_name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        unit_price:
+          type: number
+          format: float
+        image_name:
+          type: string
+          nullable: true
+        image_url:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
 
 security:
   - BearerAuth: []
@@ -1559,6 +1618,59 @@ paths:
                 $ref: '#/components/schemas/SuccessResponse'
 
   /inventory/product-models:
+    get:
+      summary: List product models with pagination and search
+      tags: [Inventory]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 15
+          description: Items per page (max 100)
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            default: created_at
+            enum: [created_at, updated_at, model_code, model_name]
+          description: Sort column
+        - name: sort_dir
+          in: query
+          schema:
+            type: string
+            default: desc
+            enum: [asc, desc]
+          description: Sort direction
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Search keyword (matches model_code, model_name)
+      responses:
+        '200':
+          description: Product model list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/ProductModel'
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
     post:
       summary: Create a product model
       tags: [Inventory]
@@ -2061,6 +2173,31 @@ paths:
                             type: number
                             format: double
                             example: 125000.50
+
+  /inventory/assets:
+    get:
+      summary: List inventory assets (product models and part catalogs)
+      tags: [Inventory]
+      responses:
+        '200':
+          description: Inventory assets grouped by type
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          product_models:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/ProductModel'
+                          part_catalogs:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/PartCatalog'
 
   /inventory/export:
     get:
