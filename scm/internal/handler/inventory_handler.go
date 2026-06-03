@@ -93,13 +93,9 @@ func (h *InventoryHandler) ListProducts(c *gin.Context) {
 
 func (h *InventoryHandler) CreateProduct(c *gin.Context) {
 	var req struct {
-		ID               *string  `json:"id"`
-		ProductModelCode string   `json:"product_model_code" binding:"required"`
-		CustomerID       *string  `json:"customer_id"`
-		ProductName      string   `json:"product_name" binding:"required"`
-		SerialNumber     string   `json:"serial_number" binding:"required"`
-		CreatedAt        *string  `json:"created_at"`
-		UpdatedAt        *string  `json:"updated_at"`
+		ProductModelCode string `json:"product_model_code" binding:"required"`
+		ProductName      string `json:"product_name" binding:"required"`
+		SerialNumber     string `json:"serial_number" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		exception.WriteError(c, exception.ErrInvalidBody)
@@ -107,44 +103,13 @@ func (h *InventoryHandler) CreateProduct(c *gin.Context) {
 	}
 
 	p := models.Product{
+		ID:               uuid.New(),
 		ProductModelCode: req.ProductModelCode,
+		CustomerID:       &uuid.Nil,
 		ProductName:      req.ProductName,
 		SerialNumber:     req.SerialNumber,
-	}
-
-	if req.ID != nil && *req.ID != "" {
-		if id, err := uuid.Parse(*req.ID); err == nil {
-			p.ID = id
-		}
-	}
-	if p.ID == uuid.Nil {
-		p.ID = uuid.New()
-	}
-
-	if req.CustomerID != nil && *req.CustomerID != "" {
-		if cid, err := uuid.Parse(*req.CustomerID); err == nil {
-			p.CustomerID = &cid
-		}
-	}
-
-	now := time.Now()
-	if req.CreatedAt != nil && *req.CreatedAt != "" {
-		if t, err := time.Parse(time.RFC3339, *req.CreatedAt); err == nil {
-			p.CreatedAt = t
-		} else {
-			p.CreatedAt = now
-		}
-	} else {
-		p.CreatedAt = now
-	}
-	if req.UpdatedAt != nil && *req.UpdatedAt != "" {
-		if t, err := time.Parse(time.RFC3339, *req.UpdatedAt); err == nil {
-			p.UpdatedAt = t
-		} else {
-			p.UpdatedAt = now
-		}
-	} else {
-		p.UpdatedAt = now
+		CreatedAt:        time.Now(),
+		UpdatedAt:        time.Now(),
 	}
 
 	if err := h.svc.CreateProduct(c.Request.Context(), &p); err != nil {
