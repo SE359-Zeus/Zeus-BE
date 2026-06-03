@@ -92,21 +92,61 @@ func (h *InventoryHandler) ListProducts(c *gin.Context) {
 }
 
 func (h *InventoryHandler) CreateProduct(c *gin.Context) {
-	var p models.Product
-	if err := c.ShouldBindJSON(&p); err != nil {
+	var req struct {
+		ID               *string  `json:"id"`
+		ProductModelCode string   `json:"product_model_code" binding:"required"`
+		CustomerID       *string  `json:"customer_id"`
+		ProductName      string   `json:"product_name" binding:"required"`
+		SerialNumber     string   `json:"serial_number" binding:"required"`
+		CreatedAt        *string  `json:"created_at"`
+		UpdatedAt        *string  `json:"updated_at"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
 		exception.WriteError(c, exception.ErrInvalidBody)
 		return
+	}
+
+	p := models.Product{
+		ProductModelCode: req.ProductModelCode,
+		ProductName:      req.ProductName,
+		SerialNumber:     req.SerialNumber,
+	}
+
+	if req.ID != nil && *req.ID != "" {
+		if id, err := uuid.Parse(*req.ID); err == nil {
+			p.ID = id
+		}
 	}
 	if p.ID == uuid.Nil {
 		p.ID = uuid.New()
 	}
+
+	if req.CustomerID != nil && *req.CustomerID != "" {
+		if cid, err := uuid.Parse(*req.CustomerID); err == nil {
+			p.CustomerID = &cid
+		}
+	}
+
 	now := time.Now()
-	if p.CreatedAt.IsZero() {
+	if req.CreatedAt != nil && *req.CreatedAt != "" {
+		if t, err := time.Parse(time.RFC3339, *req.CreatedAt); err == nil {
+			p.CreatedAt = t
+		} else {
+			p.CreatedAt = now
+		}
+	} else {
 		p.CreatedAt = now
 	}
-	if p.UpdatedAt.IsZero() {
+	if req.UpdatedAt != nil && *req.UpdatedAt != "" {
+		if t, err := time.Parse(time.RFC3339, *req.UpdatedAt); err == nil {
+			p.UpdatedAt = t
+		} else {
+			p.UpdatedAt = now
+		}
+	} else {
 		p.UpdatedAt = now
 	}
+
 	if err := h.svc.CreateProduct(c.Request.Context(), &p); err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			exception.WriteError(c, appErr)

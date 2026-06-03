@@ -110,8 +110,9 @@ func TestInventoryHandler_CreateProduct_201(t *testing.T) {
 	mockSvc.On("CreateProduct", mock.Anything, mock.AnythingOfType("*models.Product")).Return(nil)
 
 	body, _ := json.Marshal(map[string]string{
-		"product_name":  "New Product",
-		"serial_number": "SN-001",
+		"product_model_code": "Z-1000",
+		"product_name":       "New Product",
+		"serial_number":      "SN-001",
 	})
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/v1/inventory/products", bytes.NewReader(body))
