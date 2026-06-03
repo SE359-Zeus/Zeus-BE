@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/csv"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/xuri/excelize/v2"
 )
 
 type InventoryHandler struct {
@@ -628,6 +630,96 @@ func (h *InventoryHandler) ListInventoryAssets(c *gin.Context) {
 		"product_models": productModels,
 		"part_catalogs":  partCatalogs,
 	})
+}
+
+func (h *InventoryHandler) ExportInventoryAssets(c *gin.Context) {
+	q := c.Query("q")
+	params := pagination.Params{Page: 1, Limit: 100000}
+
+	productModels, _, err := h.svc.ListProductModels(c.Request.Context(), params, q)
+	if err != nil {
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+
+	partCatalogs, _, err := h.svc.ListPartCatalog(c.Request.Context(), nil, params, q)
+	if err != nil {
+		exception.WriteError(c, exception.ErrInternal.WithError(err))
+		return
+	}
+
+	f := excelize.NewFile()
+	defer f.Close()
+
+	// Product Models sheet
+	pmSheet := "Product Models"
+	f.SetSheetName("Sheet1", pmSheet)
+	f.SetCellValue(pmSheet, "A1", "Model Code")
+	f.SetCellValue(pmSheet, "B1", "Model Name")
+	f.SetCellValue(pmSheet, "C1", "Description")
+	f.SetCellValue(pmSheet, "D1", "Unit Price")
+	f.SetCellValue(pmSheet, "E1", "Image Name")
+	f.SetCellValue(pmSheet, "F1", "Image URL")
+	f.SetCellValue(pmSheet, "G1", "Created At")
+	f.SetCellValue(pmSheet, "H1", "Updated At")
+
+	for i, m := range productModels {
+		row := i + 2
+		f.SetCellValue(pmSheet, fmt.Sprintf("A%d", row), m.ModelCode)
+		f.SetCellValue(pmSheet, fmt.Sprintf("B%d", row), m.ModelName)
+		if m.Description != nil {
+			f.SetCellValue(pmSheet, fmt.Sprintf("C%d", row), *m.Description)
+		}
+		f.SetCellValue(pmSheet, fmt.Sprintf("D%d", row), m.UnitPrice)
+		if m.ImageName != nil {
+			f.SetCellValue(pmSheet, fmt.Sprintf("E%d", row), *m.ImageName)
+		}
+		if m.ImageUrl != nil {
+			f.SetCellValue(pmSheet, fmt.Sprintf("F%d", row), *m.ImageUrl)
+		}
+		f.SetCellValue(pmSheet, fmt.Sprintf("G%d", row), m.CreatedAt.Format(time.RFC3339))
+		f.SetCellValue(pmSheet, fmt.Sprintf("H%d", row), m.UpdatedAt.Format(time.RFC3339))
+	}
+
+	// Part Catalogs sheet
+	pcSheet := "Part Catalogs"
+	f.NewSheet(pcSheet)
+	f.SetCellValue(pcSheet, "A1", "ID")
+	f.SetCellValue(pcSheet, "B1", "Part Number")
+	f.SetCellValue(pcSheet, "C1", "Part Types ID")
+	f.SetCellValue(pcSheet, "D1", "Mfg Number")
+	f.SetCellValue(pcSheet, "E1", "Description")
+	f.SetCellValue(pcSheet, "F1", "Image URL")
+	f.SetCellValue(pcSheet, "G1", "Part Mfg Status")
+	f.SetCellValue(pcSheet, "H1", "Created At")
+	f.SetCellValue(pcSheet, "I1", "Updated At")
+
+	for i, pc := range partCatalogs {
+		row := i + 2
+		f.SetCellValue(pcSheet, fmt.Sprintf("A%d", row), pc.ID.String())
+		f.SetCellValue(pcSheet, fmt.Sprintf("B%d", row), pc.PartNumber)
+		f.SetCellValue(pcSheet, fmt.Sprintf("C%d", row), pc.PartTypesID)
+		f.SetCellValue(pcSheet, fmt.Sprintf("D%d", row), pc.MfgNumber)
+		if pc.Description != nil {
+			f.SetCellValue(pcSheet, fmt.Sprintf("E%d", row), *pc.Description)
+		}
+		if pc.ImageUrl != nil {
+			f.SetCellValue(pcSheet, fmt.Sprintf("F%d", row), *pc.ImageUrl)
+		}
+		f.SetCellValue(pcSheet, fmt.Sprintf("G%d", row), pc.PartMfgStatus)
+		f.SetCellValue(pcSheet, fmt.Sprintf("H%d", row), pc.CreatedAt.Format(time.RFC3339))
+		f.SetCellValue(pcSheet, fmt.Sprintf("I%d", row), pc.UpdatedAt.Format(time.RFC3339))
+	}
+
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Disposition", `attachment; filename="inventory_assets.xlsx"`)
+	c.Header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Header("Transfer-Encoding", "chunked")
+	c.Writer.WriteHeader(http.StatusOK)
+
+	if err := f.Write(c.Writer); err != nil {
+		return
+	}
 }
 
 func (h *InventoryHandler) ListStocks(c *gin.Context) {

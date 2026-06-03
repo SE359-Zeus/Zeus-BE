@@ -2199,6 +2199,40 @@ paths:
                             items:
                               $ref: '#/components/schemas/PartCatalog'
 
+  /inventory/assets/export:
+    get:
+      summary: Export inventory assets (product models and part catalogs) as XLSX
+      tags: [Inventory]
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Search keyword (matches model_code, model_name, part_number, mfg_number, description)
+      responses:
+        '200':
+          description: XLSX file download
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: attachment; filename="inventory_assets.xlsx"
+            Content-Type:
+              schema:
+                type: string
+                example: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+                description: >
+                  XLSX with two sheets: "Product Models" (Model Code, Model Name,
+                  Description, Unit Price, Image Name, Image URL, Created At,
+                  Updated At) and "Part Catalogs" (ID, Part Number, Part Types ID,
+                  Mfg Number, Description, Image URL, Part Mfg Status, Created At,
+                  Updated At).
+
   /inventory/export:
     get:
       summary: Export full inventory (component stocks) as CSV stream

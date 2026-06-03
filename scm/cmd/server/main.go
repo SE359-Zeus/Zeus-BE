@@ -286,6 +286,7 @@ func main() {
 		api.GET("/inventory/part-catalog/sku/:sku", middleware.RequireRoles(rolesWorker...), inventoryH.GetPartCatalogBySKU)
 
 		api.GET("/inventory/assets", middleware.RequireRoles(rolesWorker...), inventoryH.ListInventoryAssets)
+		api.GET("/inventory/assets/export", middleware.RequireRoles(rolesWorker...), inventoryH.ExportInventoryAssets)
 
 		api.GET("/luts", middleware.RequireRoles(rolesWorker...), lutH.GetAllLUTs)
 
