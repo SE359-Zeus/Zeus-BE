@@ -186,10 +186,14 @@ func buildSeedManifest(db *gorm.DB) (*seedManifest, error) {
 		return nil, err
 	}
 	for _, p := range products {
+		var customerID string
+		if p.CustomerID != nil {
+			customerID = p.CustomerID.String()
+		}
 		manifest.Products = append(manifest.Products, productManifest{
 			ID:               p.ID.String(),
 			ProductModelCode: p.ProductModelCode,
-			CustomerID:       p.CustomerID.String(),
+			CustomerID:       customerID,
 			ProductName:      p.ProductName,
 			SerialNumber:     p.SerialNumber,
 		})

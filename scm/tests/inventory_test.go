@@ -22,10 +22,11 @@ func TestInventoryService_ProductCRUD(t *testing.T) {
 	ctx := context.Background()
 
 	id := uuid.New()
+	customerID := uuid.New()
 	newProduct := &models.Product{
 		ID:               id,
 		ProductModelCode: "Z-1000",
-		CustomerID:       uuid.New(),
+		CustomerID:       &customerID,
 		ProductName:      "Zeus Engine Z-1000",
 		SerialNumber:     "SN-99901",
 		CreatedAt:        time.Now(),

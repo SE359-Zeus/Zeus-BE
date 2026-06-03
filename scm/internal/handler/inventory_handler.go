@@ -97,6 +97,16 @@ func (h *InventoryHandler) CreateProduct(c *gin.Context) {
 		exception.WriteError(c, exception.ErrInvalidBody)
 		return
 	}
+	if p.ID == uuid.Nil {
+		p.ID = uuid.New()
+	}
+	now := time.Now()
+	if p.CreatedAt.IsZero() {
+		p.CreatedAt = now
+	}
+	if p.UpdatedAt.IsZero() {
+		p.UpdatedAt = now
+	}
 	if err := h.svc.CreateProduct(c.Request.Context(), &p); err != nil {
 		if appErr := exception.Resolve(err); appErr != nil {
 			exception.WriteError(c, appErr)
@@ -460,7 +470,7 @@ func (h *InventoryHandler) RegisterProduct(c *gin.Context) {
 	p := models.Product{
 		ID:               uuid.New(),
 		ProductModelCode: req.ProductModelCode,
-		CustomerID:       req.CustomerID,
+		CustomerID:       &req.CustomerID,
 		ProductName:      req.ProductName,
 		SerialNumber:     req.SerialNumber,
 	}

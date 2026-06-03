@@ -19,10 +19,11 @@ func seedProductsAndParts(db *gorm.DB, modelsList []models.ProductModel, catMap 
 	_ = catMap
 	for modelIndex, pm := range modelsList {
 		for productIndex := 0; productIndex < 2; productIndex++ {
+			customerID := stableUUID("customer:" + pm.ModelCode + ":" + fmt.Sprintf("%d", productIndex))
 			prod := models.Product{
 				ID:               stableUUID("product:" + pm.ModelCode + ":" + fmt.Sprintf("%d", productIndex)),
 				ProductModelCode: pm.ModelCode,
-				CustomerID:       stableUUID("customer:" + pm.ModelCode + ":" + fmt.Sprintf("%d", productIndex)),
+				CustomerID:       &customerID,
 				ProductName:      pm.ModelName + " Build " + gofakeit.LetterN(3),
 				SerialNumber:     fmt.Sprintf("SN-%s-%02d", pm.ModelCode, productIndex+1),
 				CreatedAt:        time.Now(),
