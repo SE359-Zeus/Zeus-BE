@@ -182,6 +182,22 @@ func (r *inventoryRepository) GetPartCatalogByID(ctx context.Context, id uuid.UU
 	return &c, nil
 }
 
+func (r *inventoryRepository) GetPartTypeNameByID(ctx context.Context, id int32) (string, error) {
+	var pt models.PartType
+	if err := r.db.WithContext(ctx).First(&pt, "id = ?", id).Error; err != nil {
+		return "", err
+	}
+	return pt.PartTypeName, nil
+}
+
+func (r *inventoryRepository) GetPartConditionNameByID(ctx context.Context, id int32) (string, error) {
+	var pc models.PartCondition
+	if err := r.db.WithContext(ctx).First(&pc, "id = ?", id).Error; err != nil {
+		return "", err
+	}
+	return pc.Name, nil
+}
+
 func (r *inventoryRepository) ListPartCatalog(ctx context.Context, typeID *int32, params pagination.Params, q string) ([]models.PartCatalog, *pagination.Meta, error) {
 	query := r.db.WithContext(ctx).Model(&models.PartCatalog{})
 	if typeID != nil {

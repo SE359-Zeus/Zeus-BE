@@ -326,6 +326,16 @@ func (m *MockInventoryRepository) GetPartCatalogByID(ctx context.Context, id uui
 	return nil, args.Error(1)
 }
 
+func (m *MockInventoryRepository) GetPartTypeNameByID(ctx context.Context, id int32) (string, error) {
+	args := m.Called(ctx, id)
+	return args.Get(0).(string), args.Error(1)
+}
+
+func (m *MockInventoryRepository) GetPartConditionNameByID(ctx context.Context, id int32) (string, error) {
+	args := m.Called(ctx, id)
+	return args.Get(0).(string), args.Error(1)
+}
+
 func (m *MockInventoryRepository) ListPartCatalog(ctx context.Context, typeID *int32, params pagination.Params, q string) ([]models.PartCatalog, *pagination.Meta, error) {
 	args := m.Called(ctx, typeID, params, q)
 	if args.Get(0) != nil {

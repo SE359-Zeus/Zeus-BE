@@ -1107,8 +1107,16 @@ func (s *inventoryService) hydratePartImageUrl(ctx context.Context, p *models.Pa
 		return
 	}
 	var cat models.PartCatalog
-	if err := s.db.WithContext(ctx).Select("image_url").First(&cat, "id = ?", p.PartCatalogID).Error; err == nil {
+	if err := s.db.WithContext(ctx).Select("image_url", "part_types_id").First(&cat, "id = ?", p.PartCatalogID).Error; err == nil {
 		p.ImageUrl = cat.ImageUrl
+		var pt models.PartType
+		if err := s.db.WithContext(ctx).Select("part_type_name").First(&pt, "id = ?", cat.PartTypesID).Error; err == nil {
+			p.PartTypeName = pt.PartTypeName
+		}
+	}
+	var cond models.PartCondition
+	if err := s.db.WithContext(ctx).Select("name").First(&cond, "id = ?", p.PartConditionID).Error; err == nil {
+		p.PartConditionName = cond.Name
 	}
 }
 
@@ -1117,22 +1125,58 @@ func (s *inventoryService) hydratePartImageUrls(ctx context.Context, parts []mod
 		return
 	}
 	ids := make(map[uuid.UUID]struct{})
+	condIDs := make(map[int32]struct{})
 	for i := range parts {
 		ids[parts[i].PartCatalogID] = struct{}{}
+		condIDs[parts[i].PartConditionID] = struct{}{}
 	}
 	unique := make([]uuid.UUID, 0, len(ids))
 	for id := range ids {
 		unique = append(unique, id)
 	}
 	var catalogs []models.PartCatalog
-	s.db.WithContext(ctx).Select("id", "image_url").Where("id IN ?", unique).Find(&catalogs)
+	s.db.WithContext(ctx).Select("id", "image_url", "part_types_id").Where("id IN ?", unique).Find(&catalogs)
 	urlMap := make(map[uuid.UUID]*string, len(catalogs))
+	typeIDMap := make(map[uuid.UUID]int32, len(catalogs))
 	for i := range catalogs {
 		urlMap[catalogs[i].ID] = catalogs[i].ImageUrl
+		typeIDMap[catalogs[i].ID] = catalogs[i].PartTypesID
+	}
+	typeIDs := make(map[int32]struct{})
+	for _, tid := range typeIDMap {
+		typeIDs[tid] = struct{}{}
+	}
+	typeIDList := make([]int32, 0, len(typeIDs))
+	for id := range typeIDs {
+		typeIDList = append(typeIDList, id)
+	}
+	var partTypes []models.PartType
+	s.db.WithContext(ctx).Select("id", "part_type_name").Where("id IN ?", typeIDList).Find(&partTypes)
+	typeNameMap := make(map[int32]string, len(partTypes))
+	for i := range partTypes {
+		typeNameMap[partTypes[i].ID] = partTypes[i].PartTypeName
+	}
+	condIDList := make([]int32, 0, len(condIDs))
+	for id := range condIDs {
+		condIDList = append(condIDList, id)
+	}
+	var conditions []models.PartCondition
+	s.db.WithContext(ctx).Select("id", "name").Where("id IN ?", condIDList).Find(&conditions)
+	condNameMap := make(map[int32]string, len(conditions))
+	for i := range conditions {
+		condNameMap[conditions[i].ID] = conditions[i].Name
 	}
 	for i := range parts {
 		if url, ok := urlMap[parts[i].PartCatalogID]; ok {
 			parts[i].ImageUrl = url
+		}
+		if tid, ok := typeIDMap[parts[i].PartCatalogID]; ok {
+			if tn, ok := typeNameMap[tid]; ok {
+				parts[i].PartTypeName = tn
+			}
+		}
+		if cn, ok := condNameMap[parts[i].PartConditionID]; ok {
+			parts[i].PartConditionName = cn
 		}
 	}
 }
@@ -1144,6 +1188,12 @@ func (s *inventoryServiceRepo) hydratePartImageUrl(ctx context.Context, p *model
 	cat, err := s.repo.GetPartCatalogByID(ctx, p.PartCatalogID)
 	if err == nil && cat != nil {
 		p.ImageUrl = cat.ImageUrl
+		if tn, err := s.repo.GetPartTypeNameByID(ctx, cat.PartTypesID); err == nil {
+			p.PartTypeName = tn
+		}
+	}
+	if cn, err := s.repo.GetPartConditionNameByID(ctx, p.PartConditionID); err == nil {
+		p.PartConditionName = cn
 	}
 }
 
@@ -1152,23 +1202,51 @@ func (s *inventoryServiceRepo) hydratePartImageUrls(ctx context.Context, parts [
 		return
 	}
 	ids := make(map[uuid.UUID]struct{})
+	condIDs := make(map[int32]struct{})
 	for i := range parts {
 		ids[parts[i].PartCatalogID] = struct{}{}
+		condIDs[parts[i].PartConditionID] = struct{}{}
 	}
 	unique := make([]uuid.UUID, 0, len(ids))
 	for id := range ids {
 		unique = append(unique, id)
 	}
 	urlMap := make(map[uuid.UUID]*string, len(unique))
+	typeIDMap := make(map[uuid.UUID]int32, len(unique))
 	for _, id := range unique {
 		cat, err := s.repo.GetPartCatalogByID(ctx, id)
 		if err == nil && cat != nil {
 			urlMap[id] = cat.ImageUrl
+			typeIDMap[id] = cat.PartTypesID
+		}
+	}
+	typeIDs := make(map[int32]struct{})
+	for _, tid := range typeIDMap {
+		typeIDs[tid] = struct{}{}
+	}
+	typeNameMap := make(map[int32]string, len(typeIDs))
+	for tid := range typeIDs {
+		if tn, err := s.repo.GetPartTypeNameByID(ctx, tid); err == nil {
+			typeNameMap[tid] = tn
+		}
+	}
+	condNameMap := make(map[int32]string, len(condIDs))
+	for cid := range condIDs {
+		if cn, err := s.repo.GetPartConditionNameByID(ctx, cid); err == nil {
+			condNameMap[cid] = cn
 		}
 	}
 	for i := range parts {
 		if url, ok := urlMap[parts[i].PartCatalogID]; ok {
 			parts[i].ImageUrl = url
+		}
+		if tid, ok := typeIDMap[parts[i].PartCatalogID]; ok {
+			if tn, ok := typeNameMap[tid]; ok {
+				parts[i].PartTypeName = tn
+			}
+		}
+		if cn, ok := condNameMap[parts[i].PartConditionID]; ok {
+			parts[i].PartConditionName = cn
 		}
 	}
 }

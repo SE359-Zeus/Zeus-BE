@@ -141,11 +141,13 @@ func TestInventoryService_GetPart_Success(t *testing.T) {
 	svc, repo := setupInventorySvc()
 	id := uuid.New()
 	catID := uuid.New()
-	expected := &models.Part{ID: id, PartCatalogID: catID, SerialNumber: "SN-001"}
-	cat := &models.PartCatalog{ID: catID}
+	expected := &models.Part{ID: id, PartCatalogID: catID, SerialNumber: "SN-001", PartConditionID: 1}
+	cat := &models.PartCatalog{ID: catID, PartTypesID: 1}
 
 	repo.On("GetPartByID", anyCtx, id).Return(expected, nil)
 	repo.On("GetPartCatalogByID", anyCtx, catID).Return(cat, nil)
+	repo.On("GetPartTypeNameByID", anyCtx, int32(1)).Return("Engine", nil)
+	repo.On("GetPartConditionNameByID", anyCtx, int32(1)).Return("New", nil)
 
 	result, err := svc.GetPart(context.Background(), id)
 	assert.NoError(t, err)
@@ -169,13 +171,15 @@ func TestInventoryService_ListParts_Success(t *testing.T) {
 	svc, repo := setupInventorySvc()
 	params := pagination.Params{Page: 1, Limit: 15}
 	catID := uuid.New()
-	expected := []models.Part{{SerialNumber: "SN-001", PartCatalogID: catID}}
+	expected := []models.Part{{SerialNumber: "SN-001", PartCatalogID: catID, PartConditionID: 1}}
 	meta := &pagination.Meta{Page: 1, Limit: 15, TotalRows: 1}
-	cat := &models.PartCatalog{ID: catID}
+	cat := &models.PartCatalog{ID: catID, PartTypesID: 1}
 
 	repo.On("ListParts", anyCtx, (*uuid.UUID)(nil), (*uuid.UUID)(nil), (*int32)(nil), params, "").
 		Return(expected, meta, nil)
 	repo.On("GetPartCatalogByID", anyCtx, catID).Return(cat, nil)
+	repo.On("GetPartTypeNameByID", anyCtx, int32(1)).Return("Engine", nil)
+	repo.On("GetPartConditionNameByID", anyCtx, int32(1)).Return("New", nil)
 
 	parts, resultMeta, err := svc.ListParts(context.Background(), nil, nil, nil, params, "")
 	assert.NoError(t, err)
@@ -371,13 +375,15 @@ func TestInventoryService_ListParts_WithProductID(t *testing.T) {
 	params := pagination.Params{Page: 1, Limit: 15}
 	productID := uuid.New()
 	catID := uuid.New()
-	expected := []models.Part{{SerialNumber: "SN-001", PartCatalogID: catID}}
+	expected := []models.Part{{SerialNumber: "SN-001", PartCatalogID: catID, PartConditionID: 1}}
 	meta := &pagination.Meta{Page: 1, Limit: 15, TotalRows: 1}
-	cat := &models.PartCatalog{ID: catID}
+	cat := &models.PartCatalog{ID: catID, PartTypesID: 1}
 
 	repo.On("ListParts", anyCtx, (*uuid.UUID)(nil), &productID, (*int32)(nil), params, "").
 		Return(expected, meta, nil)
 	repo.On("GetPartCatalogByID", anyCtx, catID).Return(cat, nil)
+	repo.On("GetPartTypeNameByID", anyCtx, int32(1)).Return("Engine", nil)
+	repo.On("GetPartConditionNameByID", anyCtx, int32(1)).Return("New", nil)
 
 	parts, resultMeta, err := svc.ListParts(context.Background(), nil, &productID, nil, params, "")
 	assert.NoError(t, err)
