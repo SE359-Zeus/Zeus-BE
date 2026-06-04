@@ -1,4 +1,4 @@
-.PHONY: build run seed migrate test clean vet lint dev help
+.PHONY: build run seed migrate test clean vet lint dev backfill help
 
 APP_NAME   := zeus-scm
 BUILD_DIR  := ./build
@@ -11,6 +11,7 @@ help:
 	@echo "  make build     - Build the binary"
 	@echo "  make run       - Run the server"
 	@echo "  make seed      - Run the SCM seeder"
+	@echo "  make backfill  - Backfill parts for products with no parts"
 	@echo "  make migrate   - Run SQL migrations"
 	@echo "  make test      - Run all tests"
 	@echo "  make vet       - Run go vet"
@@ -29,6 +30,9 @@ run:
 seed:
 	rm -f $(DB_PATH) $(DB_PATH)-wal $(DB_PATH)-shm
 	go run ./cmd/seeder -db $(DB_PATH) -migrations ./internal/migration -parts-data ../reference/seeder/parts.json
+
+backfill:
+	go run ./cmd/seeder -db $(DB_PATH) -backfill
 
 migrate:
 	go run ./cmd/migrate -db $(DB_PATH) -migrations ./internal/migration

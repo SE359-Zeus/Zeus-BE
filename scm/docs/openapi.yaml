@@ -325,6 +325,12 @@ components:
           type: string
         part_condition_id:
           type: integer
+        part_condition_name:
+          type: string
+          description: Human-readable condition name (e.g. "New", "Used", "Refurbished")
+        part_type_name:
+          type: string
+          description: Part type name resolved from part_catalog → part_types (e.g. "Processor", "Memory")
         manufactured_date:
           type: string
           format: date-time
@@ -1437,29 +1443,6 @@ paths:
                               $ref: '#/components/schemas/Product'
                           pagination:
                             $ref: '#/components/schemas/PaginationMeta'
-    post:
-      summary: Create a product
-      tags: [Inventory]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Product'
-      responses:
-        '201':
-          description: Product created
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - properties:
-                      statusCode:
-                        example: 201
-                      data:
-                        $ref: '#/components/schemas/Product'
-
   /inventory/stocks:
     get:
       summary: List component inventory with pagination, search, and status filter
@@ -1765,29 +1748,6 @@ paths:
                               $ref: '#/components/schemas/Part'
                           pagination:
                             $ref: '#/components/schemas/PaginationMeta'
-    post:
-      summary: Create a part
-      tags: [Inventory]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Part'
-      responses:
-        '201':
-          description: Part created
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessResponse'
-                  - properties:
-                      statusCode:
-                        example: 201
-                      data:
-                        $ref: '#/components/schemas/Part'
-
   /inventory/parts/{id}:
     get:
       summary: Get part by ID
@@ -2257,4 +2217,105 @@ paths:
                   CSV with columns: SKU, Name, Category, Stock Qty, Reorder Point,
                   Unit Cost, Status, Primary Supplier, Lead Time Days, Location.
                   One row per SKU.
+
+  # ── Seeding domain (product assembly) ──────────────────────────────────────
+  /seeding/products:
+    post:
+      summary: Create a product and auto-generate its parts from the BOM
+      description: >
+        Creates a new product. After insertion, the service looks up the
+        **parts_by_model** table for the product's model code and automatically
+        creates one `Part` record per BOM quantity, each with `product_id`
+        FK pointing to the newly created product.
+      tags: [Seeding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                product_model_code:
+                  type: string
+                  description: Must match an existing product_model.model_code
+                product_name:
+                  type: string
+                serial_number:
+                  type: string
+              required: [product_model_code, product_name, serial_number]
+      responses:
+        '201':
+          description: Product created (parts auto-generated from BOM)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      statusCode:
+                        example: 201
+                      data:
+                        $ref: '#/components/schemas/Product'
+
+  /seeding/products/register:
+    post:
+      summary: Register a product for a customer and auto-generate parts from BOM
+      description: >
+        Same as POST /seeding/products but also assigns a customer_id.
+        Parts are auto-created from the product model's BOM.
+      tags: [Seeding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                product_model_code:
+                  type: string
+                customer_id:
+                  type: string
+                  format: uuid
+                product_name:
+                  type: string
+                serial_number:
+                  type: string
+              required: [product_model_code, customer_id, product_name, serial_number]
+      responses:
+        '201':
+          description: Product registered (parts auto-generated from BOM)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      statusCode:
+                        example: 201
+                      data:
+                        $ref: '#/components/schemas/Product'
+
+  /seeding/parts:
+    post:
+      summary: Create a standalone part
+      tags: [Seeding]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Part'
+      responses:
+        '201':
+          description: Part created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - properties:
+                      statusCode:
+                        example: 201
+                      data:
+                        $ref: '#/components/schemas/Part'
 

@@ -18,6 +18,7 @@ import (
 	sqliteRepo "zeus-scm-service/internal/repository/sqlite"
 	valkeyRepo "zeus-scm-service/internal/repository/valkey"
 	"zeus-scm-service/internal/service"
+	"zeus-scm-service/seeder"
 
 	openapiui "github.com/PeterTakahashi/gin-openapi/openapiui"
 	"github.com/gin-gonic/gin"
@@ -67,6 +68,15 @@ func main() {
 			slog.Any("error", err),
 		)
 		os.Exit(1)
+	}
+
+	// Ensure every product has parts from its model BOM.
+	if err := seeder.BackfillPartsForEmptyProducts(db); err != nil {
+		slog.Warn("backfill parts failed (non-fatal)",
+			slog.String("service", "scm"),
+			slog.String("event", "backfill_warning"),
+			slog.Any("error", err),
+		)
 	}
 
 	mq, err := messaging.NewRabbitMQ(cfg.RabbitMQURL)

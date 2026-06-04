@@ -139,7 +139,7 @@ jobs:
           token: ${{ secrets.MANIFEST_REPO_TOKEN }}
           path: manifest-repo
 
-      - name: Update scm image tag in manifest repo
+      - name: Update scm-be image tag only (skip migrate and seed to protect DB)
         working-directory: manifest-repo
         env:
           NEW_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:${{ env.IMAGE_VERSION }}
@@ -155,26 +155,36 @@ jobs:
           fi
 
           python3 - <<'PY'
+          import os, re
           from pathlib import Path
-          import os
-          import re
 
           file_path = Path(os.environ["FILE"])
           new_image = os.environ["NEW_IMAGE"]
           new_tag = new_image.split(":", 1)[1]
 
-          content = file_path.read_text()
-          pattern = r"(image:\s*ghcr\.io/se359-zeus/zeus-be/scm:)[^\s]+"
-          updated, count = re.subn(pattern, rf"\1{new_tag}", content)
+          lines = file_path.read_text().splitlines()
+          in_scm_be = False
+          count = 0
+
+          for i, line in enumerate(lines):
+              # Detect start of a top-level service block (2-space indent)
+              if re.match(r'  \w[\w-]*:', line):
+                  in_scm_be = 'scm-be:' in line
+              # Update only the image line inside scm-be block
+              elif in_scm_be and re.match(r'    image:\s*ghcr\.io/se359-zeus/zeus-be/scm:', line):
+                  lines[i] = re.sub(
+                      r'(image:\s*ghcr\.io/se359-zeus/zeus-be/scm:)\S+',
+                      rf'\g<1>' + new_tag,
+                      line
+                  )
+                  count += 1
+                  in_scm_be = False
 
           if count == 0:
-              raise SystemExit("scm image line not found in manifest file")
+              raise SystemExit("scm-be image line not found in manifest file")
 
-          if count < 1:
-            raise SystemExit(f"expected to update scm image tag, but only updated {count} line(s)")
-
-          file_path.write_text(updated)
-          print(f"Updated {file_path} to {new_image}")
+          file_path.write_text('\n'.join(lines) + '\n')
+          print(f"Updated scm-be to {new_image} ({count} line(s) changed)")
           PY
 
       - name: Commit and push manifest change

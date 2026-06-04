@@ -25,7 +25,7 @@ func WarmupCache(ctx context.Context, db *gorm.DB, productCache repository.IProd
 		return
 	}
 	var products []models.Product
-	if err := db.WithContext(ctx).Find(&products).Error; err != nil {
+	if err := db.WithContext(ctx).Preload("ProductModel").Find(&products).Error; err != nil {
 		return
 	}
 	_ = productCache.WarmProducts(ctx, products)
@@ -59,9 +59,8 @@ func (s *cachedInventoryService) CreateProduct(ctx context.Context, p *models.Pr
 	if err := s.base.CreateProduct(ctx, p); err != nil {
 		return err
 	}
-	if s.productCache != nil {
-		_ = s.productCache.SetProduct(ctx, p)
-	}
+	// Don't cache here — the product doesn't have ProductModel preloaded.
+	// The next GetProduct call will fetch from DB with Preload and cache correctly.
 	return nil
 }
 
@@ -70,8 +69,9 @@ func (s *cachedInventoryService) UpdateProduct(ctx context.Context, id uuid.UUID
 	if err != nil {
 		return nil, err
 	}
+	// Invalidate cache so the next GetProduct re-fetches with ProductModel.
 	if s.productCache != nil {
-		_ = s.productCache.SetProduct(ctx, product)
+		_ = s.productCache.DeleteProduct(ctx, id)
 	}
 	return product, nil
 }
