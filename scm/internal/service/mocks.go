@@ -469,3 +469,17 @@ func (m *MockGoodsReceiptService) GetMetrics(ctx context.Context) (pending int64
 	args := m.Called(ctx)
 	return args.Get(0).(int64), args.Get(1).(int64), args.Get(2).(int64), args.Get(3).(int64), args.Error(4)
 }
+
+type MockSeedingService struct {
+	mock.Mock
+}
+
+func (m *MockSeedingService) CreateProduct(ctx context.Context, p *models.Product) error {
+	args := m.Called(ctx, p)
+	return args.Error(0)
+}
+
+func (m *MockSeedingService) CreatePart(ctx context.Context, p *models.Part) error {
+	args := m.Called(ctx, p)
+	return args.Error(0)
+}

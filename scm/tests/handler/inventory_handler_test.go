@@ -26,14 +26,11 @@ func setupInventoryTest() (*gin.Engine, *service.MockInventoryService) {
 	v1 := r.Group("/api/v1")
 	{
 		v1.GET("/inventory/products", h.ListProducts)
-		v1.POST("/inventory/products", h.CreateProduct)
-		v1.POST("/inventory/products/register", h.RegisterProduct)
 		v1.GET("/inventory/products/:id", h.GetProduct)
 		v1.GET("/inventory/product-models/:code", h.GetProductModel)
 		v1.POST("/inventory/product-models", h.CreateProductModel)
 		v1.DELETE("/inventory/product-models/:code", h.DeleteProductModel)
 		v1.GET("/inventory/parts", h.ListParts)
-		v1.POST("/inventory/parts", h.CreatePart)
 		v1.GET("/inventory/parts/:id", h.GetPart)
 		v1.PUT("/inventory/parts/:id/condition", h.UpdatePartCondition)
 		v1.POST("/inventory/parts/:id/scrap", h.MarkPartScrapped)
@@ -102,36 +99,6 @@ func TestInventoryHandler_ListProducts_200(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	mockSvc.AssertExpectations(t)
-}
-
-func TestInventoryHandler_CreateProduct_201(t *testing.T) {
-	r, mockSvc := setupInventoryTest()
-
-	mockSvc.On("CreateProduct", mock.Anything, mock.AnythingOfType("*models.Product")).Return(nil)
-
-	body, _ := json.Marshal(map[string]string{
-		"product_model_code": "Z-1000",
-		"product_name":       "New Product",
-		"serial_number":      "SN-001",
-	})
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/api/v1/inventory/products", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusCreated, w.Code)
-	mockSvc.AssertExpectations(t)
-}
-
-func TestInventoryHandler_CreateProduct_400_InvalidBody(t *testing.T) {
-	r, _ := setupInventoryTest()
-
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/api/v1/inventory/products", bytes.NewReader([]byte(`not json`)))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestInventoryHandler_GetProductModel_200(t *testing.T) {
@@ -230,23 +197,6 @@ func TestInventoryHandler_ListParts_200(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	mockSvc.AssertExpectations(t)
-}
-
-func TestInventoryHandler_CreatePart_201(t *testing.T) {
-	r, mockSvc := setupInventoryTest()
-
-	mockSvc.On("CreatePart", mock.Anything, mock.AnythingOfType("*models.Part")).Return(nil)
-
-	body, _ := json.Marshal(map[string]string{
-		"serial_number": "SN-002",
-	})
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/api/v1/inventory/parts", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusCreated, w.Code)
 	mockSvc.AssertExpectations(t)
 }
 
@@ -434,26 +384,6 @@ func TestInventoryHandler_UpdatePart_200(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	mockSvc.AssertExpectations(t)
-}
-
-func TestInventoryHandler_RegisterProduct_201(t *testing.T) {
-	r, mockSvc := setupInventoryTest()
-
-	mockSvc.On("CreateProduct", mock.Anything, mock.AnythingOfType("*models.Product")).Return(nil)
-
-	body, _ := json.Marshal(map[string]any{
-		"product_model_code": "82SN003JVN",
-		"customer_id":        uuid.New().String(),
-		"product_name":       "IdeaPad 5 Pro",
-		"serial_number":      "SN-82SN003JVN-99",
-	})
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/api/v1/inventory/products/register", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusCreated, w.Code)
 	mockSvc.AssertExpectations(t)
 }
 

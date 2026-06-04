@@ -165,7 +165,30 @@ func (s *inventoryServiceRepo) UpdateProduct(ctx context.Context, id uuid.UUID, 
 }
 
 func (s *inventoryServiceRepo) CreateProduct(ctx context.Context, p *models.Product) error {
-	return s.repo.CreateProduct(ctx, p)
+	if err := s.repo.CreateProduct(ctx, p); err != nil {
+		return err
+	}
+	boms, err := s.repo.GetPartsByModel(ctx, p.ProductModelCode)
+	if err == nil {
+		now := time.Now()
+		for _, bom := range boms {
+			for q := int32(0); q < bom.Quantity; q++ {
+				part := &models.Part{
+					ID:               uuid.New(),
+					PartCatalogID:    bom.PartCatalogID,
+					ProductID:        &p.ID,
+					SerialNumber:     fmt.Sprintf("PART-%s-%d", p.ID.String()[:8], q+1),
+					PartConditionID:  1,
+					ManufacturedDate: now,
+					InstallationDate: &now,
+					CreatedAt:        now,
+					UpdatedAt:        now,
+				}
+				_ = s.repo.CreatePart(ctx, part)
+			}
+		}
+	}
+	return nil
 }
 
 func (s *inventoryServiceRepo) GetProductModel(ctx context.Context, code string) (*models.ProductModel, error) {
@@ -517,6 +540,27 @@ func (s *inventoryService) UpdateProduct(ctx context.Context, id uuid.UUID, fiel
 func (s *inventoryService) CreateProduct(ctx context.Context, p *models.Product) error {
 	if err := s.db.WithContext(ctx).Create(p).Error; err != nil {
 		return err
+	}
+	// Auto-create parts from BOM (parts_by_model)
+	var boms []models.PartsByModel
+	if err := s.db.WithContext(ctx).Where("product_model_code = ?", p.ProductModelCode).Find(&boms).Error; err == nil {
+		now := time.Now()
+		for _, bom := range boms {
+			for q := int32(0); q < bom.Quantity; q++ {
+				part := models.Part{
+					ID:               uuid.New(),
+					PartCatalogID:    bom.PartCatalogID,
+					ProductID:        &p.ID,
+					SerialNumber:     fmt.Sprintf("PART-%s-%d", p.ID.String()[:8], q+1),
+					PartConditionID:  1,
+					ManufacturedDate: now,
+					InstallationDate: &now,
+					CreatedAt:        now,
+					UpdatedAt:        now,
+				}
+				_ = s.db.WithContext(ctx).Create(&part).Error
+			}
+		}
 	}
 	if s.cache != nil {
 		key := fmt.Sprintf("product:%s", p.ID.String())

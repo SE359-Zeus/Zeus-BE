@@ -152,11 +152,14 @@ func main() {
 	inventorySvc = service.NewCachedInventoryService(inventorySvc, productCache)
 	vendorSvc = service.NewCachedVendorService(vendorSvc, vendorCache, vendorRepo)
 
+	seedingSvc := service.NewSeedingService(inventorySvc)
+
 	vendorH := handler.NewVendorHandler(vendorSvc)
 	poH := handler.NewPOHandler(poSvc)
 	grH := handler.NewGoodsReceiptHandler(grSvc)
 	shipmentH := handler.NewShipmentHandler(shipmentSvc)
 	inventoryH := handler.NewInventoryHandler(inventorySvc)
+	seedingH := handler.NewSeedingHandler(seedingSvc)
 	lutH := handler.NewLUTHandler(lutSvc)
 	ledgerH := handler.NewLedgerHandler(ledgerSvc)
 
@@ -258,8 +261,6 @@ func main() {
 
 		api.GET("/inventory/products", middleware.RequireRoles(rolesWorker...), inventoryH.ListProducts)
 		api.GET("/inventory/products/:id", middleware.RequireRoles(rolesWorker...), inventoryH.GetProduct)
-		api.POST("/inventory/products", middleware.RequireRoles(rolesOperator...), inventoryH.CreateProduct)
-		api.POST("/inventory/products/register", middleware.RequireRoles(rolesOperator...), inventoryH.RegisterProduct)
 		api.PUT("/inventory/products/:id", middleware.RequireRoles(rolesOperator...), inventoryH.UpdateProduct)
 		api.GET("/inventory/product-models", middleware.RequireRoles(rolesWorker...), inventoryH.ListProductModels)
 		api.GET("/inventory/product-models/:code", middleware.RequireRoles(rolesWorker...), inventoryH.GetProductModel)
@@ -272,7 +273,6 @@ func main() {
 		api.GET("/inventory/export", middleware.RequireRoles(rolesWorker...), inventoryH.ExportInventoryReport)
 		api.GET("/inventory/parts", middleware.RequireRoles(rolesWorker...), inventoryH.ListParts)
 		api.GET("/inventory/parts/:id", middleware.RequireRoles(rolesWorker...), inventoryH.GetPart)
-		api.POST("/inventory/parts", middleware.RequireRoles(rolesOperator...), inventoryH.CreatePart)
 		api.PUT("/inventory/parts/:id", middleware.RequireRoles(rolesOperator...), inventoryH.UpdatePart)
 		api.PUT("/inventory/parts/:id/condition", middleware.RequireRoles(rolesOperator...), inventoryH.UpdatePartCondition)
 		api.POST("/inventory/parts/:id/scrap", middleware.RequireRoles(rolesWorker...), inventoryH.MarkPartScrapped)
@@ -287,6 +287,11 @@ func main() {
 
 		api.GET("/inventory/assets", middleware.RequireRoles(rolesWorker...), inventoryH.ListInventoryAssets)
 		api.GET("/inventory/assets/export", middleware.RequireRoles(rolesWorker...), inventoryH.ExportInventoryAssets)
+
+		// ── Seeding domain (product assembly) ───────────────────────────────
+		api.POST("/seeding/products", middleware.RequireRoles(rolesOperator...), seedingH.CreateProduct)
+		api.POST("/seeding/products/register", middleware.RequireRoles(rolesOperator...), seedingH.RegisterProduct)
+		api.POST("/seeding/parts", middleware.RequireRoles(rolesOperator...), seedingH.CreatePart)
 
 		api.GET("/luts", middleware.RequireRoles(rolesWorker...), lutH.GetAllLUTs)
 

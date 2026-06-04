@@ -62,6 +62,8 @@ type IInventoryRepository interface {
 	UpdatePart(ctx context.Context, id uuid.UUID, fields map[string]any) (int64, error)
 	UpdatePartFields(ctx context.Context, id uuid.UUID, updates map[string]interface{}) (int64, error)
 
+	GetPartsByModel(ctx context.Context, modelCode string) ([]models.PartsByModel, error)
+
 	GetPartCatalogByID(ctx context.Context, id uuid.UUID) (*models.PartCatalog, error)
 	ListPartCatalog(ctx context.Context, typeID *int32, params pagination.Params, q string) ([]models.PartCatalog, *pagination.Meta, error)
 	CreatePartCatalog(ctx context.Context, pc *models.PartCatalog) error

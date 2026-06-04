@@ -166,6 +166,14 @@ func (r *inventoryRepository) UpdatePartFields(ctx context.Context, id uuid.UUID
 	return result.RowsAffected, result.Error
 }
 
+func (r *inventoryRepository) GetPartsByModel(ctx context.Context, modelCode string) ([]models.PartsByModel, error) {
+	var boms []models.PartsByModel
+	if err := r.db.WithContext(ctx).Where("product_model_code = ?", modelCode).Find(&boms).Error; err != nil {
+		return nil, err
+	}
+	return boms, nil
+}
+
 func (r *inventoryRepository) GetPartCatalogByID(ctx context.Context, id uuid.UUID) (*models.PartCatalog, error) {
 	var c models.PartCatalog
 	if err := r.db.WithContext(ctx).First(&c, "id = ?", id).Error; err != nil {

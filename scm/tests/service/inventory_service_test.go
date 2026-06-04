@@ -62,9 +62,14 @@ func TestInventoryService_ListProducts_Success(t *testing.T) {
 
 func TestInventoryService_CreateProduct_Success(t *testing.T) {
 	svc, repo := setupInventorySvc()
-	p := &models.Product{ProductName: "New Product"}
+	p := &models.Product{ProductName: "New Product", ProductModelCode: "M100"}
+	catID := uuid.New()
 
 	repo.On("CreateProduct", anyCtx, p).Return(nil)
+	repo.On("GetPartsByModel", anyCtx, "M100").Return([]models.PartsByModel{
+		{PartCatalogID: catID, ProductModelCode: "M100", Quantity: 1},
+	}, nil)
+	repo.On("CreatePart", anyCtx, mock.AnythingOfType("*models.Part")).Return(nil)
 
 	err := svc.CreateProduct(context.Background(), p)
 	assert.NoError(t, err)
